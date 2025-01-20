@@ -8,7 +8,9 @@ import { useUser } from '@/contexts/UserContext'
 interface FeatureSection {
   title: string
   description: string
-  icon: string // Emoji icons for now, can be replaced with proper SVGs
+  shape: ShapeType
+  color: string
+  accentColor: string
 }
 
 // Shape types for Bauhaus design
@@ -32,22 +34,30 @@ const features: FeatureSection[] = [
   {
     title: 'Smart Ticketing',
     description: 'Automatically categorize and prioritize support requests using AI-powered analysis.',
-    icon: '🎯'
+    shape: 'circle',
+    color: '#4A90E2',
+    accentColor: '#FF7676'
   },
   {
     title: 'Team Collaboration',
     description: 'Work together seamlessly with real-time updates and shared ticket views.',
-    icon: '👥'
+    shape: 'triangle',
+    color: '#50C878',
+    accentColor: '#4A90E2'
   },
   {
     title: 'Customer Insights',
     description: 'Gain valuable insights into customer needs with detailed analytics and reporting.',
-    icon: '📊'
+    shape: 'rectangle',
+    color: '#FF7676',
+    accentColor: '#50C878'
   },
   {
     title: 'Multi-Channel Support',
     description: 'Handle requests from email, chat, and social media in one unified inbox.',
-    icon: '📱'
+    shape: 'diamond',
+    color: '#FFB347',
+    accentColor: '#4A90E2'
   }
 ]
 
@@ -221,16 +231,33 @@ export default function Home() {
             {features.map((feature, index) => (
               <motion.div
                 key={feature.title}
-                className="ocean-card"
+                className="ocean-card relative overflow-hidden group"
                 variants={itemVariants}
               >
-                <div className="text-4xl mb-4">{feature.icon}</div>
-                <h3 className="text-xl font-semibold mb-2 text-[#2C5282]">
-                  {feature.title}
-                </h3>
-                <p className="text-[#4A5568]">
-                  {feature.description}
-                </p>
+                {/* Bauhaus Shape */}
+                <div className="absolute -right-8 -top-8 transform rotate-12 transition-transform duration-300 group-hover:rotate-45">
+                  <BauhausShape 
+                    shape={feature.shape} 
+                    color={feature.color} 
+                    className="opacity-10"
+                  />
+                </div>
+                {/* Accent Shape */}
+                <div className="absolute -left-4 -bottom-4 transform -rotate-12 transition-transform duration-300 group-hover:-rotate-45">
+                  <BauhausShape 
+                    shape={feature.shape === 'circle' ? 'triangle' : 'circle'} 
+                    color={feature.accentColor} 
+                    className="opacity-5 scale-75"
+                  />
+                </div>
+                <div className="relative z-10">
+                  <h3 className="text-xl font-semibold mb-3 text-[#2C5282]">
+                    {feature.title}
+                  </h3>
+                  <p className="text-[#4A5568]">
+                    {feature.description}
+                  </p>
+                </div>
               </motion.div>
             ))}
           </div>
