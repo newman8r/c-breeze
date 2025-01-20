@@ -176,7 +176,7 @@ export default function Home() {
             ) : (
               <>
                 <Link 
-                  href="/auth"
+                  href="/auth/register"
                   className="wave-button text-lg px-8 py-3"
                 >
                   Start Free Trial
@@ -297,7 +297,7 @@ export default function Home() {
           </p>
           {!loading && !user && (
             <Link 
-              href="/auth"
+              href="/auth/register"
               className="wave-button text-lg px-8 py-3"
             >
               Get Started Free
