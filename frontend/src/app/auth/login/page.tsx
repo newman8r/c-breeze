@@ -138,6 +138,14 @@ export default function LoginPage() {
                 >
                   Sign up
                 </Link>
+                <div className="mt-2">
+                  <Link
+                    href="/auth/reset-password"
+                    className="text-[#4A90E2] hover:text-[#2C5282] transition-colors duration-300"
+                  >
+                    Forgot your password?
+                  </Link>
+                </div>
               </div>
             </form>
           </div>
