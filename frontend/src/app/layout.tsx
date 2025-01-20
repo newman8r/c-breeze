@@ -1,5 +1,6 @@
 import './globals.css'
 import { UserProvider } from '@/contexts/UserContext'
+import { RoleProvider } from '@/contexts/RoleContext'
 
 export const metadata = {
   title: 'Ocean Breeze Demo',
@@ -15,7 +16,9 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <UserProvider>
-          {children}
+          <RoleProvider>
+            {children}
+          </RoleProvider>
         </UserProvider>
       </body>
     </html>
