@@ -5,6 +5,7 @@ import { motion } from 'framer-motion'
 import { useRole } from '@/contexts/RoleContext'
 import { useRouter } from 'next/navigation'
 import { useEffect } from 'react'
+import Link from 'next/link'
 
 // Tab type definition
 type Tab = 'users' | 'employees' | 'ticketing' | 'automation' | 'billing'
@@ -44,6 +45,32 @@ export default function AdminPanel() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#E0F2F7] via-[#4A90E2]/10 to-[#F7F3E3] p-6">
       <div className="max-w-7xl mx-auto space-y-6">
+        {/* Back to Dashboard */}
+        <motion.div
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+        >
+          <Link 
+            href="/dashboard" 
+            className="inline-flex items-center text-[#2C5282] hover:text-[#4A90E2] transition-colors group"
+          >
+            <svg 
+              className="w-6 h-6 mr-2 transform group-hover:-translate-x-1 transition-transform" 
+              fill="none" 
+              stroke="currentColor" 
+              viewBox="0 0 24 24"
+            >
+              <path 
+                strokeLinecap="round" 
+                strokeLinejoin="round" 
+                strokeWidth={2} 
+                d="M10 19l-7-7m0 0l7-7m-7 7h18" 
+              />
+            </svg>
+            <span className="text-lg font-medium">Back to Dashboard</span>
+          </Link>
+        </motion.div>
+
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
