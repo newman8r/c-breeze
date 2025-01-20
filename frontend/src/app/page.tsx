@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import AuthPanel from '@/components/auth/AuthPanel'
 import { useUser } from '@/contexts/UserContext'
+import Link from 'next/link'
 
 interface Profile {
   id: string
@@ -106,12 +107,20 @@ export default function Home() {
         {user && (
           <div className="ocean-card mt-6">
             <h2 className="text-2xl font-semibold mb-4">Dashboard</h2>
-            <div className="text-lg text-[#4A90E2]">
+            <div className="text-lg text-[#4A90E2] mb-4">
               Total users: {totalUsers}
             </div>
-            <button className="wave-button w-full mt-4">
-              Get Started
-            </button>
+            <div className="flex flex-col gap-4">
+              <Link 
+                href="/profile" 
+                className="wave-button text-center"
+              >
+                Edit Profile
+              </Link>
+              <button className="wave-button w-full">
+                Get Started
+              </button>
+            </div>
           </div>
         )}
       </div>
