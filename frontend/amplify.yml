@@ -4,6 +4,7 @@ applications:
       phases:
         preBuild:
           commands:
+            - rm -rf node_modules .next
             - npm ci
         build:
           commands:
@@ -17,5 +18,4 @@ applications:
       cache:
         paths:
           - node_modules/**/*
-          - .next/cache/**/*
     appRoot: frontend 
