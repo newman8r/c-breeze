@@ -2,6 +2,8 @@
 
 The style for our app is Ocean/Beach inspired (but not nautical) - we want to use a lot of gradients that we find in those environments - the sand, from wet to dry - the blue sky, sometimes with clouds - the sea, from calm to stormy.
 
+We want to have a very 'card based' design - we want to use a lot of gradients and pastel colors and really make each card stand unique, yet fit the same style, which can be almost bauhaus or swiss modern, and generally have a very clean and modern look, but not afraid to use a bit of color and be bold or surprising.
+
 We want to use a lot of gradients and pastel colors.
 
 We want to use a lot of rounded corners and soft edges.
