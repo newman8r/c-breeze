@@ -40,21 +40,10 @@ export default function RegisterPage() {
 
       if (signUpError) throw signUpError
 
-      if (data) {
-        // Create initial profile
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .insert([
-            {
-              user_id: data.user?.id,
-              display_name: email.split('@')[0], // Use part before @ as display name
-            }
-          ])
-
-        if (profileError) throw profileError
-        
-        router.push('/dashboard')
-      }
+      // If signup successful, redirect to dashboard
+      // Profile can be created/updated later
+      router.push('/dashboard')
+      
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred during registration')
     } finally {
