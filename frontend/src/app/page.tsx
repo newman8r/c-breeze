@@ -5,25 +5,50 @@ import { supabase } from '@/lib/supabase'
 import AuthPanel from '@/components/auth/AuthPanel'
 import { useUser } from '@/contexts/UserContext'
 
-interface User {
+interface Profile {
   id: string
-  email: string
+  user_id: string
+  display_name: string
+  avatar_url: string | null
+  bio: string | null
   created_at: string
   updated_at: string
+}
+
+interface UserStats {
+  total_users: number
 }
 
 export default function Home() {
   const { user, loading: userLoading } = useUser()
   const [isConnected, setIsConnected] = useState<boolean | null>(null)
-  const [users, setUsers] = useState<User[]>([])
+  const [totalUsers, setTotalUsers] = useState<number>(0)
+  const [userProfile, setUserProfile] = useState<Profile | null>(null)
 
   useEffect(() => {
     async function checkConnection() {
       try {
-        const { data, error } = await supabase.from('users').select('*')
-        if (error) throw error
+        // Check connection and get total users
+        const { data: statsData, error: statsError } = await supabase
+          .from('user_statistics')
+          .select('total_users')
+          .single()
+        
+        if (statsError) throw statsError
+        setTotalUsers(statsData?.total_users || 0)
         setIsConnected(true)
-        setUsers(data || [])
+
+        // If user is logged in, get their profile
+        if (user) {
+          const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('user_id', user.id)
+            .single()
+          
+          if (profileError) throw profileError
+          setUserProfile(profile)
+        }
       } catch (error) {
         console.error('Error:', error)
         setIsConnected(false)
@@ -31,10 +56,11 @@ export default function Home() {
     }
 
     checkConnection()
-  }, [])
+  }, [user])
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
+    setUserProfile(null)
   }
 
   return (
@@ -59,7 +85,7 @@ export default function Home() {
               <div className="text-lg text-[#4A90E2]">
                 {user ? (
                   <>
-                    <p>Welcome, {user.email}</p>
+                    <p>Welcome, {userProfile?.display_name || user.email}</p>
                     <button
                       onClick={handleSignOut}
                       className="px-6 py-2 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors duration-300 mt-4"
@@ -81,7 +107,7 @@ export default function Home() {
           <div className="ocean-card mt-6">
             <h2 className="text-2xl font-semibold mb-4">Dashboard</h2>
             <div className="text-lg text-[#4A90E2]">
-              Users in database: {users.length}
+              Total users: {totalUsers}
             </div>
             <button className="wave-button w-full mt-4">
               Get Started
