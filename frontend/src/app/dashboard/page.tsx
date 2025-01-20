@@ -18,41 +18,80 @@ interface Profile {
   updated_at: string
 }
 
-// Mock data for demo purposes
-const mockStats = {
-  leads: {
-    total: 156,
-    new: 23,
-    qualified: 45,
-    conversion: 68
-  },
-  deals: {
-    total: 42,
-    value: 850000,
-    avgSize: 20238,
-    winRate: 65
-  },
+interface Activity {
+  type: 'ticket' | 'response' | 'chat' | 'automation'
+  title: string
+  description: string
+  time: string
+  status: string
+  source?: string
+  contact?: string
+  contactEmail?: string
+  company?: string
+  priority?: 'high' | 'medium' | 'low'
+  category?: string
+  assignee?: string
+  duration?: string
+  satisfaction?: number
+  accuracy?: string
+  categories?: string[]
+  aiConfidence?: 'high' | 'medium' | 'low'
+}
+
+interface Category {
+  name: string
+  count: number
+  trend: 'up' | 'down' | 'stable'
+}
+
+interface ChatMessage {
+  role: 'assistant' | 'user'
+  message: string
+}
+
+interface MockStats {
+  tickets: {
+    total: number
+    new: number
+    unassigned: number
+    urgent: number
+  }
+  support: {
+    avgResponseTime: string
+    satisfaction: number
+    resolvedToday: number
+    openTickets: number
+  }
   activities: {
-    today: 28,
-    upcoming: 15,
-    overdue: 7
-  },
+    today: number
+    upcoming: number
+    overdue: number
+    recent: Activity[]
+  }
   performance: {
-    meetings: 12,
-    emails: 145,
-    calls: 34
-  },
-  clients: [
-    { name: 'Tech Corp', status: 'active', value: 125000, lastContact: '2h ago' },
-    { name: 'Acme Inc', status: 'pending', value: 75000, lastContact: '1d ago' },
-    { name: 'Global Systems', status: 'active', value: 250000, lastContact: '4h ago' },
-    { name: 'Startup Labs', status: 'inactive', value: 50000, lastContact: '5d ago' },
-  ],
-  aiChat: [
-    { role: 'assistant', message: 'Hi! I can help you manage your deals and suggest next actions. What would you like to know?' },
-    { role: 'user', message: 'Show me priority tasks for today' },
-    { role: 'assistant', message: 'You have 3 high-priority tasks:\n1. Follow up with Tech Corp proposal\n2. Schedule demo with Acme Inc\n3. Review Global Systems contract' }
-  ]
+    resolvedTickets: number
+    avgResolutionTime: string
+    customerSatisfaction: number
+    automationRate: number
+  }
+  categories: Category[]
+  aiStats: {
+    categorizedTickets: number
+    autoResolved: number
+    suggestedResponses: number
+    accuracy: number
+  }
+  aiChat: ChatMessage[]
+  trends: {
+    topics: Array<{
+      topic: string
+      count: number
+      trend: 'up' | 'down' | 'stable'
+      sentiment: 'positive' | 'negative' | 'neutral'
+      keywords: string[]
+      timeframe: string
+    }>
+  }
 }
 
 // Decorative shape component
@@ -73,6 +112,153 @@ const BauhausShape = ({ color, type }: { color: string, type: 'circle' | 'triang
       return <div className="absolute w-20 h-12 opacity-10" style={{ backgroundColor: color }} />
     default:
       return null
+  }
+}
+
+// Mock data for demo purposes
+const mockStats: MockStats = {
+  tickets: {
+    total: 156,
+    new: 23,
+    unassigned: 12,
+    urgent: 5
+  },
+  support: {
+    avgResponseTime: '2.5h',
+    satisfaction: 95,
+    resolvedToday: 42,
+    openTickets: 38
+  },
+  activities: {
+    today: 28,
+    upcoming: 15,
+    overdue: 7,
+    recent: [
+      {
+        type: 'ticket',
+        title: 'Login Authentication Issue',
+        description: 'User unable to access dashboard after password reset',
+        time: '10 min ago',
+        status: 'urgent',
+        source: 'Email',
+        contact: 'Sarah Chen',
+        contactEmail: 'sarah.chen@techcorp.com',
+        company: 'Tech Corp',
+        priority: 'high',
+        category: 'Authentication',
+        assignee: 'Michael Wong'
+      },
+      {
+        type: 'response',
+        title: 'API Integration Support',
+        description: 'Provided documentation for webhook setup',
+        time: '1 hour ago',
+        status: 'resolved',
+        duration: '15 min',
+        source: 'Support Portal',
+        contact: 'John Smith',
+        contactEmail: 'j.smith@acme.com',
+        company: 'Acme Inc',
+        priority: 'medium',
+        category: 'API Support',
+        satisfaction: 5
+      },
+      {
+        type: 'chat',
+        title: 'Billing Inquiry',
+        description: 'Question about enterprise plan pricing',
+        time: '2 hours ago',
+        status: 'in_progress',
+        source: 'Live Chat',
+        contact: 'Lisa Park',
+        company: 'Startup Labs',
+        priority: 'medium',
+        category: 'Billing',
+        assignee: 'Alex Johnson'
+      },
+      {
+        type: 'automation',
+        title: 'Auto-categorized Tickets',
+        description: 'AI categorized 15 new support tickets',
+        time: '3 hours ago',
+        status: 'completed',
+        accuracy: '95%',
+        categories: ['Bug Report', 'Feature Request', 'Account Issues'],
+        aiConfidence: 'high'
+      },
+      {
+        type: 'ticket',
+        title: 'Data Export Not Working',
+        description: 'Export to CSV feature throwing 500 error',
+        time: '4 hours ago',
+        status: 'open',
+        source: 'API Monitor',
+        contact: 'Dev Team',
+        company: 'Global Systems',
+        priority: 'high',
+        category: 'Bug',
+        assignee: 'Technical Support'
+      }
+    ]
+  },
+  performance: {
+    resolvedTickets: 145,
+    avgResolutionTime: '3.2h',
+    customerSatisfaction: 4.8,
+    automationRate: 35
+  },
+  categories: [
+    { name: 'Authentication', count: 45, trend: 'up' },
+    { name: 'API Support', count: 32, trend: 'stable' },
+    { name: 'Billing', count: 28, trend: 'down' },
+    { name: 'Bug Reports', count: 51, trend: 'up' },
+  ],
+  aiStats: {
+    categorizedTickets: 234,
+    autoResolved: 89,
+    suggestedResponses: 156,
+    accuracy: 94
+  },
+  aiChat: [
+    { role: 'assistant', message: 'Hi! I can help you manage your support tickets and suggest solutions. What would you like to know?' },
+    { role: 'user', message: 'Show me urgent tickets' },
+    { role: 'assistant', message: 'You have 5 urgent tickets:\n1. Login Authentication Issue\n2. Data Export Error\n3. Payment Gateway Down' }
+  ],
+  trends: {
+    topics: [
+      {
+        topic: 'Login Issues',
+        count: 28,
+        trend: 'up',
+        sentiment: 'negative',
+        keywords: ['password reset', '2FA', 'authentication'],
+        timeframe: 'Last 2h'
+      },
+      {
+        topic: 'Mobile App Crashes',
+        count: 15,
+        trend: 'up',
+        sentiment: 'negative',
+        keywords: ['iOS 17', 'startup', 'black screen'],
+        timeframe: 'Last 1h'
+      },
+      {
+        topic: 'API Performance',
+        count: 12,
+        trend: 'stable',
+        sentiment: 'neutral',
+        keywords: ['timeout', 'latency', 'response time'],
+        timeframe: 'Last 3h'
+      },
+      {
+        topic: 'New Dashboard',
+        count: 8,
+        trend: 'down',
+        sentiment: 'positive',
+        keywords: ['UI', 'analytics', 'export'],
+        timeframe: 'Last 4h'
+      }
+    ]
   }
 }
 
@@ -169,43 +355,43 @@ export default function DashboardPage() {
           <div className="ocean-card relative overflow-hidden">
             <BauhausShape color="#FF7676" type="circle" />
             <div className="relative z-10">
-              <h3 className="text-lg font-medium text-[#4A5568]">Total Leads</h3>
-              <p className="text-3xl font-bold text-[#2C5282]">{mockStats.leads.total}</p>
-              <p className="text-sm text-[#FF7676]">+{mockStats.leads.new} new this week</p>
+              <h3 className="text-lg font-medium text-[#4A5568]">Open Tickets</h3>
+              <p className="text-3xl font-bold text-[#2C5282]">{mockStats.support.openTickets}</p>
+              <p className="text-sm text-[#FF7676]">{mockStats.tickets.urgent} urgent</p>
             </div>
           </div>
           
           <div className="ocean-card relative overflow-hidden">
             <BauhausShape color="#4A90E2" type="triangle" />
             <div className="relative z-10">
-              <h3 className="text-lg font-medium text-[#4A5568]">Active Deals</h3>
-              <p className="text-3xl font-bold text-[#2C5282]">{mockStats.deals.total}</p>
-              <p className="text-sm text-[#4A90E2]">${mockStats.deals.value.toLocaleString()}</p>
+              <h3 className="text-lg font-medium text-[#4A5568]">Avg Response Time</h3>
+              <p className="text-3xl font-bold text-[#2C5282]">{mockStats.support.avgResponseTime}</p>
+              <p className="text-sm text-[#4A90E2]">Target: 3h</p>
             </div>
           </div>
           
           <div className="ocean-card relative overflow-hidden">
             <BauhausShape color="#50C878" type="rectangle" />
             <div className="relative z-10">
-              <h3 className="text-lg font-medium text-[#4A5568]">Today's Tasks</h3>
-              <p className="text-3xl font-bold text-[#2C5282]">{mockStats.activities.today}</p>
-              <p className="text-sm text-[#50C878]">{mockStats.activities.upcoming} upcoming</p>
+              <h3 className="text-lg font-medium text-[#4A5568]">Resolved Today</h3>
+              <p className="text-3xl font-bold text-[#2C5282]">{mockStats.support.resolvedToday}</p>
+              <p className="text-sm text-[#50C878]">{mockStats.performance.automationRate}% automated</p>
             </div>
           </div>
           
           <div className="ocean-card relative overflow-hidden">
             <BauhausShape color="#FFB347" type="circle" />
             <div className="relative z-10">
-              <h3 className="text-lg font-medium text-[#4A5568]">Win Rate</h3>
-              <p className="text-3xl font-bold text-[#2C5282]">{mockStats.deals.winRate}%</p>
-              <p className="text-sm text-[#FFB347]">Last 30 days</p>
+              <h3 className="text-lg font-medium text-[#4A5568]">Satisfaction</h3>
+              <p className="text-3xl font-bold text-[#2C5282]">{mockStats.support.satisfaction}%</p>
+              <p className="text-sm text-[#FFB347]">Last 24 hours</p>
             </div>
           </div>
         </motion.div>
 
         {/* Main Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Pipeline Overview */}
+          {/* Ticket Feed */}
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -213,30 +399,42 @@ export default function DashboardPage() {
             className="ocean-card col-span-2"
           >
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold text-[#2C5282]">Pipeline Overview</h2>
-              <Link href="/pipeline" className="text-[#4A90E2] hover:text-[#2C5282] transition-colors">
-                View Full Pipeline →
+              <h2 className="text-xl font-bold text-[#2C5282]">Ticket Feed</h2>
+              <Link href="/tickets" className="text-[#4A90E2] hover:text-[#2C5282] transition-colors">
+                View All Tickets →
               </Link>
             </div>
-            <div className="grid grid-cols-4 gap-4 text-center">
-              {['Lead', 'Meeting', 'Proposal', 'Won'].map((stage, index) => (
-                <div key={stage} className="relative">
-                  <div className="h-2 bg-[#4A90E2]/20 rounded-full mb-2">
-                    <div 
-                      className="h-full bg-[#4A90E2] rounded-full"
-                      style={{ width: `${85 - (index * 20)}%` }}
-                    />
+            <div className="space-y-4">
+              {mockStats.activities.recent
+                .filter(activity => activity.type === 'ticket')
+                .map((ticket, index) => (
+                  <div key={index} className="p-4 bg-white/50 rounded-lg hover:bg-white/70 transition-colors">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h3 className="font-medium text-[#2C5282]">{ticket.title}</h3>
+                        <p className="text-sm text-[#4A5568] mt-1">{ticket.description}</p>
+                      </div>
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium
+                        ${ticket.priority === 'high' ? 'bg-[#FF7676]/10 text-[#FF7676]' :
+                          ticket.priority === 'medium' ? 'bg-[#FFB347]/10 text-[#FFB347]' :
+                          'bg-[#4A5568]/10 text-[#4A5568]'}`}
+                      >
+                        {ticket.priority}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 mt-2 text-xs text-[#4A5568]">
+                      <span>{ticket.time}</span>
+                      <span>•</span>
+                      <span>{ticket.assignee || 'Unassigned'}</span>
+                      <span>•</span>
+                      <span>{ticket.category}</span>
+                    </div>
                   </div>
-                  <p className="text-sm font-medium text-[#4A5568]">{stage}</p>
-                  <p className="text-lg font-bold text-[#2C5282]">
-                    {mockStats.leads.total - (index * 12)}
-                  </p>
-                </div>
-              ))}
+                ))}
             </div>
           </motion.div>
 
-          {/* Recent Activity */}
+          {/* Chat Overview */}
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -244,73 +442,104 @@ export default function DashboardPage() {
             className="ocean-card"
           >
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold text-[#2C5282]">Recent Activity</h2>
-              <Link href="/activities" className="text-[#4A90E2] hover:text-[#2C5282] transition-colors">
+              <h2 className="text-xl font-bold text-[#2C5282]">Active Chats</h2>
+              <Link href="/chats" className="text-[#4A90E2] hover:text-[#2C5282] transition-colors">
                 View All →
               </Link>
             </div>
             <div className="space-y-4">
-              {[
-                { type: 'email', text: 'Sent proposal to Tech Corp' },
-                { type: 'meeting', text: 'Call with John from Acme Inc' },
-                { type: 'task', text: 'Follow up with new leads' }
-              ].map((activity, index) => (
-                <div key={index} className="flex items-center gap-3">
-                  <span className="text-lg">{
-                    activity.type === 'email' ? '📧' :
-                    activity.type === 'meeting' ? '📞' : '✅'
-                  }</span>
-                  <p className="text-[#4A5568]">{activity.text}</p>
-                </div>
-              ))}
+              {mockStats.activities.recent
+                .filter(activity => activity.type === 'chat')
+                .map((chat, index) => (
+                  <div key={index} className="flex items-center gap-4 p-3 bg-white/50 rounded-lg hover:bg-white/70 transition-colors">
+                    <div className="w-2 h-2 rounded-full bg-[#50C878]" />
+                    <div className="flex-1">
+                      <p className="font-medium text-[#2C5282]">{chat.contact}</p>
+                      <p className="text-sm text-[#4A5568]">{chat.description}</p>
+                    </div>
+                    <span className="text-xs text-[#4A5568]">{chat.time}</span>
+                  </div>
+                ))}
             </div>
           </motion.div>
 
-          {/* Client List */}
+          {/* Social Feed */}
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
-            className="ocean-card col-span-2"
+            className="ocean-card"
           >
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold text-[#2C5282]">Key Clients</h2>
-              <Link href="/clients" className="text-[#4A90E2] hover:text-[#2C5282] transition-colors">
-                View All Clients →
+              <h2 className="text-xl font-bold text-[#2C5282]">Social Mentions</h2>
+              <Link href="/social" className="text-[#4A90E2] hover:text-[#2C5282] transition-colors">
+                View All →
               </Link>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="text-left text-sm text-[#4A5568]">
-                    <th className="pb-4">Client</th>
-                    <th className="pb-4">Status</th>
-                    <th className="pb-4">Value</th>
-                    <th className="pb-4">Last Contact</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#4A90E2]/10">
-                  {mockStats.clients.map((client, index) => (
-                    <tr key={index} className="group hover:bg-white/30 transition-colors">
-                      <td className="py-3 font-medium text-[#2C5282]">{client.name}</td>
-                      <td className="py-3">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                          ${client.status === 'active' ? 'bg-[#50C878]/10 text-[#50C878]' :
-                            client.status === 'pending' ? 'bg-[#FFB347]/10 text-[#FFB347]' :
-                            'bg-[#4A5568]/10 text-[#4A5568]'}`}>
-                          {client.status}
-                        </span>
-                      </td>
-                      <td className="py-3 text-[#4A5568]">${client.value.toLocaleString()}</td>
-                      <td className="py-3 text-sm text-[#4A5568]">{client.lastContact}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="space-y-4">
+              <div className="p-4 bg-white/50 rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-[#1DA1F2]">𝕏</span>
+                  <span className="text-sm font-medium text-[#4A5568]">@techuser</span>
+                </div>
+                <p className="text-sm text-[#4A5568]">Having issues with the latest update. Support team please help!</p>
+                <div className="flex items-center gap-2 mt-2 text-xs text-[#4A5568]">
+                  <span>2m ago</span>
+                  <span>•</span>
+                  <span className="text-[#4A90E2]">Reply</span>
+                </div>
+              </div>
+              <div className="p-4 bg-white/50 rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-[#4267B2]">f</span>
+                  <span className="text-sm font-medium text-[#4A5568]">Sarah Miller</span>
+                </div>
+                <p className="text-sm text-[#4A5568]">Great customer service experience today!</p>
+                <div className="flex items-center gap-2 mt-2 text-xs text-[#4A5568]">
+                  <span>15m ago</span>
+                  <span>•</span>
+                  <span className="text-[#4A90E2]">Reply</span>
+                </div>
+              </div>
             </div>
           </motion.div>
 
-          {/* AI Insights */}
+          {/* Knowledge Base */}
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5 }}
+            className="ocean-card"
+          >
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold text-[#2C5282]">Knowledge Base</h2>
+              <Link href="/kb" className="text-[#4A90E2] hover:text-[#2C5282] transition-colors">
+                View All →
+              </Link>
+            </div>
+            <div className="space-y-4">
+              <div className="p-4 bg-white/50 rounded-lg hover:bg-white/70 transition-colors">
+                <h3 className="font-medium text-[#2C5282]">Getting Started Guide</h3>
+                <p className="text-sm text-[#4A5568] mt-1">Basic setup and configuration steps</p>
+                <div className="flex items-center gap-2 mt-2 text-xs text-[#4A5568]">
+                  <span>Updated 2d ago</span>
+                  <span>•</span>
+                  <span>Views: 1.2k</span>
+                </div>
+              </div>
+              <div className="p-4 bg-white/50 rounded-lg hover:bg-white/70 transition-colors">
+                <h3 className="font-medium text-[#2C5282]">API Documentation</h3>
+                <p className="text-sm text-[#4A5568] mt-1">Integration guides and endpoints</p>
+                <div className="flex items-center gap-2 mt-2 text-xs text-[#4A5568]">
+                  <span>Updated 1w ago</span>
+                  <span>•</span>
+                  <span>Views: 3.4k</span>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Trending Topics */}
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -318,48 +547,108 @@ export default function DashboardPage() {
             className="ocean-card col-span-2"
           >
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold text-[#2C5282]">AI Insights</h2>
-              <Link href="/insights" className="text-[#4A90E2] hover:text-[#2C5282] transition-colors">
-                View All Insights →
+              <h2 className="text-xl font-bold text-[#2C5282]">Trending Topics</h2>
+              <Link href="/trends" className="text-[#4A90E2] hover:text-[#2C5282] transition-colors">
+                View Analysis →
               </Link>
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <div className="p-4 bg-white/50 rounded-lg">
-                <h3 className="text-[#FF7676] font-medium mb-2">High Priority</h3>
-                <p className="text-[#4A5568]">3 leads haven't been contacted in 7 days</p>
-              </div>
-              <div className="p-4 bg-white/50 rounded-lg">
-                <h3 className="text-[#50C878] font-medium mb-2">Opportunity</h3>
-                <p className="text-[#4A5568]">Tech Corp showing high engagement signals</p>
-              </div>
+              {mockStats.trends.topics.map((topic, index) => (
+                <div key={index} className="p-4 bg-white/50 rounded-lg hover:bg-white/70 transition-colors">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-medium text-[#2C5282]">{topic.topic}</h3>
+                      {topic.trend === 'up' && (
+                        <span className="text-[#FF7676]">↑</span>
+                      )}
+                      {topic.trend === 'down' && (
+                        <span className="text-[#50C878]">↓</span>
+                      )}
+                      {topic.trend === 'stable' && (
+                        <span className="text-[#4A90E2]">→</span>
+                      )}
+                    </div>
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium
+                      ${topic.sentiment === 'positive' ? 'bg-[#50C878]/10 text-[#50C878]' :
+                        topic.sentiment === 'negative' ? 'bg-[#FF7676]/10 text-[#FF7676]' :
+                        'bg-[#4A90E2]/10 text-[#4A90E2]'}`}
+                    >
+                      {topic.count} issues
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {topic.keywords.map((keyword, kidx) => (
+                      <span 
+                        key={kidx}
+                        className="px-2 py-1 bg-white/50 rounded-full text-xs text-[#4A5568]"
+                      >
+                        {keyword}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="text-xs text-[#4A5568] mt-2">
+                    Trending {topic.timeframe}
+                  </div>
+                </div>
+              ))}
             </div>
           </motion.div>
 
-          {/* Performance Metrics */}
+          {/* AI Agents */}
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.6 }}
-            className="ocean-card"
+            className="ocean-card col-span-2"
           >
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold text-[#2C5282]">Performance</h2>
-              <Link href="/performance" className="text-[#4A90E2] hover:text-[#2C5282] transition-colors">
-                Full Report →
+              <h2 className="text-xl font-bold text-[#2C5282]">AI Support Agents</h2>
+              <Link href="/ai-agents" className="text-[#4A90E2] hover:text-[#2C5282] transition-colors">
+                Manage Agents →
               </Link>
             </div>
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <span className="text-[#4A5568]">Meetings Scheduled</span>
-                <span className="text-[#2C5282] font-bold">{mockStats.performance.meetings}</span>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="p-4 bg-white/50 rounded-lg">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-8 h-8 rounded-full bg-[#4A90E2]/20 flex items-center justify-center">
+                    🤖
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-[#2C5282]">Technical Support AI</h3>
+                    <p className="text-xs text-[#4A5568]">Active</p>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-[#4A5568]">Tickets Handled</span>
+                    <span className="text-[#2C5282] font-medium">127</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-[#4A5568]">Avg Response Time</span>
+                    <span className="text-[#2C5282] font-medium">30s</span>
+                  </div>
+                </div>
               </div>
-              <div className="flex justify-between items-center">
-                <span className="text-[#4A5568]">Emails Sent</span>
-                <span className="text-[#2C5282] font-bold">{mockStats.performance.emails}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-[#4A5568]">Calls Made</span>
-                <span className="text-[#2C5282] font-bold">{mockStats.performance.calls}</span>
+              <div className="p-4 bg-white/50 rounded-lg">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-8 h-8 rounded-full bg-[#50C878]/20 flex items-center justify-center">
+                    🤖
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-[#2C5282]">Billing Support AI</h3>
+                    <p className="text-xs text-[#4A5568]">Active</p>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-[#4A5568]">Tickets Handled</span>
+                    <span className="text-[#2C5282] font-medium">89</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-[#4A5568]">Avg Response Time</span>
+                    <span className="text-[#2C5282] font-medium">45s</span>
+                  </div>
+                </div>
               </div>
             </div>
           </motion.div>
@@ -443,7 +732,7 @@ export default function DashboardPage() {
               className="overflow-hidden"
             >
               <div className="h-64 overflow-y-auto mb-4 space-y-4">
-                {mockStats.aiChat.map((message, index) => (
+                {mockStats.aiChat.map((message: ChatMessage, index: number) => (
                   <div key={index} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                     <div className={`max-w-[80%] p-3 rounded-lg ${
                       message.role === 'user' 
