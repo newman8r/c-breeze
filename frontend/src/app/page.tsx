@@ -149,6 +149,19 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#E0F2F7] via-[#4A90E2]/10 to-[#F7F3E3]">
+      {/* Login Button */}
+      {!loading && !user && (
+        <div className="absolute top-4 right-6">
+          <Link 
+            href="/auth/login"
+            className="text-sm px-4 py-1.5 text-[#4A90E2] hover:text-[#2C5282] border border-[#4A90E2]/20 
+                     rounded-full transition-colors duration-300 bg-white/50 backdrop-blur-sm"
+          >
+            Log in
+          </Link>
+        </div>
+      )}
+
       {/* Hero Section */}
       <motion.section 
         className="px-6 pt-20 pb-12 text-center"
