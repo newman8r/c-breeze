@@ -174,12 +174,20 @@ export default function Home() {
                 Go to Dashboard
               </Link>
             ) : (
-              <Link 
-                href="/auth"
-                className="wave-button text-lg px-8 py-3"
-              >
-                Start Free Trial
-              </Link>
+              <>
+                <Link 
+                  href="/auth"
+                  className="wave-button text-lg px-8 py-3"
+                >
+                  Start Free Trial
+                </Link>
+                <Link 
+                  href="/auth/demo"
+                  className="wave-button text-lg px-8 py-3 bg-[#FF7676] hover:bg-[#ff5252] text-white"
+                >
+                  Use Demo Account
+                </Link>
+              </>
             )
           )}
         </div>
