@@ -6,23 +6,129 @@ import { useRole } from '@/contexts/RoleContext'
 import { useRouter } from 'next/navigation'
 import { useEffect } from 'react'
 import Link from 'next/link'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import type { Database } from '@/lib/database.types'
+import { useUser } from '@/contexts/UserContext'
 
 // Tab type definition
 type Tab = 'users' | 'employees' | 'ticketing' | 'automation' | 'billing'
 
+interface ApiError {
+  error: string
+}
+
 export default function AdminPanel() {
   const router = useRouter()
-  const { role, isRootAdmin, loading } = useRole()
+  const { role, isRootAdmin, loading: roleLoading } = useRole()
+  const { user, supabase } = useUser()
   const [activeTab, setActiveTab] = useState<Tab>('users')
+  const [showInviteCard, setShowInviteCard] = useState(false)
+  const [inviteForm, setInviteForm] = useState({
+    name: '',
+    email: '',
+    role: 'employee' as 'admin' | 'employee'
+  })
+  const [inviteError, setInviteError] = useState<string | null>(null)
+  const [inviteSuccess, setInviteSuccess] = useState(false)
 
   // Protect route
   useEffect(() => {
-    if (!loading && role !== 'admin' && !isRootAdmin) {
+    if (!roleLoading && role !== 'admin' && !isRootAdmin) {
       router.push('/dashboard')
     }
-  }, [role, isRootAdmin, loading, router])
+  }, [role, isRootAdmin, roleLoading, router])
 
-  if (loading) {
+  // Test function
+  const testSession = async () => {
+    console.log('=== Testing Session State ===')
+    
+    // 1. Check user state from context
+    console.log('1. User from context:', {
+      exists: !!user,
+      id: user?.id,
+      email: user?.email
+    })
+
+    // 2. Direct session check
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+    console.log('2. Direct session check:', {
+      exists: !!session,
+      error: sessionError?.message,
+      token: session?.access_token ? 'present' : 'missing',
+      userId: session?.user?.id
+    })
+
+    // 3. Check local storage
+    const localStorageKeys = Object.keys(localStorage)
+      .filter(key => key.startsWith('sb-'))
+    console.log('3. Local storage keys:', localStorageKeys)
+
+    // 4. Try to get user directly
+    const { data: userData, error: userError } = await supabase.auth.getUser()
+    console.log('4. Direct user check:', {
+      exists: !!userData?.user,
+      error: userError?.message,
+      id: userData?.user?.id
+    })
+  }
+
+  const handleInviteSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    console.log('=== Starting Invite Submission ===')
+    setInviteError(null)
+    setInviteSuccess(false)
+
+    try {
+      if (!user) {
+        throw new Error('You must be logged in to send invitations')
+      }
+
+      // Get the current session instead of stored token
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      if (sessionError) throw sessionError
+      if (!session?.access_token) {
+        throw new Error('No active session found')
+      }
+
+      console.log('Using session token:', {
+        hasAccessToken: !!session.access_token,
+        tokenLength: session.access_token.length
+      })
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/create_invitation`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          invitee_email: inviteForm.email,
+          invitee_name: inviteForm.name,
+          role: inviteForm.role
+        })
+      })
+
+      const data = await response.json()
+      console.log('Invitation response:', data)
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to send invitation')
+      }
+
+      setInviteSuccess(true)
+      setInviteForm({ name: '', email: '', role: 'employee' })
+      setTimeout(() => setShowInviteCard(false), 2000)
+    } catch (err) {
+      console.error('Invitation error:', err)
+      if (err instanceof Error) {
+        setInviteError(err.message)
+      } else {
+        setInviteError('An unexpected error occurred')
+      }
+    }
+  }
+
+  if (roleLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-[#E0F2F7] via-[#4A90E2]/10 to-[#F7F3E3] p-6">
         <div className="max-w-7xl mx-auto">
@@ -45,6 +151,17 @@ export default function AdminPanel() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#E0F2F7] via-[#4A90E2]/10 to-[#F7F3E3] p-6">
       <div className="max-w-7xl mx-auto space-y-6">
+        {/* Test Button */}
+        <div className="ocean-card">
+          <h2 className="text-xl font-bold text-[#2C5282] mb-4">Debug Tools</h2>
+          <button
+            onClick={testSession}
+            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          >
+            Test Session State
+          </button>
+        </div>
+
         {/* Back to Dashboard */}
         <motion.div
           initial={{ opacity: 0, x: -20 }}
@@ -117,8 +234,94 @@ export default function AdminPanel() {
               >
                 <div className="flex justify-between items-center">
                   <h2 className="text-xl font-bold text-[#2C5282]">User Management</h2>
-                  <button className="wave-button px-4 py-2">Add User</button>
+                  <button 
+                    className="wave-button px-4 py-2"
+                    onClick={() => setShowInviteCard(true)}
+                  >
+                    Add User
+                  </button>
                 </div>
+
+                {/* Invite User Card */}
+                {showInviteCard && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="ocean-card bg-white/50"
+                  >
+                    <div className="flex justify-between items-start mb-4">
+                      <h3 className="text-lg font-medium text-[#2C5282]">Invite New User</h3>
+                      <button 
+                        onClick={() => setShowInviteCard(false)}
+                        className="text-[#4A5568] hover:text-[#2C5282]"
+                      >
+                        ✕
+                      </button>
+                    </div>
+
+                    <form onSubmit={handleInviteSubmit} className="space-y-4">
+                      <div>
+                        <label className="block text-sm text-[#4A5568] mb-1">Name</label>
+                        <input
+                          type="text"
+                          value={inviteForm.name}
+                          onChange={(e) => setInviteForm(prev => ({ ...prev, name: e.target.value }))}
+                          className="w-full px-3 py-2 rounded border border-[#4A90E2]/20"
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm text-[#4A5568] mb-1">Email</label>
+                        <input
+                          type="email"
+                          value={inviteForm.email}
+                          onChange={(e) => setInviteForm(prev => ({ ...prev, email: e.target.value }))}
+                          className="w-full px-3 py-2 rounded border border-[#4A90E2]/20"
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm text-[#4A5568] mb-1">Role</label>
+                        <select
+                          value={inviteForm.role}
+                          onChange={(e) => setInviteForm(prev => ({ ...prev, role: e.target.value as 'admin' | 'employee' }))}
+                          className="w-full px-3 py-2 rounded border border-[#4A90E2]/20"
+                          required
+                        >
+                          <option value="employee">Employee</option>
+                          <option value="admin">Admin</option>
+                        </select>
+                      </div>
+
+                      {inviteError && (
+                        <div className="text-[#FF7676] text-sm">{inviteError}</div>
+                      )}
+
+                      {inviteSuccess && (
+                        <div className="text-[#50C878] text-sm">Invitation sent successfully!</div>
+                      )}
+
+                      <div className="flex justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowInviteCard(false)}
+                          className="px-4 py-2 text-[#4A5568] hover:text-[#2C5282]"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          className="wave-button px-4 py-2"
+                        >
+                          Send Invitation
+                        </button>
+                      </div>
+                    </form>
+                  </motion.div>
+                )}
+
                 <div className="bg-white/50 rounded-lg p-4">
                   <table className="w-full">
                     <thead>

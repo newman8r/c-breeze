@@ -128,6 +128,9 @@ serve(async (req) => {
       } as SendEmailRequest)
     })
 
+    const emailData = await emailRes.json()
+    console.log('Email response:', emailData)
+
     if (!emailRes.ok) {
       // If email fails, invalidate the invitation
       await supabaseClient
@@ -135,8 +138,7 @@ serve(async (req) => {
         .update({ is_invalidated: true })
         .eq('id', invitation.id)
 
-      const emailData = await emailRes.json()
-      throw new Error(`Failed to send invitation email: ${emailData.error || 'Unknown error'}`)
+      throw new Error(`Failed to send invitation email: ${emailData.error || JSON.stringify(emailData)}`)
     }
 
     return new Response(
