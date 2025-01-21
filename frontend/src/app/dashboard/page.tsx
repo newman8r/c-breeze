@@ -89,8 +89,8 @@ type ZoomLevel = 1 | 2 | 3;
 
 const isExpandedView = (zoom: ZoomLevel) => zoom === 1 || zoom === 2;
 
-const getZoomStyles = (zoomLevel: ZoomLevel) => {
-  switch (zoomLevel) {
+const getZoomStyles = (zoom: ZoomLevel) => {
+  switch (zoom) {
     case 1: // Full detail view
       return {
         grid: 'grid-cols-1',
@@ -204,46 +204,6 @@ const GeometricDivider = () => (
   </div>
 );
 
-// Add status indicator component
-const StatusIndicator = ({ status }: { status: string }) => {
-  const statusColors = {
-    urgent: '#FF7676',
-    in_progress: '#4A90E2',
-    resolved: '#50C878',
-    open: '#FFB347',
-  };
-  
-  const statusShapes = {
-    urgent: 'triangle',
-    in_progress: 'circle',
-    resolved: 'rectangle',
-    open: 'circle',
-  };
-
-  return (
-    <div className="relative">
-      {statusShapes[status as keyof typeof statusShapes] === 'triangle' && (
-        <div
-          className="w-3 h-3 transform rotate-45"
-          style={{ backgroundColor: statusColors[status as keyof typeof statusColors] }}
-        />
-      )}
-      {statusShapes[status as keyof typeof statusShapes] === 'circle' && (
-        <div
-          className="w-3 h-3 rounded-full"
-          style={{ backgroundColor: statusColors[status as keyof typeof statusColors] }}
-        />
-      )}
-      {statusShapes[status as keyof typeof statusShapes] === 'rectangle' && (
-        <div
-          className="w-3 h-3"
-          style={{ backgroundColor: statusColors[status as keyof typeof statusColors] }}
-        />
-      )}
-    </div>
-  );
-};
-
 // Update the mockStats object to use the imported data
 const mockStats: MockStats = {
   tickets: {
@@ -325,24 +285,64 @@ const mockStats: MockStats = {
   }
 }
 
-// Add new color mapping for ticket backgrounds
-const getTicketColor = (priority: string | undefined, status: string) => {
-  // If the ticket is resolved, show it in green regardless of priority
+// Update color mapping for ticket backgrounds
+const getTicketColor = (priority: string | undefined, status: string, isHeatmap: boolean = false) => {
+  // For heatmap view (level 3), use pastel colors
+  if (isHeatmap) {
+    switch (priority) {
+      case 'urgent':
+        return 'bg-[#FFE4E4]'; // Pastel red for urgent
+      case 'high':
+        return 'bg-[#FFD4D4]'; // Light pastel red for high
+      case 'medium':
+        return 'bg-[#FFE8CC]'; // Pastel orange for medium
+      case 'low':
+        return 'bg-[#E3F0FF]'; // Pastel blue for low
+      default:
+        return 'bg-[#FFE8CC]'; // Default to medium priority color
+    }
+  }
+
+  // For non-heatmap views, keep existing behavior
   if (status === 'resolved') return 'bg-[#50C878]/20 hover:bg-[#50C878]/30';
   
-  // For non-resolved tickets, use priority-based colors
   switch (priority) {
     case 'urgent':
-      return 'bg-[#FF4242]/20 hover:bg-[#FF4242]/30'; // Bright red for urgent
+      return 'bg-[#FF4242]/20 hover:bg-[#FF4242]/30';
     case 'high':
-      return 'bg-[#FF7676]/20 hover:bg-[#FF7676]/30'; // Softer red for high
+      return 'bg-[#FF7676]/20 hover:bg-[#FF7676]/30';
     case 'medium':
-      return 'bg-[#FFB347]/20 hover:bg-[#FFB347]/30'; // Orange for medium
+      return 'bg-[#FFB347]/20 hover:bg-[#FFB347]/30';
     case 'low':
-      return 'bg-[#4A90E2]/20 hover:bg-[#4A90E2]/30'; // Blue for low
+      return 'bg-[#4A90E2]/20 hover:bg-[#4A90E2]/30';
     default:
-      return 'bg-[#FFB347]/20 hover:bg-[#FFB347]/30'; // Default to medium priority color
+      return 'bg-[#FFB347]/20 hover:bg-[#FFB347]/30';
   }
+};
+
+// Update status indicator component
+const StatusIndicator = ({ status, isHeatmap = false }: { status: string, isHeatmap?: boolean }) => {
+  const statusColors = {
+    open: isHeatmap ? '#FF4242' : '#FFB347', // Red for open in heatmap, orange otherwise
+    in_progress: '#4A90E2',
+    resolved: '#50C878',
+    closed: '#718096'
+  };
+
+  // Treat 'urgent' status as 'open'
+  const normalizedStatus = status === 'urgent' ? 'open' : status;
+
+  return (
+    <div className="relative">
+      <div
+        className={`w-3 h-3 rounded-full ${isHeatmap ? 'bg-white' : ''}`}
+        style={{ 
+          backgroundColor: statusColors[normalizedStatus as keyof typeof statusColors] || statusColors.open,
+          opacity: isHeatmap ? 0.9 : 1
+        }}
+      />
+    </div>
+  );
 };
 
 // Add new interface for ticket creation form
@@ -821,7 +821,7 @@ export default function DashboardPage() {
                         animate="enter"
                         exit="exit"
                         className={`${getZoomStyles(zoomLevel).padding} rounded-md cursor-pointer relative
-                          ${getTicketColor(ticket.priority, ticket.status)}
+                          ${zoomLevel === 3 ? getTicketColor(ticket.priority, ticket.status, true) : getTicketColor(ticket.priority, ticket.status)}
                           ${expandedTickets[ticket.id] && isExpandedView(zoomLevel) ? (zoomLevel === 1 ? 'col-span-full' : 'col-span-2 row-span-2') : ''}
                           ${zoomLevel === 1 ? 'w-full' : ''}
                           ${zoomLevel === 3 ? 'w-6 h-6 group hover:z-10 shrink-0' : ''}
@@ -835,14 +835,36 @@ export default function DashboardPage() {
                         {zoomLevel === 3 ? (
                           <>
                             <div className="absolute inset-0 flex items-center justify-center">
-                              <StatusIndicator status={ticket.status} />
+                              <StatusIndicator status={ticket.status} isHeatmap={true} />
                             </div>
                             <div className="opacity-0 group-hover:opacity-100 absolute z-[100] bottom-full left-1/2 -translate-x-1/2 mb-1 w-48 p-2 bg-white rounded-lg shadow-lg text-xs transition-opacity duration-200 pointer-events-none">
                               <h4 className="font-medium text-[#2C5282] mb-1 truncate">{ticket.title}</h4>
                               <p className="text-[#4A5568] text-[10px] mb-1 truncate">{ticket.description}</p>
-                              <div className="flex justify-between text-[10px] text-[#4A5568]">
-                                <span>{new Date(ticket.created_at).toLocaleString()}</span>
-                                <span className="capitalize">{ticket.status}</span>
+                              <div className="flex flex-col gap-1 text-[10px] text-[#4A5568]">
+                                <div className="flex justify-between items-center">
+                                  <span>{new Date(ticket.created_at).toLocaleString()}</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                  <div className="flex items-center gap-1">
+                                    <span>Status:</span>
+                                    <span className="capitalize">{ticket.status}</span>
+                                    <div className="w-2 h-2 rounded-full" style={{ 
+                                      backgroundColor: ticket.status === 'urgent' ? '#FF4242' :
+                                                     ticket.status === 'in_progress' ? '#4A90E2' :
+                                                     ticket.status === 'resolved' ? '#50C878' :
+                                                     ticket.status === 'closed' ? '#718096' : '#FFB347'
+                                    }} />
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <span>Priority:</span>
+                                    <span className="capitalize">{ticket.priority}</span>
+                                    <div className="w-2 h-2 rounded-full" style={{ 
+                                      backgroundColor: ticket.priority === 'urgent' ? '#FFE4E4' :
+                                                     ticket.priority === 'high' ? '#FFD4D4' :
+                                                     ticket.priority === 'low' ? '#E3F0FF' : '#FFE8CC'
+                                    }} />
+                                  </div>
+                                </div>
                               </div>
                             </div>
                           </>
