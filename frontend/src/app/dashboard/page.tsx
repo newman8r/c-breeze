@@ -101,7 +101,7 @@ interface ExpandedStates {
   [key: string]: boolean;
 }
 
-// Add zoom level type and helper functions
+// Update the ZoomLevel type definition
 type ZoomLevel = 1 | 2 | 3;
 
 const getZoomStyles = (zoomLevel: ZoomLevel) => {
@@ -111,24 +111,80 @@ const getZoomStyles = (zoomLevel: ZoomLevel) => {
         grid: 'grid-cols-1',
         padding: 'p-4',
         text: 'text-sm',
-        description: 'line-clamp-2',
-        showExtra: true
+        description: 'line-clamp-3',
+        showExtra: true,
+        variants: {
+          container: {
+            enter: { opacity: 1, transition: { staggerChildren: 0.1 } },
+            exit: { opacity: 0, transition: { staggerChildren: 0.05 } }
+          },
+          item: {
+            enter: { 
+              opacity: 1, 
+              scale: 1, 
+              width: '100%',
+              transition: { type: "spring", stiffness: 300, damping: 25 } 
+            },
+            exit: { 
+              opacity: 0, 
+              scale: 0.95,
+              width: '100%',
+              transition: { type: "spring", stiffness: 300, damping: 25 } 
+            }
+          }
+        }
       };
     case 2: // Current square view
       return {
-        grid: 'grid-cols-3 md:grid-cols-4 lg:grid-cols-6',
-        padding: 'p-2',
+        grid: 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4',
+        padding: 'p-3',
         text: 'text-xs',
         description: 'line-clamp-1',
-        showExtra: false
+        showExtra: false,
+        variants: {
+          container: {
+            enter: { opacity: 1, transition: { staggerChildren: 0.05 } },
+            exit: { opacity: 0, transition: { staggerChildren: 0.02 } }
+          },
+          item: {
+            enter: { 
+              opacity: 1, 
+              scale: 1,
+              transition: { type: "spring", stiffness: 400, damping: 30 } 
+            },
+            exit: { 
+              opacity: 0, 
+              scale: 0.9,
+              transition: { type: "spring", stiffness: 400, damping: 30 } 
+            }
+          }
+        }
       };
     case 3: // Heat map view
       return {
-        grid: 'grid-cols-4 md:grid-cols-6 lg:grid-cols-8',
-        padding: 'p-1',
+        grid: 'grid grid-cols-8 md:grid-cols-10 lg:grid-cols-12 auto-rows-[24px] [grid-auto-columns:24px]',
+        padding: 'p-0',
         text: 'text-[10px]',
         description: 'hidden',
-        showExtra: false
+        showExtra: false,
+        variants: {
+          container: {
+            enter: { opacity: 1, transition: { staggerChildren: 0.01 } },
+            exit: { opacity: 0, transition: { staggerChildren: 0.01 } }
+          },
+          item: {
+            enter: { 
+              opacity: 1, 
+              scale: 1,
+              transition: { type: "spring", stiffness: 500, damping: 35 } 
+            },
+            exit: { 
+              opacity: 0, 
+              scale: 0.85,
+              transition: { type: "spring", stiffness: 500, damping: 35 } 
+            }
+          }
+        }
       };
   }
 };
@@ -546,6 +602,136 @@ const mockStats: MockStats = {
         priority: 'high',
         category: 'Security',
         assignee: 'Security Ops'
+      },
+      {
+        type: 'ticket',
+        title: 'Memory Leak Investigation',
+        description: 'Production servers showing increased memory usage',
+        time: '25 hours ago',
+        status: 'urgent',
+        source: 'Monitoring',
+        contact: 'DevOps Team',
+        company: 'Internal',
+        priority: 'high',
+        category: 'Infrastructure',
+        assignee: 'Performance Team'
+      },
+      {
+        type: 'ticket',
+        title: 'User Session Sync Issues',
+        description: 'Multiple sessions not syncing properly',
+        time: '26 hours ago',
+        status: 'in_progress',
+        source: 'Support Portal',
+        contact: 'Auth Team',
+        company: 'Internal',
+        priority: 'medium',
+        category: 'Authentication',
+        assignee: 'Session Management'
+      },
+      {
+        type: 'ticket',
+        title: 'Database Backup Failure',
+        description: 'Nightly backup job failed to complete',
+        time: '27 hours ago',
+        status: 'resolved',
+        source: 'Automated Alert',
+        contact: 'DBA Team',
+        company: 'Internal',
+        priority: 'high',
+        category: 'Database',
+        assignee: 'Backup Team'
+      },
+      {
+        type: 'ticket',
+        title: 'API Rate Limit Increase',
+        description: 'Customer requesting higher API limits',
+        time: '28 hours ago',
+        status: 'open',
+        source: 'Email',
+        contact: 'Enterprise Support',
+        company: 'BigCorp Inc',
+        priority: 'low',
+        category: 'API',
+        assignee: null
+      },
+      {
+        type: 'ticket',
+        title: 'Mobile App Crash Reports',
+        description: 'Spike in crash reports after latest release',
+        time: '29 hours ago',
+        status: 'urgent',
+        source: 'Crash Reporter',
+        contact: 'Mobile Team',
+        company: 'Internal',
+        priority: 'high',
+        category: 'Mobile',
+        assignee: 'Mobile Support'
+      },
+      {
+        type: 'ticket',
+        title: 'Payment Gateway Integration',
+        description: 'New payment provider setup needed',
+        time: '30 hours ago',
+        status: 'in_progress',
+        source: 'Project Management',
+        contact: 'Finance Team',
+        company: 'Internal',
+        priority: 'medium',
+        category: 'Integration',
+        assignee: 'Payment Systems'
+      },
+      {
+        type: 'ticket',
+        title: 'Customer Data Export',
+        description: 'GDPR data export request',
+        time: '31 hours ago',
+        status: 'open',
+        source: 'Legal',
+        contact: 'Privacy Team',
+        company: 'Internal',
+        priority: 'high',
+        category: 'Compliance',
+        assignee: 'Data Protection'
+      },
+      {
+        type: 'ticket',
+        title: 'Search Index Optimization',
+        description: 'Search results showing high latency',
+        time: '32 hours ago',
+        status: 'in_progress',
+        source: 'Performance Monitor',
+        contact: 'Search Team',
+        company: 'Internal',
+        priority: 'medium',
+        category: 'Performance',
+        assignee: 'Search Ops'
+      },
+      {
+        type: 'ticket',
+        title: 'SSL Certificate Renewal',
+        description: 'Multiple domains need certificate updates',
+        time: '33 hours ago',
+        status: 'resolved',
+        source: 'Security Scanner',
+        contact: 'Security Team',
+        company: 'Internal',
+        priority: 'high',
+        category: 'Security',
+        assignee: 'Security Ops'
+      },
+      {
+        type: 'ticket',
+        title: 'Load Balancer Configuration',
+        description: 'New region traffic routing setup',
+        time: '34 hours ago',
+        status: 'open',
+        source: 'Infrastructure',
+        contact: 'Network Team',
+        company: 'Internal',
+        priority: 'medium',
+        category: 'Infrastructure',
+        assignee: 'Network Ops'
       }
     ]
   },
@@ -782,7 +968,7 @@ export default function DashboardPage() {
             transition={{ delay: 0.2 }}
             className="ocean-card col-span-2"
           >
-            <div className="flex justify-between items-center mb-6">
+            <div className="flex justify-between items-center mb-6 relative z-10">
               <div>
                 <h2 className="text-xl font-bold text-[#2C5282]">Ticket Feed</h2>
                 <p className="text-sm text-[#4A5568]">
@@ -824,73 +1010,121 @@ export default function DashboardPage() {
                 </Link>
               </div>
             </div>
-            <div className="max-h-[600px] overflow-y-auto pr-2">
+            <div className="max-h-[600px] overflow-visible">
               <motion.div 
-                layout
-                className={`grid ${getZoomStyles(zoomLevel).grid} gap-2`}
+                key={`container-zoom-${zoomLevel}`}
+                layout={false}
+                initial="exit"
+                animate="enter"
+                exit="exit"
+                variants={getZoomStyles(zoomLevel).variants.container}
+                className={`grid ${getZoomStyles(zoomLevel).grid} ${zoomLevel === 1 ? 'gap-3' : zoomLevel === 2 ? 'gap-2' : 'gap-0'} 
+                  ${zoomLevel === 3 ? 'w-fit mx-auto bg-gray-50/50 p-2 rounded-lg relative' : ''}`}
               >
                 {mockStats.activities.recent
                   .filter(activity => activity.type === 'ticket')
                   .map((ticket, index) => (
                     <motion.div
-                      key={index}
-                      layout
-                      className={`${getZoomStyles(zoomLevel).padding} rounded-lg cursor-pointer transition-all duration-200
+                      key={`ticket-${index}-zoom-${zoomLevel}`}
+                      layout={false}
+                      variants={getZoomStyles(zoomLevel).variants.item}
+                      initial="exit"
+                      animate="enter"
+                      exit="exit"
+                      className={`${getZoomStyles(zoomLevel).padding} rounded-md cursor-pointer relative
                         ${getTicketColor(ticket.priority, ticket.status)}
-                        ${expandedTickets[`ticket-${index}`] && zoomLevel !== 3 ? 'col-span-2 row-span-2 z-10' : ''}`}
+                        ${expandedTickets[`ticket-${index}`] && zoomLevel !== 3 ? (zoomLevel === 1 ? 'col-span-full' : 'col-span-2 row-span-2') : ''}
+                        ${zoomLevel === 1 ? 'w-full' : ''}
+                        ${zoomLevel === 3 ? 'w-6 h-6 group hover:z-10 shrink-0' : ''}
+                        min-h-[${zoomLevel === 1 ? '120px' : zoomLevel === 2 ? '80px' : '24px'}]
+                        flex flex-col`}
                       onClick={() => zoomLevel !== 3 && toggleTicketExpansion(`ticket-${index}`)}
                     >
-                      <motion.div layout className="flex flex-col min-h-0">
-                        <h3 className={`font-medium text-[#2C5282] ${getZoomStyles(zoomLevel).text} leading-tight truncate`}>
-                          {ticket.title}
-                        </h3>
-                        {(zoomLevel === 1 || (!expandedTickets[`ticket-${index}`] && zoomLevel === 2)) && (
-                          <div className="flex items-center justify-between mt-1">
-                            <span className={`${getZoomStyles(zoomLevel).text} text-[#4A5568]`}>{ticket.time}</span>
-                            {zoomLevel === 1 && (
-                              <>
-                                <span className={`${getZoomStyles(zoomLevel).text} text-[#4A5568]`}>{ticket.status}</span>
-                                <span className={`${getZoomStyles(zoomLevel).text} text-[#4A5568]`}>{ticket.category}</span>
-                              </>
-                            )}
-                            {zoomLevel === 2 && (
-                              <span className={`${getZoomStyles(zoomLevel).text} text-[#4A5568]`}>{ticket.category}</span>
-                            )}
+                      {zoomLevel === 3 ? (
+                        <>
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <StatusIndicator status={ticket.status} />
                           </div>
-                        )}
-                        {zoomLevel === 1 && (
-                          <p className={`text-[#4A5568] mt-1 ${getZoomStyles(zoomLevel).description}`}>
-                            {ticket.description}
-                          </p>
-                        )}
-                        {expandedTickets[`ticket-${index}`] && zoomLevel !== 3 && (
-                          <motion.div
-                            initial={false}
-                            animate={{ opacity: 1 }}
-                            className="mt-2 text-xs"
-                          >
-                            <p className="text-[#4A5568] mb-2">{ticket.description}</p>
-                            <div className="grid grid-cols-2 gap-1 text-[10px]">
-                              <div>
-                                <p className="font-medium text-[#4A5568]">Contact</p>
-                                <p className="truncate">{ticket.contact}</p>
-                              </div>
-                              <div>
-                                <p className="font-medium text-[#4A5568]">Company</p>
-                                <p className="truncate">{ticket.company}</p>
-                              </div>
-                              <div>
-                                <p className="font-medium text-[#4A5568]">Status</p>
-                                <p>{ticket.status}</p>
-                              </div>
-                              <div>
-                                <p className="font-medium text-[#4A5568]">Assignee</p>
-                                <p className="truncate">{ticket.assignee || 'Unassigned'}</p>
-                              </div>
+                          <div className="opacity-0 group-hover:opacity-100 absolute z-[100] bottom-full left-1/2 -translate-x-1/2 mb-1 w-48 p-2 bg-white rounded-lg shadow-lg text-xs transition-opacity duration-200 pointer-events-none">
+                            <h4 className="font-medium text-[#2C5282] mb-1 truncate">{ticket.title}</h4>
+                            <p className="text-[#4A5568] text-[10px] mb-1 truncate">{ticket.description}</p>
+                            <div className="flex justify-between text-[10px] text-[#4A5568]">
+                              <span>{ticket.time}</span>
+                              <span className="capitalize">{ticket.status}</span>
                             </div>
-                          </motion.div>
-                        )}
-                      </motion.div>
+                          </div>
+                        </>
+                      ) : (
+                        <motion.div 
+                          key={`content-${index}-zoom-${zoomLevel}`}
+                          className="flex flex-col h-full"
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          transition={{ duration: 0.2 }}
+                        >
+                          <h3 className={`font-medium text-[#2C5282] ${getZoomStyles(zoomLevel).text} leading-tight truncate mb-1`}>
+                            {ticket.title}
+                          </h3>
+                          {(zoomLevel === 1 || (!expandedTickets[`ticket-${index}`] && zoomLevel === 2)) && (
+                            <motion.div 
+                              initial={{ opacity: 0 }}
+                              animate={{ opacity: 1 }}
+                              transition={{ delay: 0.1 }}
+                              className="flex items-center justify-between mt-auto space-x-2"
+                            >
+                              <span className={`${getZoomStyles(zoomLevel).text} text-[#4A5568] truncate flex-shrink-0`}>{ticket.time}</span>
+                              {zoomLevel === 1 && (
+                                <>
+                                  <span className={`${getZoomStyles(zoomLevel).text} text-[#4A5568] truncate`}>{ticket.status}</span>
+                                  <span className={`${getZoomStyles(zoomLevel).text} text-[#4A5568] truncate`}>{ticket.category}</span>
+                                </>
+                              )}
+                              {zoomLevel === 2 && (
+                                <span className={`${getZoomStyles(zoomLevel).text} text-[#4A5568] truncate`}>{ticket.category}</span>
+                              )}
+                            </motion.div>
+                          )}
+                          {zoomLevel === 1 && (
+                            <motion.p 
+                              initial={{ opacity: 0 }}
+                              animate={{ opacity: 1 }}
+                              transition={{ delay: 0.2 }}
+                              className={`text-[#4A5568] mt-1 ${getZoomStyles(zoomLevel).description} text-xs`}
+                            >
+                              {ticket.description}
+                            </motion.p>
+                          )}
+                          {expandedTickets[`ticket-${index}`] && zoomLevel !== 3 && (
+                            <motion.div
+                              initial={{ opacity: 0, y: -10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                              className="mt-2 space-y-2"
+                            >
+                              <p className="text-xs text-[#4A5568] line-clamp-2">{ticket.description}</p>
+                              <div className="grid grid-cols-2 gap-2 text-[10px]">
+                                <div className="overflow-hidden">
+                                  <p className="font-medium text-[#4A5568]">Contact</p>
+                                  <p className="truncate">{ticket.contact}</p>
+                                </div>
+                                <div className="overflow-hidden">
+                                  <p className="font-medium text-[#4A5568]">Company</p>
+                                  <p className="truncate">{ticket.company}</p>
+                                </div>
+                                <div className="overflow-hidden">
+                                  <p className="font-medium text-[#4A5568]">Status</p>
+                                  <p className="truncate">{ticket.status}</p>
+                                </div>
+                                <div className="overflow-hidden">
+                                  <p className="font-medium text-[#4A5568]">Assignee</p>
+                                  <p className="truncate">{ticket.assignee || 'Unassigned'}</p>
+                                </div>
+                              </div>
+                            </motion.div>
+                          )}
+                        </motion.div>
+                      )}
                     </motion.div>
                   ))}
               </motion.div>
