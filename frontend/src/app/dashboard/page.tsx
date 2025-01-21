@@ -383,6 +383,12 @@ interface Ticket {
   }[]
 }
 
+// Add new interface for selected ticket state
+interface SelectedTicket {
+  id: string;
+  isOpen: boolean;
+}
+
 /**
  * Dashboard Page Component
  * 
@@ -407,6 +413,7 @@ export default function DashboardPage() {
     is_internal: false
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [selectedTicket, setSelectedTicket] = useState<SelectedTicket>({ id: '', isOpen: false });
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -515,6 +522,109 @@ export default function DashboardPage() {
   if (!user) {
     return null // Router will handle redirect
   }
+
+  // Add new component for full-screen ticket view
+  const FullScreenTicket = ({ ticket, onClose }: { ticket: any; onClose: () => void }) => {
+    return (
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        className="absolute inset-0 z-50 bg-gradient-to-br from-blue-50/95 to-white/95 backdrop-blur-sm rounded-lg overflow-hidden"
+      >
+        <div className="relative h-full p-6">
+          {/* Bauhaus-inspired decorative elements */}
+          <div className="absolute top-0 right-0 w-48 h-48 bg-yellow-200/20 rounded-full -translate-y-1/2 translate-x-1/2" />
+          <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-200/20 rounded-full translate-y-1/2 -translate-x-1/2" />
+          
+          {/* Close button */}
+          <button
+            onClick={onClose}
+            className="absolute top-4 right-4 p-2 rounded-full bg-white/50 hover:bg-white/80 transition-colors z-10"
+          >
+            <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+
+          {/* Content */}
+          <div className="relative z-10 max-w-3xl mx-auto">
+            <div className="flex items-start justify-between mb-6">
+              <div>
+                <h2 className="text-2xl font-bold text-[#2C5282] mb-2">{ticket.title}</h2>
+                <div className="flex items-center gap-3">
+                  <span className={`px-3 py-1 rounded-full text-sm font-medium
+                    ${ticket.priority === 'high' ? 'bg-red-100 text-red-800' : 
+                      ticket.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' : 
+                      'bg-blue-100 text-blue-800'}`}
+                  >
+                    {ticket.priority}
+                  </span>
+                  <span className={`px-3 py-1 rounded-full text-sm font-medium
+                    ${ticket.status === 'urgent' ? 'bg-red-100 text-red-800' :
+                      ticket.status === 'in_progress' ? 'bg-yellow-100 text-yellow-800' :
+                      ticket.status === 'resolved' ? 'bg-green-100 text-green-800' :
+                      'bg-blue-100 text-blue-800'}`}
+                  >
+                    {ticket.status}
+                  </span>
+                  <span className="px-3 py-1 bg-gray-100 text-gray-800 rounded-full text-sm font-medium">
+                    {ticket.category}
+                  </span>
+                </div>
+              </div>
+              <div className="text-right text-sm text-gray-600">
+                <p>Created {new Date(ticket.created_at).toLocaleDateString()}</p>
+                <p>Source: {ticket.source}</p>
+              </div>
+            </div>
+
+            <div className="bg-white/50 rounded-lg p-6 mb-6">
+              <h3 className="text-lg font-medium text-[#2C5282] mb-4">Description</h3>
+              <p className="text-gray-700 whitespace-pre-wrap">{ticket.description}</p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-6">
+              <div className="bg-white/50 rounded-lg p-6">
+                <h3 className="text-lg font-medium text-[#2C5282] mb-4">Customer Details</h3>
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-sm text-gray-600">Name</p>
+                    <p className="font-medium text-gray-800">{ticket.customer?.name || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600">Email</p>
+                    <p className="font-medium text-gray-800">{ticket.customer?.email || 'N/A'}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-white/50 rounded-lg p-6">
+                <h3 className="text-lg font-medium text-[#2C5282] mb-4">Assignment</h3>
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-sm text-gray-600">Assigned To</p>
+                    <p className="font-medium text-gray-800">
+                      {ticket.assigned_employee ? 
+                        `${ticket.assigned_employee.first_name} ${ticket.assigned_employee.last_name}` : 
+                        'Unassigned'}
+                    </p>
+                  </div>
+                  {ticket.resolved_by && (
+                    <div>
+                      <p className="text-sm text-gray-600">Resolved By</p>
+                      <p className="font-medium text-gray-800">
+                        {ticket.resolved_by.first_name} {ticket.resolved_by.last_name}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#E0F2F7] via-[#4A90E2]/10 to-[#F7F3E3] p-6">
@@ -717,7 +827,10 @@ export default function DashboardPage() {
                           ${zoomLevel === 3 ? 'w-6 h-6 group hover:z-10 shrink-0' : ''}
                           min-h-[${zoomLevel === 1 ? '120px' : zoomLevel === 2 ? '80px' : '24px'}]
                           flex flex-col`}
-                        onClick={() => isExpandedView(zoomLevel) && toggleTicketExpansion(ticket.id)}
+                        onClick={() => {
+                          setSelectedTicket({ id: ticket.id, isOpen: true });
+                          isExpandedView(zoomLevel) && toggleTicketExpansion(ticket.id);
+                        }}
                       >
                         {zoomLevel === 3 ? (
                           <>
@@ -769,16 +882,6 @@ export default function DashboardPage() {
                                   </span>
                                 )}
                               </motion.div>
-                            )}
-                            {zoomLevel === 1 && (
-                              <motion.p 
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                transition={{ delay: 0.2 }}
-                                className={`text-[#4A5568] mt-1 ${getZoomStyles(zoomLevel).description} text-xs`}
-                              >
-                                {ticket.description}
-                              </motion.p>
                             )}
                             {expandedTickets[ticket.id] && zoomLevel !== 3 && (
                               <motion.div
@@ -1245,6 +1348,14 @@ export default function DashboardPage() {
               </div>
             </motion.div>
           </div>
+        )}
+
+        {/* Full Screen Ticket */}
+        {selectedTicket.isOpen && (
+          <FullScreenTicket
+            ticket={tickets.find(t => t.id === selectedTicket.id)}
+            onClose={() => setSelectedTicket({ id: '', isOpen: false })}
+          />
         )}
       </div>
     </div>
