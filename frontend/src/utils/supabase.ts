@@ -38,4 +38,36 @@ export const signOut = async () => {
     console.error('Sign out error:', error)
     window.location.href = '/'
   }
+}
+
+export const getRecentOrganizationTickets = async (organizationId: string) => {
+  if (!organizationId) {
+    throw new Error('Organization ID is required')
+  }
+
+  console.log('Fetching tickets for organization:', organizationId)
+  const supabase = createClient()
+  
+  const { data: tickets, error } = await supabase
+    .from('tickets')
+    .select(`
+      *,
+      customer:customers(id, name, email),
+      assigned_employee:employees!tickets_assigned_to_fkey(id, name),
+      resolved_employee:employees!tickets_resolved_by_fkey(id, name),
+      ticket_tags(
+        tag:tags(id, name, color)
+      )
+    `)
+    .eq('organization_id', organizationId)
+    .order('created_at', { ascending: false })
+    .limit(200)
+  
+  if (error) {
+    console.error('Error fetching tickets:', error)
+    throw error
+  }
+  
+  console.log('Fetched tickets:', tickets)
+  return tickets
 } 

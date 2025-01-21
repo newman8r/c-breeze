@@ -9,6 +9,7 @@ import Link from 'next/link'
 import { useRole } from '@/contexts/RoleContext'
 import { signOut } from '@/utils/supabase'
 import { Activity, mockTickets } from '@/mocks/ticketData'
+import { getRecentOrganizationTickets } from '@/utils/supabase'
 
 // Types for our data
 interface Profile {
@@ -19,6 +20,7 @@ interface Profile {
   bio: string | null
   created_at: string
   updated_at: string
+  organization_id: string
 }
 
 interface Category {
@@ -84,6 +86,8 @@ interface ExpandedStates {
 
 // Update the ZoomLevel type definition
 type ZoomLevel = 1 | 2 | 3;
+
+const isExpandedView = (zoom: ZoomLevel) => zoom === 1 || zoom === 2;
 
 const getZoomStyles = (zoomLevel: ZoomLevel) => {
   switch (zoomLevel) {
@@ -341,6 +345,33 @@ interface CreateTicketForm {
   is_internal: boolean
 }
 
+// Add ticket type definition
+interface Ticket {
+  id: string
+  title: string
+  description: string
+  status: string
+  priority: string
+  created_at: string
+  customer: {
+    id: string
+    name: string
+    email: string
+  }
+  assigned_employee: {
+    id: string
+    first_name: string
+    last_name: string
+  } | null
+  ticket_tags: {
+    tag: {
+      id: string
+      name: string
+      color: string
+    }
+  }[]
+}
+
 /**
  * Dashboard Page Component
  * 
@@ -351,10 +382,12 @@ export default function DashboardPage() {
   const router = useRouter()
   const { user, loading: userLoading } = useUser()
   const [userProfile, setUserProfile] = useState<Profile | null>(null)
+  const [tickets, setTickets] = useState<Ticket[]>([])
+  const [ticketsLoading, setTicketsLoading] = useState(true)
   const [isCopilotMinimized, setIsCopilotMinimized] = useState(false)
-  const { role, isRootAdmin } = useRole()
+  const { role, isRootAdmin, organizationId } = useRole()
   const [expandedTickets, setExpandedTickets] = useState<ExpandedStates>({});
-  const [zoomLevel, setZoomLevel] = useState<ZoomLevel>(2);
+  const [zoomLevel, setZoomLevel] = useState<1 | 2 | 3>(2);
   const [isCreateTicketOpen, setIsCreateTicketOpen] = useState(false)
   const [createTicketForm, setCreateTicketForm] = useState<CreateTicketForm>({
     title: '',
@@ -386,6 +419,26 @@ export default function DashboardPage() {
     }
     loadProfile()
   }, [user])
+
+  // Add ticket fetching
+  useEffect(() => {
+    async function loadTickets() {
+      if (!user || !organizationId) {
+        setTicketsLoading(false)
+        return
+      }
+
+      try {
+        const tickets = await getRecentOrganizationTickets(organizationId)
+        setTickets(tickets || [])
+      } catch (error) {
+        console.error('Error loading tickets:', error)
+      } finally {
+        setTicketsLoading(false)
+      }
+    }
+    loadTickets()
+  }, [user, organizationId])
 
   const toggleTicketExpansion = (ticketId: string) => {
     setExpandedTickets(prev => ({
@@ -506,8 +559,12 @@ export default function DashboardPage() {
             <BauhausShape color="#FF7676" type="circle" />
             <div className="relative z-10">
               <h3 className="text-lg font-medium text-[#4A5568]">Open Tickets</h3>
-              <p className="text-3xl font-bold text-[#2C5282]">{mockStats.support.openTickets}</p>
-              <p className="text-sm text-[#FF7676]">{mockStats.tickets.urgent} urgent</p>
+              <p className="text-3xl font-bold text-[#2C5282]">
+                {tickets.filter(t => t.status === 'open').length}
+              </p>
+              <p className="text-sm text-[#FF7676]">
+                {tickets.filter(t => t.priority === 'urgent' && t.status === 'open').length} urgent
+              </p>
             </div>
           </div>
           
@@ -575,7 +632,7 @@ export default function DashboardPage() {
               <div>
                 <h2 className="text-xl font-bold text-[#2C5282]">Ticket Feed</h2>
                 <p className="text-sm text-[#4A5568]">
-                  {mockStats.activities.recent.filter(activity => activity.type === 'ticket').length} tickets
+                  {tickets.length} tickets
                 </p>
               </div>
               <div className="flex items-center gap-4">
@@ -615,21 +672,24 @@ export default function DashboardPage() {
             </div>
             <div className={`relative ${zoomLevel === 3 ? 'overflow-visible' : 'overflow-hidden'}`}>
               <div className={`${zoomLevel === 3 ? 'overflow-visible' : 'max-h-[600px] overflow-y-auto pr-2'}`}>
-                <motion.div 
-                  key={`container-zoom-${zoomLevel}`}
-                  layout={false}
-                  initial="exit"
-                  animate="enter"
-                  exit="exit"
-                  variants={getZoomStyles(zoomLevel).variants.container}
-                  className={`grid ${getZoomStyles(zoomLevel).grid} ${zoomLevel === 1 ? 'gap-3' : zoomLevel === 2 ? 'gap-2' : 'gap-0'} 
-                    ${zoomLevel === 3 ? 'w-fit mx-auto bg-gray-50/50 p-2 rounded-lg relative' : ''}`}
-                >
-                  {mockStats.activities.recent
-                    .filter(activity => activity.type === 'ticket')
-                    .map((ticket, index) => (
+                {ticketsLoading ? (
+                  <div className="flex items-center justify-center p-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#4A90E2]"></div>
+                  </div>
+                ) : (
+                  <motion.div 
+                    key={`container-zoom-${zoomLevel}`}
+                    layout={false}
+                    initial="exit"
+                    animate="enter"
+                    exit="exit"
+                    variants={getZoomStyles(zoomLevel).variants.container}
+                    className={`grid ${getZoomStyles(zoomLevel).grid} ${zoomLevel === 1 ? 'gap-3' : zoomLevel === 2 ? 'gap-2' : 'gap-0'} 
+                      ${zoomLevel === 3 ? 'w-fit mx-auto bg-gray-50/50 p-2 rounded-lg relative' : ''}`}
+                  >
+                    {tickets.map((ticket, index) => (
                       <motion.div
-                        key={`ticket-${index}-zoom-${zoomLevel}`}
+                        key={`ticket-${ticket.id}-zoom-${zoomLevel}`}
                         layout={false}
                         variants={getZoomStyles(zoomLevel).variants.item}
                         initial="exit"
@@ -637,12 +697,12 @@ export default function DashboardPage() {
                         exit="exit"
                         className={`${getZoomStyles(zoomLevel).padding} rounded-md cursor-pointer relative
                           ${getTicketColor(ticket.priority, ticket.status)}
-                          ${expandedTickets[`ticket-${index}`] && zoomLevel !== 3 ? (zoomLevel === 1 ? 'col-span-full' : 'col-span-2 row-span-2') : ''}
+                          ${expandedTickets[ticket.id] && isExpandedView(zoomLevel) ? (zoomLevel === 1 ? 'col-span-full' : 'col-span-2 row-span-2') : ''}
                           ${zoomLevel === 1 ? 'w-full' : ''}
                           ${zoomLevel === 3 ? 'w-6 h-6 group hover:z-10 shrink-0' : ''}
                           min-h-[${zoomLevel === 1 ? '120px' : zoomLevel === 2 ? '80px' : '24px'}]
                           flex flex-col`}
-                        onClick={() => zoomLevel !== 3 && toggleTicketExpansion(`ticket-${index}`)}
+                        onClick={() => isExpandedView(zoomLevel) && toggleTicketExpansion(ticket.id)}
                       >
                         {zoomLevel === 3 ? (
                           <>
@@ -653,14 +713,14 @@ export default function DashboardPage() {
                               <h4 className="font-medium text-[#2C5282] mb-1 truncate">{ticket.title}</h4>
                               <p className="text-[#4A5568] text-[10px] mb-1 truncate">{ticket.description}</p>
                               <div className="flex justify-between text-[10px] text-[#4A5568]">
-                                <span>{ticket.time}</span>
+                                <span>{new Date(ticket.created_at).toLocaleString()}</span>
                                 <span className="capitalize">{ticket.status}</span>
                               </div>
                             </div>
                           </>
                         ) : (
                           <motion.div 
-                            key={`content-${index}-zoom-${zoomLevel}`}
+                            key={`content-${ticket.id}-zoom-${zoomLevel}`}
                             className="flex flex-col h-full"
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
@@ -670,22 +730,28 @@ export default function DashboardPage() {
                             <h3 className={`font-medium text-[#2C5282] ${getZoomStyles(zoomLevel).text} leading-tight truncate mb-1`}>
                               {ticket.title}
                             </h3>
-                            {(zoomLevel === 1 || (!expandedTickets[`ticket-${index}`] && zoomLevel === 2)) && (
+                            {(zoomLevel === 1 || (!expandedTickets[ticket.id] && zoomLevel === 2)) && (
                               <motion.div 
                                 initial={{ opacity: 0 }}
                                 animate={{ opacity: 1 }}
                                 transition={{ delay: 0.1 }}
                                 className="flex items-center justify-between mt-auto space-x-2"
                               >
-                                <span className={`${getZoomStyles(zoomLevel).text} text-[#4A5568] truncate flex-shrink-0`}>{ticket.time}</span>
+                                <span className={`${getZoomStyles(zoomLevel).text} text-[#4A5568] truncate flex-shrink-0`}>
+                                  {new Date(ticket.created_at).toLocaleString()}
+                                </span>
                                 {zoomLevel === 1 && (
                                   <>
                                     <span className={`${getZoomStyles(zoomLevel).text} text-[#4A5568] truncate`}>{ticket.status}</span>
-                                    <span className={`${getZoomStyles(zoomLevel).text} text-[#4A5568] truncate`}>{ticket.category}</span>
+                                    <span className={`${getZoomStyles(zoomLevel).text} text-[#4A5568] truncate`}>
+                                      {ticket.ticket_tags[0]?.tag.name || 'Uncategorized'}
+                                    </span>
                                   </>
                                 )}
                                 {zoomLevel === 2 && (
-                                  <span className={`${getZoomStyles(zoomLevel).text} text-[#4A5568] truncate`}>{ticket.category}</span>
+                                  <span className={`${getZoomStyles(zoomLevel).text} text-[#4A5568] truncate`}>
+                                    {ticket.ticket_tags[0]?.tag.name || 'Uncategorized'}
+                                  </span>
                                 )}
                               </motion.div>
                             )}
@@ -699,7 +765,7 @@ export default function DashboardPage() {
                                 {ticket.description}
                               </motion.p>
                             )}
-                            {expandedTickets[`ticket-${index}`] && zoomLevel !== 3 && (
+                            {expandedTickets[ticket.id] && zoomLevel !== 3 && (
                               <motion.div
                                 initial={{ opacity: 0, y: -10 }}
                                 animate={{ opacity: 1, y: 0 }}
@@ -710,11 +776,7 @@ export default function DashboardPage() {
                                 <div className="grid grid-cols-2 gap-2 text-[10px]">
                                   <div className="overflow-hidden">
                                     <p className="font-medium text-[#4A5568]">Contact</p>
-                                    <p className="truncate">{ticket.contact}</p>
-                                  </div>
-                                  <div className="overflow-hidden">
-                                    <p className="font-medium text-[#4A5568]">Company</p>
-                                    <p className="truncate">{ticket.company}</p>
+                                    <p className="truncate">{ticket.customer.name} ({ticket.customer.email})</p>
                                   </div>
                                   <div className="overflow-hidden">
                                     <p className="font-medium text-[#4A5568]">Status</p>
@@ -722,7 +784,7 @@ export default function DashboardPage() {
                                   </div>
                                   <div className="overflow-hidden">
                                     <p className="font-medium text-[#4A5568]">Assignee</p>
-                                    <p className="truncate">{ticket.assignee || 'Unassigned'}</p>
+                                    <p className="truncate">{ticket.assigned_employee?.first_name} {ticket.assigned_employee?.last_name}</p>
                                   </div>
                                 </div>
                               </motion.div>
@@ -731,37 +793,9 @@ export default function DashboardPage() {
                         )}
                       </motion.div>
                     ))}
-                </motion.div>
+                  </motion.div>
+                )}
               </div>
-            </div>
-          </motion.div>
-
-          {/* Chat Overview */}
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="ocean-card"
-          >
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold text-[#2C5282]">Active Chats</h2>
-              <Link href="/chats" className="text-[#4A90E2] hover:text-[#2C5282] transition-colors">
-                View All →
-              </Link>
-            </div>
-            <div className="space-y-4">
-              {mockStats.activities.recent
-                .filter(activity => activity.type === 'chat')
-                .map((chat, index) => (
-                  <div key={index} className="flex items-center gap-4 p-3 bg-white/50 rounded-lg hover:bg-white/70 transition-colors">
-                    <div className="w-2 h-2 rounded-full bg-[#50C878]" />
-                    <div className="flex-1">
-                      <p className="font-medium text-[#2C5282]">{chat.contact}</p>
-                      <p className="text-sm text-[#4A5568]">{chat.description}</p>
-                    </div>
-                    <span className="text-xs text-[#4A5568]">{chat.time}</span>
-                  </div>
-                ))}
             </div>
           </motion.div>
 
