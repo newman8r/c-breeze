@@ -7,6 +7,7 @@ import { useUser } from '@/contexts/UserContext'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useRole } from '@/contexts/RoleContext'
+import { signOut } from '@/utils/supabase'
 
 // Types for our data
 interface Profile {
@@ -353,7 +354,10 @@ export default function DashboardPage() {
                 Profile Settings
               </Link>
               <button
-                onClick={() => supabase.auth.signOut()}
+                onClick={async () => {
+                  await signOut()
+                  router.push('/')
+                }}
                 className="px-4 py-2 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
               >
                 Sign Out
