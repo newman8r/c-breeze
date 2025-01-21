@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@/utils/supabase'
 import Link from 'next/link'
 
 // Decorative shape component
@@ -31,6 +31,9 @@ export default function LoginPage() {
     e.preventDefault()
     setLoading(true)
     setError(null)
+    
+    const supabase = createClient()
+    console.log('Starting login process...')
 
     try {
       const { data, error: signInError } = await supabase.auth.signInWithPassword({
@@ -40,10 +43,23 @@ export default function LoginPage() {
 
       if (signInError) throw signInError
 
-      if (data) {
-        router.push('/dashboard')
+      console.log('Sign in successful:', data?.session?.user?.id)
+
+      if (data?.session) {
+        // Set session first
+        await supabase.auth.setSession(data.session)
+        
+        // Wait for session to be set
+        await new Promise(resolve => setTimeout(resolve, 100))
+        
+        // Force a router refresh to update navigation state
+        router.refresh()
+        
+        // Use replace instead of push to prevent back button issues
+        router.replace('/dashboard')
       }
     } catch (err) {
+      console.error('Login error:', err)
       setError(err instanceof Error ? err.message : 'Invalid email or password')
     } finally {
       setLoading(false)

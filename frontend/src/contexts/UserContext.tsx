@@ -20,27 +20,26 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   const supabase = getSupabaseBrowserClient()
 
   useEffect(() => {
-    // Check active session
-    const initializeUser = async () => {
+    console.log('UserProvider: Initializing')
+    
+    const initUser = async () => {
       try {
         const { data: { session }, error } = await supabase.auth.getSession()
-        if (error) throw error
-        setUser(session?.user ?? null)
+        console.log('UserProvider: Initial session check:', session?.user?.id, error)
+        setUser(session?.user || null)
       } catch (error) {
-        console.error('Error getting session:', error)
-        setUser(null)
+        console.error('UserProvider: Error getting session:', error)
       } finally {
         setLoading(false)
       }
     }
 
-    initializeUser()
+    initUser()
 
-    // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setUser(session?.user ?? null)
-        setLoading(false)
+      async (event, session) => {
+        console.log('UserProvider: Auth state changed:', event, session?.user?.id)
+        setUser(session?.user || null)
       }
     )
 

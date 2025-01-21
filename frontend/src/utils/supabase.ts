@@ -1,31 +1,41 @@
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import type { Database } from '../lib/database.types'
 
+let browserClient: ReturnType<typeof createClientComponentClient<Database>> | null = null
+
 export const createClient = () => {
-  return createClientComponentClient<Database>()
+  if (browserClient) return browserClient
+  
+  browserClient = createClientComponentClient<Database>()
+  return browserClient
 }
 
 export const signOut = async () => {
+  console.log('Starting sign out process...')
   const supabase = createClient()
   
-  // Sign out from Supabase auth
-  await supabase.auth.signOut()
-  
-  // Clear any auth-related local storage items
-  const localStorageKeys = Object.keys(localStorage)
-    .filter(key => key.startsWith('sb-'))
-  localStorageKeys.forEach(key => localStorage.removeItem(key))
-  
-  // Clear any auth-related session storage items
-  const sessionStorageKeys = Object.keys(sessionStorage)
-    .filter(key => key.startsWith('sb-'))
-  sessionStorageKeys.forEach(key => sessionStorage.removeItem(key))
-  
-  // Force clear any remaining cookies
-  document.cookie.split(';').forEach(cookie => {
-    const [name] = cookie.split('=')
-    if (name.trim().startsWith('sb-')) {
-      document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/;`
-    }
-  })
+  try {
+    const { error } = await supabase.auth.signOut()
+    if (error) throw error
+    
+    console.log('Supabase sign out successful')
+    
+    // Clear all storage in one go
+    localStorage.clear()
+    sessionStorage.clear()
+    
+    // Clear cookies
+    document.cookie.split(';').forEach(cookie => {
+      document.cookie = cookie
+        .replace(/^ +/, '')
+        .replace(/=.*/, `=;expires=${new Date().toUTCString()};path=/`)
+    })
+    
+    // Force reload without using router
+    window.location.href = '/'
+    
+  } catch (error) {
+    console.error('Sign out error:', error)
+    window.location.href = '/'
+  }
 } 

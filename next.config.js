@@ -14,6 +14,21 @@ const nextConfig = {
       },
     ]
   },
+  webpack: (config) => {
+    config.watchOptions = {
+      poll: 1000,
+      aggregateTimeout: 300,
+    }
+    return config
+  },
+  experimental: {
+    optimizeCss: true,
+    turbo: {
+      loaders: {
+        '.js': ['swc-loader'],
+      },
+    },
+  }
 }
 
 module.exports = nextConfig 

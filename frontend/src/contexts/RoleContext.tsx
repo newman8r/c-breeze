@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState } from 'react'
 import { useUser } from './UserContext'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@/utils/supabase'
 
 // Types for role management
 export type UserRole = 'customer' | 'employee' | 'admin'
@@ -31,89 +31,96 @@ const RoleContext = createContext<RoleContextType | undefined>(undefined)
 
 // Provider component
 export function RoleProvider({ children }: { children: React.ReactNode }) {
+  const [role, setRole] = useState<UserRole | null>(null)
+  const [isRootAdmin, setIsRootAdmin] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [organizationId, setOrganizationId] = useState<string | null>(null)
+  const [error, setError] = useState<Error | null>(null)
   const { user } = useUser()
-  const [roleData, setRoleData] = useState<UserRoleData>({
-    role: null,
-    isRootAdmin: false,
-    organizationId: null,
-    loading: true,
-    error: null
-  })
+  const supabase = createClient()
 
-  const fetchUserRole = async () => {
+  const fetchRole = async () => {
+    console.log('Fetching role for user:', user?.id)
+    if (!user) {
+      setRole(null)
+      setIsRootAdmin(false)
+      setLoading(false)
+      return
+    }
+
     try {
-      if (!user) {
-        setRoleData(prev => ({
-          ...prev,
-          role: null,
-          isRootAdmin: false,
-          organizationId: null,
-          loading: false,
-          error: null
-        }))
+      // First check if user is root admin
+      const { data: orgData, error: orgError } = await supabase
+        .from('organizations')
+        .select('id, created_by')
+        .single()
+
+      console.log('Organization data:', orgData, 'Error:', orgError)
+
+      if (orgData && orgData.created_by === user.id) {
+        setIsRootAdmin(true)
+        setRole('admin')
+        setOrganizationId(orgData.id)
+        setLoading(false)
         return
       }
 
-      const { data, error } = await supabase
-        .rpc('get_current_user_role')
+      // Then check employee role
+      const { data: employeeData, error: employeeError } = await supabase
+        .from('employees')
+        .select('role, organization_id')
+        .eq('user_id', user.id)
         .single()
 
-      if (error) throw error
+      console.log('Employee data:', employeeData, 'Error:', employeeError)
 
-      const roleResponse = data as UserRoleResponse
-      setRoleData({
-        role: roleResponse.role,
-        isRootAdmin: roleResponse.is_root_admin,
-        organizationId: roleResponse.organization_id,
-        loading: false,
-        error: null
-      })
+      if (employeeError && employeeError.code !== 'PGRST116') {
+        throw employeeError
+      }
+
+      setRole(employeeData?.role || null)
+      setOrganizationId(employeeData?.organization_id || null)
     } catch (error) {
-      setRoleData(prev => ({
-        ...prev,
-        loading: false,
-        error: error instanceof Error ? error : new Error('Failed to fetch user role')
-      }))
+      console.error('Error fetching role:', error)
+      setError(error instanceof Error ? error : new Error('Unknown error'))
+      setRole(null)
+    } finally {
+      setLoading(false)
     }
   }
 
-  // Fetch role when user changes
+  // Listen for auth state changes
   useEffect(() => {
-    fetchUserRole()
-  }, [user?.id])
-
-  // Set up real-time subscription for role changes
-  useEffect(() => {
-    if (!user?.id) return
-
-    const subscription = supabase
-      .channel('role-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'employees',
-          filter: `user_id=eq.${user.id}`
-        },
-        () => {
-          fetchUserRole()
-        }
-      )
-      .subscribe()
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth state changed:', event, 'Session:', session?.user?.id)
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        await fetchRole()
+      } else if (event === 'SIGNED_OUT') {
+        setRole(null)
+        setIsRootAdmin(false)
+        setOrganizationId(null)
+      }
+    })
 
     return () => {
       subscription.unsubscribe()
     }
-  }, [user?.id])
+  }, [])
 
-  const value = {
-    ...roleData,
-    refreshRole: fetchUserRole
-  }
+  // Initial role fetch
+  useEffect(() => {
+    fetchRole()
+  }, [user])
 
   return (
-    <RoleContext.Provider value={value}>
+    <RoleContext.Provider value={{ 
+      role, 
+      isRootAdmin, 
+      loading, 
+      refreshRole: fetchRole,
+      organizationId,
+      error 
+    }}>
       {children}
     </RoleContext.Provider>
   )
