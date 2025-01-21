@@ -153,4 +153,106 @@ sudo npx supabase db dump
 
 # Link to production (if needed)
 sudo npx supabase link --project-ref dryluaztyuofappqaqkp
-``` 
+```
+
+## Authentication State Management
+
+### Common Issues with Supabase Auth
+
+#### Multiple Client Instances
+- **Symptom**: "Multiple GoTrueClient instances detected" warning in console
+- **Impact**: Causes undefined behavior in auth state management
+- **Detection**: 
+  - Watch for auth state changes not propagating
+  - Login/logout operations "hanging"
+  - Multiple initialization logs in console
+
+#### Auth State Race Conditions
+- **Symptom**: Undefined user state alternating with defined state
+- **Detection**: Console logs showing pattern like:
+  ```
+  User: undefined
+  User: 123-456
+  User: undefined
+  User: 123-456
+  ```
+
+### Best Practices
+
+1. **Client Instance Management**:
+   ```typescript
+   // Single instance pattern
+   let browserClient = null
+   export const createClient = () => {
+     if (browserClient) return browserClient
+     browserClient = createClientComponentClient()
+     return browserClient
+   }
+   ```
+
+2. **Auth State Handling**:
+   - Use a single SessionProvider at root level
+   - Handle auth state changes in one place
+   - Clear all storage during sign out
+   - Force page reload after auth state changes
+
+3. **Development Environment**:
+   - Add webpack polling for better dev experience:
+   ```javascript
+   webpack: (config) => {
+     config.watchOptions = {
+       poll: 1000,
+       aggregateTimeout: 300,
+     }
+     return config
+   }
+   ```
+
+### Troubleshooting Steps
+
+1. **Auth State Issues**:
+   - Check browser console for multiple client warnings
+   - Verify single client instance pattern
+   - Clear all browser storage and cookies
+   - Force reload page
+
+2. **Session Management**:
+   - Verify session cookie presence
+   - Check localStorage for Supabase items
+   - Monitor auth state change events
+   - Use browser dev tools Application tab
+
+3. **Development Setup**:
+   - Use proper webpack configuration
+   - Enable strict mode in Next.js
+   - Monitor for unnecessary re-renders
+
+### Code Review Checklist
+
+- [ ] Single Supabase client instance
+- [ ] Proper auth state cleanup on logout
+- [ ] Session provider at root level
+- [ ] No direct supabase imports in components
+- [ ] Proper error handling in auth operations
+
+### Quick Fixes
+
+1. **Hanging Auth Operations**:
+   ```javascript
+   // Force cleanup and reload
+   localStorage.clear()
+   sessionStorage.clear()
+   window.location.href = '/'
+   ```
+
+2. **Multiple Clients**:
+   - Remove direct supabase imports
+   - Use createClient() utility
+   - Check for duplicate providers
+
+3. **Development Issues**:
+   - Add webpack polling
+   - Clear browser storage
+   - Restart development server
+
+Remember: Auth state management is critical for security. Always err on the side of forcing a clean state rather than trying to recover from an inconsistent one. 
