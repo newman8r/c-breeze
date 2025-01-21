@@ -49,10 +49,18 @@ serve(async (req: Request) => {
 
     // Create Supabase client
     const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      Deno.env.get('URL') ?? '',
+      Deno.env.get('KEY') ?? '',
       {
-        global: { headers: { Authorization: authHeader } }
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false,
+        },
+        global: {
+          headers: {
+            Authorization: authHeader
+          }
+        }
       }
     )
 

@@ -7,9 +7,8 @@ import { useUser } from '@/contexts/UserContext'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useRole } from '@/contexts/RoleContext'
-import { signOut } from '@/utils/supabase'
+import { signOut, getRecentOrganizationTickets, createTicket as createTicketApi } from '@/utils/supabase'
 import { Activity, mockTickets } from '@/mocks/ticketData'
-import { getRecentOrganizationTickets } from '@/utils/supabase'
 
 // Types for our data
 interface Profile {
@@ -471,19 +470,7 @@ export default function DashboardPage() {
   const createTicket = async () => {
     try {
       setIsSubmitting(true)
-      const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/create-ticket`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
-        },
-        body: JSON.stringify(createTicketForm)
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || 'Failed to create ticket')
-      }
+      await createTicketApi(createTicketForm)
 
       // Reset form and close modal
       setCreateTicketForm({

@@ -70,4 +70,40 @@ export const getRecentOrganizationTickets = async (organizationId: string) => {
   
   console.log('Fetched tickets:', tickets)
   return tickets
+}
+
+interface CreateTicketForm {
+  title: string;
+  description: string;
+  customer_id?: string;
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  category?: string;
+  due_date?: string;
+  is_internal: boolean;
+}
+
+export const createTicket = async (createTicketForm: CreateTicketForm) => {
+  const supabase = createClient()
+  
+  // Get current session and access token
+  const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+  if (sessionError || !session?.access_token) {
+    throw new Error('No access token available')
+  }
+
+  const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/create-ticket`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${session.access_token}`
+    },
+    body: JSON.stringify(createTicketForm)
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.message || 'Failed to create ticket')
+  }
+
+  return response.json()
 } 
