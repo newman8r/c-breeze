@@ -48,6 +48,47 @@
    - Check tables/views in Supabase dashboard
    - Use the SQL editor in Supabase dashboard to verify schema
 
+## Database Migration Management
+
+### Development vs Production
+
+#### Development (`db reset`)
+- Drops and recreates entire database
+- Runs ALL migrations from scratch
+- Applies seed data
+- Used for clean slate development
+- NEVER use in production
+
+#### Production (`db push`)
+- Checks `_supabase_migrations` table
+- Only applies new, unapplied migrations
+- Preserves existing data
+- Safe for production use
+- Migrations must be backward compatible
+
+### Best Practices
+1. **Migration Design**:
+   - Always make migrations additive
+   - Avoid destructive changes
+   - Include rollback procedures
+   - Test migrations on copy of production data
+
+2. **Version Control**:
+   - Never modify existing migrations
+   - Always create new migrations for changes
+   - Document migration dependencies
+   - Keep migrations atomic and focused
+
+3. **Testing Process**:
+   ```bash
+   # Development testing
+   sudo npx supabase db reset
+   
+   # Production simulation
+   sudo npx supabase db remote commit    # Commit current state
+   sudo npx supabase db push             # Test migration process
+   ```
+
 ## Deployment Process
 
 ### Frontend Deployment
