@@ -432,22 +432,24 @@ export default function DashboardPage() {
   }, [user])
 
   // Add ticket fetching
-  useEffect(() => {
-    async function loadTickets() {
-      if (!user || !organizationId) {
-        setTicketsLoading(false)
-        return
-      }
-
-      try {
-        const tickets = await getRecentOrganizationTickets(organizationId)
-        setTickets(tickets || [])
-      } catch (error) {
-        console.error('Error loading tickets:', error)
-      } finally {
-        setTicketsLoading(false)
-      }
+  const loadTickets = async () => {
+    if (!user || !organizationId) {
+      setTicketsLoading(false)
+      return
     }
+
+    try {
+      const tickets = await getRecentOrganizationTickets(organizationId)
+      setTickets(tickets || [])
+    } catch (error) {
+      console.error('Error loading tickets:', error)
+    } finally {
+      setTicketsLoading(false)
+    }
+  }
+
+  // Add ticket fetching effect
+  useEffect(() => {
     loadTickets()
   }, [user, organizationId])
 
@@ -485,7 +487,9 @@ export default function DashboardPage() {
       })
       setIsCreateTicketOpen(false)
 
-      // Could add a success toast here
+      // Refresh tickets list
+      await loadTickets()
+
     } catch (error) {
       console.error('Error creating ticket:', error)
       // Could add an error toast here
