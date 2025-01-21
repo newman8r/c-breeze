@@ -6,7 +6,7 @@ import { useRole } from '@/contexts/RoleContext'
 import { useRouter } from 'next/navigation'
 import { useEffect } from 'react'
 import Link from 'next/link'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { getSupabaseBrowserClient } from '@/lib/supabase-browser'
 import type { Database } from '@/lib/database.types'
 import { useUser } from '@/contexts/UserContext'
 
@@ -20,7 +20,8 @@ interface ApiError {
 export default function AdminPanel() {
   const router = useRouter()
   const { role, isRootAdmin, loading: roleLoading } = useRole()
-  const { user, supabase } = useUser()
+  const { user } = useUser()
+  const supabase = getSupabaseBrowserClient()
   const [activeTab, setActiveTab] = useState<Tab>('users')
   const [showInviteCard, setShowInviteCard] = useState(false)
   const [inviteForm, setInviteForm] = useState({
