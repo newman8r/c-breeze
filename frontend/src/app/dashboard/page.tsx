@@ -32,7 +32,7 @@ interface Activity {
   company?: string
   priority?: 'high' | 'medium' | 'low'
   category?: string
-  assignee?: string
+  assignee?: string | null
   duration?: string
   satisfaction?: number
   accuracy?: string
@@ -96,6 +96,11 @@ interface MockStats {
   }
 }
 
+// Add new interface for expanded state tracking
+interface ExpandedStates {
+  [key: string]: boolean;
+}
+
 // Decorative shape component
 const BauhausShape = ({ color, type }: { color: string, type: 'circle' | 'triangle' | 'rectangle' }) => {
   switch (type) {
@@ -116,6 +121,55 @@ const BauhausShape = ({ color, type }: { color: string, type: 'circle' | 'triang
       return null
   }
 }
+
+// Add new geometric divider component
+const GeometricDivider = () => (
+  <div className="flex items-center justify-center py-2 opacity-30">
+    <div className="w-2 h-2 bg-[#4A90E2] rotate-45" />
+    <div className="w-1 h-1 bg-[#FFB347] rounded-full mx-2" />
+    <div className="w-2 h-2 bg-[#FF7676] rotate-45" />
+  </div>
+);
+
+// Add status indicator component
+const StatusIndicator = ({ status }: { status: string }) => {
+  const statusColors = {
+    urgent: '#FF7676',
+    in_progress: '#4A90E2',
+    resolved: '#50C878',
+    open: '#FFB347',
+  };
+  
+  const statusShapes = {
+    urgent: 'triangle',
+    in_progress: 'circle',
+    resolved: 'rectangle',
+    open: 'circle',
+  };
+
+  return (
+    <div className="relative">
+      {statusShapes[status as keyof typeof statusShapes] === 'triangle' && (
+        <div
+          className="w-3 h-3 transform rotate-45"
+          style={{ backgroundColor: statusColors[status as keyof typeof statusColors] }}
+        />
+      )}
+      {statusShapes[status as keyof typeof statusShapes] === 'circle' && (
+        <div
+          className="w-3 h-3 rounded-full"
+          style={{ backgroundColor: statusColors[status as keyof typeof statusColors] }}
+        />
+      )}
+      {statusShapes[status as keyof typeof statusShapes] === 'rectangle' && (
+        <div
+          className="w-3 h-3"
+          style={{ backgroundColor: statusColors[status as keyof typeof statusColors] }}
+        />
+      )}
+    </div>
+  );
+};
 
 // Mock data for demo purposes
 const mockStats: MockStats = {
@@ -200,6 +254,266 @@ const mockStats: MockStats = {
         priority: 'high',
         category: 'Bug',
         assignee: 'Technical Support'
+      },
+      {
+        type: 'ticket',
+        title: 'Mobile App Crash on Startup',
+        description: 'iOS app crashes immediately after splash screen',
+        time: '5 hours ago',
+        status: 'urgent',
+        source: 'Crash Report',
+        contact: 'iOS Team',
+        company: 'Internal',
+        priority: 'high',
+        category: 'Mobile App',
+        assignee: 'Mobile Support'
+      },
+      {
+        type: 'ticket',
+        title: 'Payment Processing Delay',
+        description: 'Customer payments taking longer than usual to process',
+        time: '6 hours ago',
+        status: 'in_progress',
+        source: 'Email',
+        contact: 'Finance Team',
+        company: 'Payment Corp',
+        priority: 'high',
+        category: 'Billing',
+        assignee: 'Payment Support'
+      },
+      {
+        type: 'ticket',
+        title: 'Account Verification Issue',
+        description: 'Email verification links not working for new signups',
+        time: '7 hours ago',
+        status: 'open',
+        source: 'Support Portal',
+        contact: 'User Operations',
+        company: 'Internal',
+        priority: 'medium',
+        category: 'Authentication',
+        assignee: null
+      },
+      {
+        type: 'ticket',
+        title: 'API Rate Limiting',
+        description: 'Hitting rate limits too frequently on standard plan',
+        time: '8 hours ago',
+        status: 'in_progress',
+        source: 'API Monitor',
+        contact: 'David Kim',
+        company: 'Tech Solutions',
+        priority: 'medium',
+        category: 'API',
+        assignee: 'API Support'
+      },
+      {
+        type: 'ticket',
+        title: 'Dashboard Loading Slow',
+        description: 'Performance issues with analytics dashboard',
+        time: '9 hours ago',
+        status: 'open',
+        source: 'Live Chat',
+        contact: 'Maria Garcia',
+        company: 'Data Analytics Inc',
+        priority: 'medium',
+        category: 'Performance',
+        assignee: null
+      },
+      {
+        type: 'ticket',
+        title: 'Custom Integration Failed',
+        description: 'Webhook integration failing for Salesforce sync',
+        time: '10 hours ago',
+        status: 'in_progress',
+        source: 'Email',
+        contact: 'Integration Team',
+        company: 'Sales Masters',
+        priority: 'high',
+        category: 'Integration',
+        assignee: 'Integration Support'
+      },
+      {
+        type: 'ticket',
+        title: 'SSO Configuration Error',
+        description: 'Unable to set up SAML SSO with Okta',
+        time: '11 hours ago',
+        status: 'open',
+        source: 'Support Portal',
+        contact: 'IT Admin',
+        company: 'Enterprise Co',
+        priority: 'medium',
+        category: 'Authentication',
+        assignee: null
+      },
+      {
+        type: 'ticket',
+        title: 'Data Export Timeout',
+        description: 'Large data exports failing to complete',
+        time: '12 hours ago',
+        status: 'in_progress',
+        source: 'Support Portal',
+        contact: 'Data Team',
+        company: 'Big Data Corp',
+        priority: 'medium',
+        category: 'Performance',
+        assignee: 'Data Support'
+      },
+      {
+        type: 'ticket',
+        title: 'Database Replication Lag',
+        description: 'Read replicas showing increased lag time',
+        time: '13 hours ago',
+        status: 'urgent',
+        source: 'Monitoring Alert',
+        contact: 'DBA Team',
+        company: 'Internal',
+        priority: 'high',
+        category: 'Infrastructure',
+        assignee: 'Database Team'
+      },
+      {
+        type: 'ticket',
+        title: 'Password Reset Email Delay',
+        description: 'Users reporting 10+ minute delays for reset emails',
+        time: '14 hours ago',
+        status: 'in_progress',
+        source: 'Support Portal',
+        contact: 'Auth Team',
+        company: 'Internal',
+        priority: 'medium',
+        category: 'Email',
+        assignee: 'Email Service Team'
+      },
+      {
+        type: 'ticket',
+        title: 'Search Indexing Failed',
+        description: 'Product search not updating with new items',
+        time: '15 hours ago',
+        status: 'resolved',
+        source: 'Internal Monitor',
+        contact: 'Search Team',
+        company: 'Internal',
+        priority: 'high',
+        category: 'Search',
+        assignee: 'Search Ops'
+      },
+      {
+        type: 'ticket',
+        title: 'API Documentation Error',
+        description: 'Incorrect endpoint parameters listed',
+        time: '16 hours ago',
+        status: 'resolved',
+        source: 'Customer Feedback',
+        contact: 'Developer Relations',
+        company: 'External',
+        priority: 'low',
+        category: 'Documentation',
+        assignee: 'Doc Team'
+      },
+      {
+        type: 'ticket',
+        title: 'CDN Cache Issues',
+        description: 'Static assets not updating after deploy',
+        time: '17 hours ago',
+        status: 'resolved',
+        source: 'DevOps Monitor',
+        contact: 'Frontend Team',
+        company: 'Internal',
+        priority: 'medium',
+        category: 'Infrastructure',
+        assignee: 'CDN Team'
+      },
+      {
+        type: 'ticket',
+        title: 'OAuth Integration Failure',
+        description: 'Google SSO login flow broken',
+        time: '18 hours ago',
+        status: 'in_progress',
+        source: 'Error Logs',
+        contact: 'Auth Team',
+        company: 'Internal',
+        priority: 'high',
+        category: 'Authentication',
+        assignee: 'SSO Team'
+      },
+      {
+        type: 'ticket',
+        title: 'Payment Gateway Timeout',
+        description: 'Stripe webhook responses delayed',
+        time: '19 hours ago',
+        status: 'resolved',
+        source: 'Payment Monitor',
+        contact: 'Finance Ops',
+        company: 'Internal',
+        priority: 'high',
+        category: 'Payments',
+        assignee: 'Payment Systems'
+      },
+      {
+        type: 'ticket',
+        title: 'Mobile Push Notifications',
+        description: 'Android notifications not delivering',
+        time: '20 hours ago',
+        status: 'in_progress',
+        source: 'App Monitor',
+        contact: 'Mobile Team',
+        company: 'Internal',
+        priority: 'medium',
+        category: 'Mobile',
+        assignee: 'Push Notifications Team'
+      },
+      {
+        type: 'ticket',
+        title: 'Report Generation Failed',
+        description: 'Weekly analytics reports not sending',
+        time: '21 hours ago',
+        status: 'resolved',
+        source: 'Automated Alert',
+        contact: 'Analytics Team',
+        company: 'Internal',
+        priority: 'medium',
+        category: 'Analytics',
+        assignee: 'Reports Team'
+      },
+      {
+        type: 'ticket',
+        title: 'Rate Limit Exceeded',
+        description: 'Multiple enterprise customers hitting limits',
+        time: '22 hours ago',
+        status: 'urgent',
+        source: 'System Alert',
+        contact: 'Platform Team',
+        company: 'Internal',
+        priority: 'high',
+        category: 'API',
+        assignee: 'Platform Ops'
+      },
+      {
+        type: 'ticket',
+        title: 'Data Migration Stuck',
+        description: 'Legacy data import process halted',
+        time: '23 hours ago',
+        status: 'in_progress',
+        source: 'Migration Tool',
+        contact: 'Data Team',
+        company: 'Internal',
+        priority: 'medium',
+        category: 'Data',
+        assignee: 'Migration Team'
+      },
+      {
+        type: 'ticket',
+        title: 'SSL Certificate Expiring',
+        description: 'Production certificate expires in 48h',
+        time: '24 hours ago',
+        status: 'resolved',
+        source: 'Security Scan',
+        contact: 'Security Team',
+        company: 'Internal',
+        priority: 'high',
+        category: 'Security',
+        assignee: 'Security Ops'
       }
     ]
   },
@@ -264,6 +578,15 @@ const mockStats: MockStats = {
   }
 }
 
+// Add new color mapping for ticket backgrounds
+const getTicketColor = (priority: string | undefined, status: string) => {
+  // Four distinct states with their colors
+  if (status === 'resolved') return 'bg-[#50C878]/20 hover:bg-[#50C878]/30';
+  if (status === 'in_progress') return 'bg-[#4A90E2]/20 hover:bg-[#4A90E2]/30';
+  if (status === 'urgent' || priority === 'high') return 'bg-[#FF7676]/20 hover:bg-[#FF7676]/30';
+  return 'bg-[#FFB347]/20 hover:bg-[#FFB347]/30'; // default/open state
+};
+
 /**
  * Dashboard Page Component
  * 
@@ -276,6 +599,7 @@ export default function DashboardPage() {
   const [userProfile, setUserProfile] = useState<Profile | null>(null)
   const [isCopilotMinimized, setIsCopilotMinimized] = useState(false)
   const { role, isRootAdmin } = useRole()
+  const [expandedTickets, setExpandedTickets] = useState<ExpandedStates>({});
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -299,6 +623,13 @@ export default function DashboardPage() {
     }
     loadProfile()
   }, [user])
+
+  const toggleTicketExpansion = (ticketId: string) => {
+    setExpandedTickets(prev => ({
+      ...prev,
+      [ticketId]: !prev[ticketId]
+    }));
+  };
 
   // Show loading state
   if (userLoading) {
@@ -424,33 +755,59 @@ export default function DashboardPage() {
                 View All Tickets →
               </Link>
             </div>
-            <div className="space-y-4">
-              {mockStats.activities.recent
-                .filter(activity => activity.type === 'ticket')
-                .map((ticket, index) => (
-                  <div key={index} className="p-4 bg-white/50 rounded-lg hover:bg-white/70 transition-colors">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <h3 className="font-medium text-[#2C5282]">{ticket.title}</h3>
-                        <p className="text-sm text-[#4A5568] mt-1">{ticket.description}</p>
+            <div className="max-h-[600px] overflow-y-auto pr-2">
+              <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+                {mockStats.activities.recent
+                  .filter(activity => activity.type === 'ticket')
+                  .map((ticket, index) => (
+                    <motion.div
+                      key={index}
+                      className={`p-2 rounded-lg cursor-pointer transition-all duration-200
+                        ${getTicketColor(ticket.priority, ticket.status)}
+                        ${expandedTickets[`ticket-${index}`] ? 'col-span-2 row-span-2 z-10' : ''}`}
+                      onClick={() => toggleTicketExpansion(`ticket-${index}`)}
+                      layout
+                    >
+                      <div className="flex flex-col min-h-0">
+                        <h3 className="font-medium text-[#2C5282] text-xs leading-tight truncate">
+                          {ticket.title}
+                        </h3>
+                        {!expandedTickets[`ticket-${index}`] ? (
+                          <div className="flex items-center justify-between mt-1">
+                            <span className="text-[10px] text-[#4A5568]">{ticket.time}</span>
+                            <span className="text-[10px] text-[#4A5568]">{ticket.category}</span>
+                          </div>
+                        ) : (
+                          <motion.div
+                            initial={false}
+                            animate={{ opacity: 1 }}
+                            className="mt-1 text-xs"
+                          >
+                            <p className="text-[#4A5568] mb-2">{ticket.description}</p>
+                            <div className="grid grid-cols-2 gap-1 text-[10px]">
+                              <div>
+                                <p className="font-medium text-[#4A5568]">Contact</p>
+                                <p className="truncate">{ticket.contact}</p>
+                              </div>
+                              <div>
+                                <p className="font-medium text-[#4A5568]">Company</p>
+                                <p className="truncate">{ticket.company}</p>
+                              </div>
+                              <div>
+                                <p className="font-medium text-[#4A5568]">Status</p>
+                                <p>{ticket.status}</p>
+                              </div>
+                              <div>
+                                <p className="font-medium text-[#4A5568]">Assignee</p>
+                                <p className="truncate">{ticket.assignee || 'Unassigned'}</p>
+                              </div>
+                            </div>
+                          </motion.div>
+                        )}
                       </div>
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium
-                        ${ticket.priority === 'high' ? 'bg-[#FF7676]/10 text-[#FF7676]' :
-                          ticket.priority === 'medium' ? 'bg-[#FFB347]/10 text-[#FFB347]' :
-                          'bg-[#4A5568]/10 text-[#4A5568]'}`}
-                      >
-                        {ticket.priority}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 mt-2 text-xs text-[#4A5568]">
-                      <span>{ticket.time}</span>
-                      <span>•</span>
-                      <span>{ticket.assignee || 'Unassigned'}</span>
-                      <span>•</span>
-                      <span>{ticket.category}</span>
-                    </div>
-                  </div>
-                ))}
+                    </motion.div>
+                  ))}
+              </div>
             </div>
           </motion.div>
 
