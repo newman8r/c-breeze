@@ -330,6 +330,17 @@ const getTicketColor = (priority: string | undefined, status: string) => {
   return 'bg-[#FFB347]/20 hover:bg-[#FFB347]/30'; // default/open state
 };
 
+// Add new interface for ticket creation form
+interface CreateTicketForm {
+  title: string
+  description: string
+  customer_id?: string
+  priority: 'low' | 'medium' | 'high' | 'urgent'
+  category?: string
+  due_date?: string
+  is_internal: boolean
+}
+
 /**
  * Dashboard Page Component
  * 
@@ -344,6 +355,14 @@ export default function DashboardPage() {
   const { role, isRootAdmin } = useRole()
   const [expandedTickets, setExpandedTickets] = useState<ExpandedStates>({});
   const [zoomLevel, setZoomLevel] = useState<ZoomLevel>(2);
+  const [isCreateTicketOpen, setIsCreateTicketOpen] = useState(false)
+  const [createTicketForm, setCreateTicketForm] = useState<CreateTicketForm>({
+    title: '',
+    description: '',
+    priority: 'medium',
+    is_internal: false
+  })
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -374,6 +393,42 @@ export default function DashboardPage() {
       [ticketId]: !prev[ticketId]
     }));
   };
+
+  // Add createTicket function
+  const createTicket = async () => {
+    try {
+      setIsSubmitting(true)
+      const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/create-ticket`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+        },
+        body: JSON.stringify(createTicketForm)
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.message || 'Failed to create ticket')
+      }
+
+      // Reset form and close modal
+      setCreateTicketForm({
+        title: '',
+        description: '',
+        priority: 'medium',
+        is_internal: false
+      })
+      setIsCreateTicketOpen(false)
+
+      // Could add a success toast here
+    } catch (error) {
+      console.error('Error creating ticket:', error)
+      // Could add an error toast here
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
 
   // Show loading state
   if (userLoading) {
@@ -481,6 +536,29 @@ export default function DashboardPage() {
               <p className="text-3xl font-bold text-[#2C5282]">{mockStats.support.satisfaction}%</p>
               <p className="text-sm text-[#FFB347]">Last 24 hours</p>
             </div>
+          </div>
+        </motion.div>
+
+        {/* Add Create Ticket Card after Quick Stats Grid */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="ocean-card relative overflow-hidden"
+        >
+          <BauhausShape color="#4A90E2" type="circle" />
+          <div className="relative z-10">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-[#2C5282]">Create New Ticket</h2>
+              <button
+                onClick={() => setIsCreateTicketOpen(true)}
+                className="wave-button px-4 py-2"
+              >
+                Create Ticket
+              </button>
+            </div>
+            <p className="text-sm text-[#4A5568]">
+              Create internal tickets or customer support tickets directly from the dashboard.
+            </p>
           </div>
         </motion.div>
 
@@ -984,6 +1062,141 @@ export default function DashboardPage() {
             </motion.div>
           </motion.div>
         </motion.div>
+
+        {/* Add Create Ticket Modal */}
+        {isCreateTicketOpen && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="ocean-card w-full max-w-2xl mx-4"
+            >
+              <h2 className="text-xl font-bold text-[#2C5282] mb-6">Create New Ticket</h2>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-[#4A5568] mb-1">
+                    Title
+                  </label>
+                  <input
+                    type="text"
+                    value={createTicketForm.title}
+                    onChange={(e) => setCreateTicketForm(prev => ({ ...prev, title: e.target.value }))}
+                    className="w-full px-4 py-2 rounded-lg border border-[#4A90E2]/20 focus:outline-none focus:ring-2 focus:ring-[#4A90E2]/40"
+                    placeholder="Enter ticket title"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-[#4A5568] mb-1">
+                    Description
+                  </label>
+                  <textarea
+                    value={createTicketForm.description}
+                    onChange={(e) => setCreateTicketForm(prev => ({ ...prev, description: e.target.value }))}
+                    className="w-full px-4 py-2 rounded-lg border border-[#4A90E2]/20 focus:outline-none focus:ring-2 focus:ring-[#4A90E2]/40 min-h-[100px]"
+                    placeholder="Enter ticket description"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-[#4A5568] mb-1">
+                      Priority
+                    </label>
+                    <select
+                      value={createTicketForm.priority}
+                      onChange={(e) => setCreateTicketForm(prev => ({ 
+                        ...prev, 
+                        priority: e.target.value as 'low' | 'medium' | 'high' | 'urgent'
+                      }))}
+                      className="w-full px-4 py-2 rounded-lg border border-[#4A90E2]/20 focus:outline-none focus:ring-2 focus:ring-[#4A90E2]/40"
+                    >
+                      <option value="low">Low</option>
+                      <option value="medium">Medium</option>
+                      <option value="high">High</option>
+                      <option value="urgent">Urgent</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-[#4A5568] mb-1">
+                      Category
+                    </label>
+                    <input
+                      type="text"
+                      value={createTicketForm.category || ''}
+                      onChange={(e) => setCreateTicketForm(prev => ({ ...prev, category: e.target.value }))}
+                      className="w-full px-4 py-2 rounded-lg border border-[#4A90E2]/20 focus:outline-none focus:ring-2 focus:ring-[#4A90E2]/40"
+                      placeholder="Enter category"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-[#4A5568] mb-1">
+                      Due Date
+                    </label>
+                    <input
+                      type="date"
+                      value={createTicketForm.due_date || ''}
+                      onChange={(e) => setCreateTicketForm(prev => ({ ...prev, due_date: e.target.value }))}
+                      className="w-full px-4 py-2 rounded-lg border border-[#4A90E2]/20 focus:outline-none focus:ring-2 focus:ring-[#4A90E2]/40"
+                    />
+                  </div>
+
+                  <div className="flex items-center">
+                    <label className="flex items-center text-sm font-medium text-[#4A5568] cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={createTicketForm.is_internal}
+                        onChange={(e) => setCreateTicketForm(prev => ({ 
+                          ...prev, 
+                          is_internal: e.target.checked,
+                          customer_id: e.target.checked ? undefined : prev.customer_id
+                        }))}
+                        className="mr-2 rounded border-[#4A90E2]/20 text-[#4A90E2] focus:ring-[#4A90E2]/40"
+                      />
+                      Internal Ticket
+                    </label>
+                  </div>
+                </div>
+
+                {!createTicketForm.is_internal && (
+                  <div>
+                    <label className="block text-sm font-medium text-[#4A5568] mb-1">
+                      Customer ID
+                    </label>
+                    <input
+                      type="text"
+                      value={createTicketForm.customer_id || ''}
+                      onChange={(e) => setCreateTicketForm(prev => ({ ...prev, customer_id: e.target.value }))}
+                      className="w-full px-4 py-2 rounded-lg border border-[#4A90E2]/20 focus:outline-none focus:ring-2 focus:ring-[#4A90E2]/40"
+                      placeholder="Enter customer ID"
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-end gap-4 mt-6">
+                <button
+                  onClick={() => setIsCreateTicketOpen(false)}
+                  className="px-4 py-2 text-[#4A5568] hover:text-[#2C5282] transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={createTicket}
+                  disabled={isSubmitting}
+                  className="wave-button px-4 py-2 disabled:opacity-50"
+                >
+                  {isSubmitting ? 'Creating...' : 'Create Ticket'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
       </div>
     </div>
   )

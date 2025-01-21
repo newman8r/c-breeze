@@ -5,40 +5,46 @@
 // Setup type definitions for built-in Supabase Runtime APIs
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 
-import { serve } from 'https://deno.fresh.dev/server.ts'
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { corsHeaders } from '../_shared/cors.ts'
 
 console.log("Hello from Functions!")
 
-interface TicketRequest {
+interface TicketData {
   title: string
   description: string
-  customer_id?: string // Optional for internal tickets
+  customer_id?: string
   priority: 'low' | 'medium' | 'high' | 'urgent'
   category?: string
   due_date?: string
-  assigned_to?: string
-  tags?: string[]
-  is_internal?: boolean
+  is_internal: boolean
 }
 
-interface ErrorResponse {
-  error: string
-  details?: unknown
-}
-
-serve(async (req) => {
-  // Handle CORS
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
-  }
-
+serve(async (req: Request) => {
   try {
-    // Get auth user
+    console.log("Request received:", req.method)
+    
+    // Handle CORS
+    if (req.method === 'OPTIONS') {
+      console.log("Handling CORS preflight")
+      return new Response('ok', {
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'POST',
+          'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+        }
+      })
+    }
+
+    // Get auth token from request
     const authHeader = req.headers.get('Authorization')
+    console.log("Auth header present:", !!authHeader)
+    
     if (!authHeader) {
-      throw new Error('No authorization header')
+      return new Response(JSON.stringify({ error: 'No authorization header' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' }
+      })
     }
 
     // Create Supabase client
@@ -50,133 +56,151 @@ serve(async (req) => {
       }
     )
 
-    // Get user
+    // Get user and employee data
     const {
       data: { user },
       error: userError,
     } = await supabaseClient.auth.getUser()
+    
+    console.log("User found:", !!user, "User error:", !!userError)
 
     if (userError || !user) {
-      throw new Error('Invalid user token')
+      console.error("User error:", userError)
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' }
+      })
     }
 
-    // Get employee record and verify permissions
-    const { data: employeeData, error: employeeError } = await supabaseClient
+    // Get employee record to get organization_id
+    const { data: employee, error: employeeError } = await supabaseClient
       .from('employees')
-      .select('id, organization_id, role')
+      .select('id, organization_id')
       .eq('user_id', user.id)
       .single()
+    
+    console.log("Employee found:", !!employee, "Employee error:", !!employeeError)
 
-    if (employeeError || !employeeData) {
-      throw new Error('User is not an employee')
+    if (employeeError || !employee) {
+      console.error("Employee error:", employeeError)
+      return new Response(JSON.stringify({ error: 'User is not an employee' }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' }
+      })
     }
 
     // Parse request body
-    const requestData: TicketRequest = await req.json()
+    const ticketData: TicketData = await req.json()
+    console.log("Received ticket data:", ticketData)
 
     // Validate required fields
-    if (!requestData.title || !requestData.description || !requestData.priority) {
-      throw new Error('Missing required fields')
+    if (!ticketData.title || !ticketData.description || !ticketData.priority) {
+      console.log("Missing required fields")
+      return new Response(JSON.stringify({ error: 'Missing required fields' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      })
     }
 
-    // For internal tickets, we don't require a customer_id
-    if (!requestData.is_internal && !requestData.customer_id) {
-      throw new Error('Customer ID is required for non-internal tickets')
-    }
-
-    // If customer_id is provided, verify it belongs to the organization
-    if (requestData.customer_id) {
-      const { data: customerData, error: customerError } = await supabaseClient
+    // For internal tickets, create a special internal customer if one doesn't exist
+    let customerId = ticketData.customer_id
+    if (ticketData.is_internal) {
+      console.log("Processing internal ticket")
+      const { data: internalCustomer, error: customerError } = await supabaseClient
         .from('customers')
         .select('id')
-        .eq('id', requestData.customer_id)
-        .eq('organization_id', employeeData.organization_id)
+        .eq('organization_id', employee.organization_id)
+        .eq('email', 'internal@organization.com')
         .single()
+      
+      console.log("Internal customer found:", !!internalCustomer, "Customer error:", !!customerError)
 
-      if (customerError || !customerData) {
-        throw new Error('Invalid customer ID')
+      if (customerError) {
+        console.log("Creating internal customer")
+        // Create internal customer
+        const { data: newCustomer, error: createError } = await supabaseClient
+          .from('customers')
+          .insert({
+            organization_id: employee.organization_id,
+            name: 'Internal',
+            email: 'internal@organization.com',
+            status: 'active'
+          })
+          .select()
+          .single()
+
+        if (createError) {
+          console.error("Error creating internal customer:", createError)
+          return new Response(JSON.stringify({ error: 'Failed to create internal customer' }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' }
+          })
+        }
+        customerId = newCustomer.id
+      } else {
+        customerId = internalCustomer.id
       }
+      console.log("Using customer ID:", customerId)
+    } else if (!customerId) {
+      console.log("Missing customer ID for non-internal ticket")
+      return new Response(JSON.stringify({ error: 'Customer ID is required for non-internal tickets' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      })
     }
 
-    // Create the ticket
-    const ticketData = {
-      organization_id: employeeData.organization_id,
-      customer_id: requestData.customer_id,
-      title: requestData.title,
-      description: requestData.description,
-      status: 'open',
-      priority: requestData.priority,
-      category: requestData.category,
-      source: requestData.is_internal ? 'internal' : 'employee',
-      assigned_to: requestData.assigned_to,
-      due_date: requestData.due_date ? new Date(requestData.due_date).toISOString() : null
-    }
+    // Create ticket
+    console.log("Creating ticket with data:", {
+      organization_id: employee.organization_id,
+      customer_id: customerId,
+      title: ticketData.title,
+      description: ticketData.description,
+      priority: ticketData.priority,
+      category: ticketData.category,
+      due_date: ticketData.due_date,
+      source: ticketData.is_internal ? 'internal' : 'employee',
+      assigned_to: employee.id
+    })
 
-    const { data: ticket, error: ticketError } = await supabaseClient
+    const { data: ticket, error: insertError } = await supabaseClient
       .from('tickets')
-      .insert(ticketData)
+      .insert([{
+        organization_id: employee.organization_id,
+        customer_id: customerId,
+        title: ticketData.title,
+        description: ticketData.description,
+        priority: ticketData.priority,
+        category: ticketData.category,
+        due_date: ticketData.due_date,
+        source: ticketData.is_internal ? 'internal' : 'employee',
+        assigned_to: employee.id // Assign to the creating employee by default
+      }])
       .select()
       .single()
 
-    if (ticketError) {
-      throw new Error(`Failed to create ticket: ${ticketError.message}`)
+    if (insertError) {
+      console.error("Error creating ticket:", insertError)
+      return new Response(JSON.stringify({ error: 'Failed to create ticket', details: insertError }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      })
     }
 
-    // If tags were provided, create ticket-tag associations
-    if (requestData.tags && requestData.tags.length > 0) {
-      // First verify all tags exist and belong to the organization
-      const { data: tagsData, error: tagsError } = await supabaseClient
-        .from('tags')
-        .select('id')
-        .eq('organization_id', employeeData.organization_id)
-        .in('id', requestData.tags)
-
-      if (tagsError) {
-        throw new Error('Error verifying tags')
+    console.log("Ticket created successfully:", ticket)
+    return new Response(JSON.stringify({ ticket }), {
+      status: 201,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
       }
-
-      if (tagsData.length !== requestData.tags.length) {
-        throw new Error('One or more invalid tag IDs')
-      }
-
-      // Create ticket-tag associations
-      const ticketTags = requestData.tags.map(tagId => ({
-        ticket_id: ticket.id,
-        tag_id: tagId
-      }))
-
-      const { error: tagAssocError } = await supabaseClient
-        .from('ticket_tags')
-        .insert(ticketTags)
-
-      if (tagAssocError) {
-        throw new Error('Error associating tags with ticket')
-      }
-    }
-
-    return new Response(
-      JSON.stringify({
-        message: 'Ticket created successfully',
-        ticket
-      }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 201
-      }
-    )
+    })
 
   } catch (error) {
-    const errorResponse: ErrorResponse = {
-      error: error.message
-    }
-
-    return new Response(
-      JSON.stringify(errorResponse),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 400
-      }
-    )
+    console.error("Caught error:", error)
+    return new Response(JSON.stringify({ error: 'Internal server error', details: error.message }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    })
   }
 })
 
