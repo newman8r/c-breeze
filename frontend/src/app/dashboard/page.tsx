@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import { supabase } from '@/lib/supabase'
 import { useUser } from '@/contexts/UserContext'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useRole } from '@/contexts/RoleContext'
 import { signOut } from '@/utils/supabase'
+import { Activity, mockTickets } from '@/mocks/ticketData'
+import { getRecentOrganizationTickets, createClient } from '@/utils/supabase'
 
 // Types for our data
 interface Profile {
@@ -18,26 +19,7 @@ interface Profile {
   bio: string | null
   created_at: string
   updated_at: string
-}
-
-interface Activity {
-  type: 'ticket' | 'response' | 'chat' | 'automation'
-  title: string
-  description: string
-  time: string
-  status: string
-  source?: string
-  contact?: string
-  contactEmail?: string
-  company?: string
-  priority?: 'high' | 'medium' | 'low'
-  category?: string
-  assignee?: string
-  duration?: string
-  satisfaction?: number
-  accuracy?: string
-  categories?: string[]
-  aiConfidence?: 'high' | 'medium' | 'low'
+  organization_id: string
 }
 
 interface Category {
@@ -96,6 +78,101 @@ interface MockStats {
   }
 }
 
+// Add new interface for expanded state tracking
+interface ExpandedStates {
+  [key: string]: boolean;
+}
+
+// Update the ZoomLevel type definition
+type ZoomLevel = 1 | 2 | 3;
+
+const isExpandedView = (zoom: ZoomLevel) => zoom === 1 || zoom === 2;
+
+const getZoomStyles = (zoom: ZoomLevel) => {
+  switch (zoom) {
+    case 1: // Full detail view
+      return {
+        grid: 'grid-cols-1',
+        padding: 'p-4',
+        text: 'text-sm',
+        description: 'line-clamp-3',
+        showExtra: true,
+        variants: {
+          container: {
+            enter: { opacity: 1, transition: { staggerChildren: 0.1 } },
+            exit: { opacity: 0, transition: { staggerChildren: 0.05 } }
+          },
+          item: {
+            enter: { 
+              opacity: 1, 
+              scale: 1, 
+              width: '100%',
+              transition: { type: "spring", stiffness: 300, damping: 25 } 
+            },
+            exit: { 
+              opacity: 0, 
+              scale: 0.95,
+              width: '100%',
+              transition: { type: "spring", stiffness: 300, damping: 25 } 
+            }
+          }
+        }
+      };
+    case 2: // Current square view
+      return {
+        grid: 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4',
+        padding: 'p-3',
+        text: 'text-xs',
+        description: 'line-clamp-1',
+        showExtra: false,
+        variants: {
+          container: {
+            enter: { opacity: 1, transition: { staggerChildren: 0.05 } },
+            exit: { opacity: 0, transition: { staggerChildren: 0.02 } }
+          },
+          item: {
+            enter: { 
+              opacity: 1, 
+              scale: 1,
+              transition: { type: "spring", stiffness: 400, damping: 30 } 
+            },
+            exit: { 
+              opacity: 0, 
+              scale: 0.9,
+              transition: { type: "spring", stiffness: 400, damping: 30 } 
+            }
+          }
+        }
+      };
+    case 3: // Heat map view
+      return {
+        grid: 'grid grid-cols-8 md:grid-cols-10 lg:grid-cols-12 auto-rows-[24px] [grid-auto-columns:24px]',
+        padding: 'p-0',
+        text: 'text-[10px]',
+        description: 'hidden',
+        showExtra: false,
+        variants: {
+          container: {
+            enter: { opacity: 1, transition: { staggerChildren: 0.01 } },
+            exit: { opacity: 0, transition: { staggerChildren: 0.01 } }
+          },
+          item: {
+            enter: { 
+              opacity: 1, 
+              scale: 1,
+              transition: { type: "spring", stiffness: 500, damping: 35 } 
+            },
+            exit: { 
+              opacity: 0, 
+              scale: 0.85,
+              transition: { type: "spring", stiffness: 500, damping: 35 } 
+            }
+          }
+        }
+      };
+  }
+};
+
 // Decorative shape component
 const BauhausShape = ({ color, type }: { color: string, type: 'circle' | 'triangle' | 'rectangle' }) => {
   switch (type) {
@@ -117,7 +194,16 @@ const BauhausShape = ({ color, type }: { color: string, type: 'circle' | 'triang
   }
 }
 
-// Mock data for demo purposes
+// Add new geometric divider component
+const GeometricDivider = () => (
+  <div className="flex items-center justify-center py-2 opacity-30">
+    <div className="w-2 h-2 bg-[#4A90E2] rotate-45" />
+    <div className="w-1 h-1 bg-[#FFB347] rounded-full mx-2" />
+    <div className="w-2 h-2 bg-[#FF7676] rotate-45" />
+  </div>
+);
+
+// Update the mockStats object to use the imported data
 const mockStats: MockStats = {
   tickets: {
     total: 156,
@@ -135,73 +221,7 @@ const mockStats: MockStats = {
     today: 28,
     upcoming: 15,
     overdue: 7,
-    recent: [
-      {
-        type: 'ticket',
-        title: 'Login Authentication Issue',
-        description: 'User unable to access dashboard after password reset',
-        time: '10 min ago',
-        status: 'urgent',
-        source: 'Email',
-        contact: 'Sarah Chen',
-        contactEmail: 'sarah.chen@techcorp.com',
-        company: 'Tech Corp',
-        priority: 'high',
-        category: 'Authentication',
-        assignee: 'Michael Wong'
-      },
-      {
-        type: 'response',
-        title: 'API Integration Support',
-        description: 'Provided documentation for webhook setup',
-        time: '1 hour ago',
-        status: 'resolved',
-        duration: '15 min',
-        source: 'Support Portal',
-        contact: 'John Smith',
-        contactEmail: 'j.smith@acme.com',
-        company: 'Acme Inc',
-        priority: 'medium',
-        category: 'API Support',
-        satisfaction: 5
-      },
-      {
-        type: 'chat',
-        title: 'Billing Inquiry',
-        description: 'Question about enterprise plan pricing',
-        time: '2 hours ago',
-        status: 'in_progress',
-        source: 'Live Chat',
-        contact: 'Lisa Park',
-        company: 'Startup Labs',
-        priority: 'medium',
-        category: 'Billing',
-        assignee: 'Alex Johnson'
-      },
-      {
-        type: 'automation',
-        title: 'Auto-categorized Tickets',
-        description: 'AI categorized 15 new support tickets',
-        time: '3 hours ago',
-        status: 'completed',
-        accuracy: '95%',
-        categories: ['Bug Report', 'Feature Request', 'Account Issues'],
-        aiConfidence: 'high'
-      },
-      {
-        type: 'ticket',
-        title: 'Data Export Not Working',
-        description: 'Export to CSV feature throwing 500 error',
-        time: '4 hours ago',
-        status: 'open',
-        source: 'API Monitor',
-        contact: 'Dev Team',
-        company: 'Global Systems',
-        priority: 'high',
-        category: 'Bug',
-        assignee: 'Technical Support'
-      }
-    ]
+    recent: mockTickets
   },
   performance: {
     resolvedTickets: 145,
@@ -264,6 +284,110 @@ const mockStats: MockStats = {
   }
 }
 
+// Update color mapping for ticket backgrounds
+const getTicketColor = (priority: string | undefined, status: string, isHeatmap: boolean = false) => {
+  // For heatmap view (level 3), use pastel colors
+  if (isHeatmap) {
+    switch (priority) {
+      case 'urgent':
+        return 'bg-[#FFE4E4]'; // Pastel red for urgent
+      case 'high':
+        return 'bg-[#FFD4D4]'; // Light pastel red for high
+      case 'medium':
+        return 'bg-[#FFE8CC]'; // Pastel orange for medium
+      case 'low':
+        return 'bg-[#E3F0FF]'; // Pastel blue for low
+      default:
+        return 'bg-[#FFE8CC]'; // Default to medium priority color
+    }
+  }
+
+  // For non-heatmap views, keep existing behavior
+  if (status === 'resolved') return 'bg-[#50C878]/20 hover:bg-[#50C878]/30';
+  
+  switch (priority) {
+    case 'urgent':
+      return 'bg-[#FF4242]/20 hover:bg-[#FF4242]/30';
+    case 'high':
+      return 'bg-[#FF7676]/20 hover:bg-[#FF7676]/30';
+    case 'medium':
+      return 'bg-[#FFB347]/20 hover:bg-[#FFB347]/30';
+    case 'low':
+      return 'bg-[#4A90E2]/20 hover:bg-[#4A90E2]/30';
+    default:
+      return 'bg-[#FFB347]/20 hover:bg-[#FFB347]/30';
+  }
+};
+
+// Update status indicator component
+const StatusIndicator = ({ status, isHeatmap = false }: { status: string, isHeatmap?: boolean }) => {
+  const statusColors = {
+    open: isHeatmap ? '#FF4242' : '#FFB347', // Red for open in heatmap, orange otherwise
+    in_progress: '#4A90E2',
+    resolved: '#50C878',
+    closed: '#718096'
+  };
+
+  // Treat 'urgent' status as 'open'
+  const normalizedStatus = status === 'urgent' ? 'open' : status;
+
+  return (
+    <div className="relative">
+      <div
+        className={`w-3 h-3 rounded-full ${isHeatmap ? 'bg-white' : ''}`}
+        style={{ 
+          backgroundColor: statusColors[normalizedStatus as keyof typeof statusColors] || statusColors.open,
+          opacity: isHeatmap ? 0.9 : 1
+        }}
+      />
+    </div>
+  );
+};
+
+// Add new interface for ticket creation form
+interface CreateTicketForm {
+  title: string
+  description: string
+  customer_id?: string
+  priority: 'low' | 'medium' | 'high' | 'urgent'
+  category?: string
+  due_date?: string
+  is_internal: boolean
+}
+
+// Add ticket type definition
+interface Ticket {
+  id: string
+  title: string
+  description: string
+  status: string
+  priority: string
+  created_at: string
+  customer: {
+    id: string
+    name: string
+    email: string
+  }
+  assigned_employee: {
+    id: string
+    first_name: string
+    last_name: string
+  } | null
+  ticket_tags: {
+    tag: {
+      id: string
+      name: string
+      color: string
+    }
+  }[]
+}
+
+// Add new interface for selected ticket state
+interface SelectedTicket {
+  id: string;
+  isOpen: boolean;
+}
+
 /**
  * Dashboard Page Component
  * 
@@ -274,8 +398,21 @@ export default function DashboardPage() {
   const router = useRouter()
   const { user, loading: userLoading } = useUser()
   const [userProfile, setUserProfile] = useState<Profile | null>(null)
+  const [tickets, setTickets] = useState<Ticket[]>([])
+  const [ticketsLoading, setTicketsLoading] = useState(true)
   const [isCopilotMinimized, setIsCopilotMinimized] = useState(false)
-  const { role, isRootAdmin } = useRole()
+  const { role, isRootAdmin, organizationId } = useRole()
+  const [expandedTickets, setExpandedTickets] = useState<ExpandedStates>({});
+  const [zoomLevel, setZoomLevel] = useState<1 | 2 | 3>(2);
+  const [isCreateTicketOpen, setIsCreateTicketOpen] = useState(false)
+  const [createTicketForm, setCreateTicketForm] = useState<CreateTicketForm>({
+    title: '',
+    description: '',
+    priority: 'medium',
+    is_internal: false
+  })
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [selectedTicket, setSelectedTicket] = useState<SelectedTicket>({ id: '', isOpen: false });
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -288,6 +425,7 @@ export default function DashboardPage() {
   useEffect(() => {
     async function loadProfile() {
       if (user) {
+        const supabase = createClient()
         const { data: profile } = await supabase
           .from('profiles')
           .select('*')
@@ -299,6 +437,80 @@ export default function DashboardPage() {
     }
     loadProfile()
   }, [user])
+
+  // Add ticket fetching
+  const loadTickets = async () => {
+    if (!user || !organizationId) {
+      setTicketsLoading(false)
+      return
+    }
+
+    try {
+      const tickets = await getRecentOrganizationTickets(organizationId)
+      setTickets(tickets || [])
+    } catch (error) {
+      console.error('Error loading tickets:', error)
+    } finally {
+      setTicketsLoading(false)
+    }
+  }
+
+  // Add ticket fetching effect
+  useEffect(() => {
+    loadTickets()
+  }, [user, organizationId])
+
+  const toggleTicketExpansion = (ticketId: string) => {
+    setExpandedTickets(prev => ({
+      ...prev,
+      [ticketId]: !prev[ticketId]
+    }));
+  };
+
+  // Add createTicket function
+  const createTicket = async () => {
+    try {
+      setIsSubmitting(true)
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      
+      if (!session?.access_token) {
+        throw new Error('No access token available')
+      }
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/create-ticket`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify(createTicketForm)
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.message || 'Failed to create ticket')
+      }
+
+      // Reset form and close modal
+      setCreateTicketForm({
+        title: '',
+        description: '',
+        priority: 'medium',
+        is_internal: false
+      })
+      setIsCreateTicketOpen(false)
+
+      // Refresh tickets list
+      await loadTickets()
+
+    } catch (error) {
+      console.error('Error creating ticket:', error)
+      // Could add an error toast here
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
 
   // Show loading state
   if (userLoading) {
@@ -317,6 +529,109 @@ export default function DashboardPage() {
   if (!user) {
     return null // Router will handle redirect
   }
+
+  // Add new component for full-screen ticket view
+  const FullScreenTicket = ({ ticket, onClose }: { ticket: any; onClose: () => void }) => {
+    return (
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        className="absolute inset-0 z-50 bg-gradient-to-br from-blue-50/95 to-white/95 backdrop-blur-sm rounded-lg overflow-hidden"
+      >
+        <div className="relative h-full p-6">
+          {/* Bauhaus-inspired decorative elements */}
+          <div className="absolute top-0 right-0 w-48 h-48 bg-yellow-200/20 rounded-full -translate-y-1/2 translate-x-1/2" />
+          <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-200/20 rounded-full translate-y-1/2 -translate-x-1/2" />
+          
+          {/* Close button */}
+          <button
+            onClick={onClose}
+            className="absolute top-4 right-4 p-2 rounded-full bg-white/50 hover:bg-white/80 transition-colors z-10"
+          >
+            <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+
+          {/* Content */}
+          <div className="relative z-10 max-w-3xl mx-auto">
+            <div className="flex items-start justify-between mb-6">
+              <div>
+                <h2 className="text-2xl font-bold text-[#2C5282] mb-2">{ticket.title}</h2>
+                <div className="flex items-center gap-3">
+                  <span className={`px-3 py-1 rounded-full text-sm font-medium
+                    ${ticket.priority === 'high' ? 'bg-red-100 text-red-800' : 
+                      ticket.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' : 
+                      'bg-blue-100 text-blue-800'}`}
+                  >
+                    {ticket.priority}
+                  </span>
+                  <span className={`px-3 py-1 rounded-full text-sm font-medium
+                    ${ticket.status === 'urgent' ? 'bg-red-100 text-red-800' :
+                      ticket.status === 'in_progress' ? 'bg-yellow-100 text-yellow-800' :
+                      ticket.status === 'resolved' ? 'bg-green-100 text-green-800' :
+                      'bg-blue-100 text-blue-800'}`}
+                  >
+                    {ticket.status}
+                  </span>
+                  <span className="px-3 py-1 bg-gray-100 text-gray-800 rounded-full text-sm font-medium">
+                    {ticket.category}
+                  </span>
+                </div>
+              </div>
+              <div className="text-right text-sm text-gray-600">
+                <p>Created {new Date(ticket.created_at).toLocaleDateString()}</p>
+                <p>Source: {ticket.source}</p>
+              </div>
+            </div>
+
+            <div className="bg-white/50 rounded-lg p-6 mb-6">
+              <h3 className="text-lg font-medium text-[#2C5282] mb-4">Description</h3>
+              <p className="text-gray-700 whitespace-pre-wrap">{ticket.description}</p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-6">
+              <div className="bg-white/50 rounded-lg p-6">
+                <h3 className="text-lg font-medium text-[#2C5282] mb-4">Customer Details</h3>
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-sm text-gray-600">Name</p>
+                    <p className="font-medium text-gray-800">{ticket.customer?.name || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600">Email</p>
+                    <p className="font-medium text-gray-800">{ticket.customer?.email || 'N/A'}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-white/50 rounded-lg p-6">
+                <h3 className="text-lg font-medium text-[#2C5282] mb-4">Assignment</h3>
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-sm text-gray-600">Assigned To</p>
+                    <p className="font-medium text-gray-800">
+                      {ticket.assigned_employee ? 
+                        `${ticket.assigned_employee.first_name} ${ticket.assigned_employee.last_name}` : 
+                        'Unassigned'}
+                    </p>
+                  </div>
+                  {ticket.resolved_by && (
+                    <div>
+                      <p className="text-sm text-gray-600">Resolved By</p>
+                      <p className="font-medium text-gray-800">
+                        {ticket.resolved_by.first_name} {ticket.resolved_by.last_name}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#E0F2F7] via-[#4A90E2]/10 to-[#F7F3E3] p-6">
@@ -376,8 +691,12 @@ export default function DashboardPage() {
             <BauhausShape color="#FF7676" type="circle" />
             <div className="relative z-10">
               <h3 className="text-lg font-medium text-[#4A5568]">Open Tickets</h3>
-              <p className="text-3xl font-bold text-[#2C5282]">{mockStats.support.openTickets}</p>
-              <p className="text-sm text-[#FF7676]">{mockStats.tickets.urgent} urgent</p>
+              <p className="text-3xl font-bold text-[#2C5282]">
+                {tickets.filter(t => t.status === 'open').length}
+              </p>
+              <p className="text-sm text-[#FF7676]">
+                {tickets.filter(t => t.priority === 'urgent' && t.status === 'open').length} urgent
+              </p>
             </div>
           </div>
           
@@ -409,6 +728,29 @@ export default function DashboardPage() {
           </div>
         </motion.div>
 
+        {/* Add Create Ticket Card after Quick Stats Grid */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="ocean-card relative overflow-hidden"
+        >
+          <BauhausShape color="#4A90E2" type="circle" />
+          <div className="relative z-10">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-[#2C5282]">Create New Ticket</h2>
+              <button
+                onClick={() => setIsCreateTicketOpen(true)}
+                className="wave-button px-4 py-2"
+              >
+                Create Ticket
+              </button>
+            </div>
+            <p className="text-sm text-[#4A5568]">
+              Create internal tickets or customer support tickets directly from the dashboard.
+            </p>
+          </div>
+        </motion.div>
+
         {/* Main Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Ticket Feed */}
@@ -418,68 +760,189 @@ export default function DashboardPage() {
             transition={{ delay: 0.2 }}
             className="ocean-card col-span-2"
           >
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold text-[#2C5282]">Ticket Feed</h2>
-              <Link href="/tickets" className="text-[#4A90E2] hover:text-[#2C5282] transition-colors">
-                View All Tickets →
-              </Link>
+            <div className="flex justify-between items-center mb-6 relative z-10">
+              <div>
+                <h2 className="text-xl font-bold text-[#2C5282]">Ticket Feed</h2>
+                <p className="text-sm text-[#4A5568]">
+                  {tickets.length} tickets
+                </p>
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center bg-white/50 rounded-lg p-1">
+                  <button
+                    onClick={() => setZoomLevel(1)}
+                    className={`p-2 rounded-lg transition-colors ${zoomLevel === 1 ? 'bg-white' : 'hover:bg-white/50'}`}
+                    title="Detail View"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={() => setZoomLevel(2)}
+                    className={`p-2 rounded-lg transition-colors ${zoomLevel === 2 ? 'bg-white' : 'hover:bg-white/50'}`}
+                    title="Grid View"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={() => setZoomLevel(3)}
+                    className={`p-2 rounded-lg transition-colors ${zoomLevel === 3 ? 'bg-white' : 'hover:bg-white/50'}`}
+                    title="Heat Map View"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4h16v16H4V4z M8 4v16 M12 4v16 M16 4v16 M4 8h16 M4 12h16 M4 16h16" />
+                    </svg>
+                  </button>
+                </div>
+                <Link href="/tickets" className="text-[#4A90E2] hover:text-[#2C5282] transition-colors">
+                  View All →
+                </Link>
+              </div>
             </div>
-            <div className="space-y-4">
-              {mockStats.activities.recent
-                .filter(activity => activity.type === 'ticket')
-                .map((ticket, index) => (
-                  <div key={index} className="p-4 bg-white/50 rounded-lg hover:bg-white/70 transition-colors">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <h3 className="font-medium text-[#2C5282]">{ticket.title}</h3>
-                        <p className="text-sm text-[#4A5568] mt-1">{ticket.description}</p>
-                      </div>
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium
-                        ${ticket.priority === 'high' ? 'bg-[#FF7676]/10 text-[#FF7676]' :
-                          ticket.priority === 'medium' ? 'bg-[#FFB347]/10 text-[#FFB347]' :
-                          'bg-[#4A5568]/10 text-[#4A5568]'}`}
+            <div className={`relative ${zoomLevel === 3 ? 'overflow-visible' : 'overflow-hidden'}`}>
+              <div className={`${zoomLevel === 3 ? 'overflow-visible' : 'max-h-[600px] overflow-y-auto pr-2'}`}>
+                {ticketsLoading ? (
+                  <div className="flex items-center justify-center p-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#4A90E2]"></div>
+                  </div>
+                ) : (
+                  <motion.div 
+                    key={`container-zoom-${zoomLevel}`}
+                    layout={false}
+                    initial="exit"
+                    animate="enter"
+                    exit="exit"
+                    variants={getZoomStyles(zoomLevel).variants.container}
+                    className={`grid ${getZoomStyles(zoomLevel).grid} ${zoomLevel === 1 ? 'gap-3' : zoomLevel === 2 ? 'gap-2' : 'gap-0'} 
+                      ${zoomLevel === 3 ? 'w-fit mx-auto bg-gray-50/50 p-2 rounded-lg relative' : ''}`}
+                  >
+                    {tickets.map((ticket, index) => (
+                      <motion.div
+                        key={`ticket-${ticket.id}-zoom-${zoomLevel}`}
+                        layout={false}
+                        variants={getZoomStyles(zoomLevel).variants.item}
+                        initial="exit"
+                        animate="enter"
+                        exit="exit"
+                        className={`${getZoomStyles(zoomLevel).padding} rounded-md cursor-pointer relative
+                          ${zoomLevel === 3 ? getTicketColor(ticket.priority, ticket.status, true) : getTicketColor(ticket.priority, ticket.status)}
+                          ${expandedTickets[ticket.id] && isExpandedView(zoomLevel) ? (zoomLevel === 1 ? 'col-span-full' : 'col-span-2 row-span-2') : ''}
+                          ${zoomLevel === 1 ? 'w-full' : ''}
+                          ${zoomLevel === 3 ? 'w-6 h-6 group hover:z-10 shrink-0' : ''}
+                          min-h-[${zoomLevel === 1 ? '120px' : zoomLevel === 2 ? '80px' : '24px'}]
+                          flex flex-col`}
+                        onClick={() => {
+                          setSelectedTicket({ id: ticket.id, isOpen: true });
+                          isExpandedView(zoomLevel) && toggleTicketExpansion(ticket.id);
+                        }}
                       >
-                        {ticket.priority}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 mt-2 text-xs text-[#4A5568]">
-                      <span>{ticket.time}</span>
-                      <span>•</span>
-                      <span>{ticket.assignee || 'Unassigned'}</span>
-                      <span>•</span>
-                      <span>{ticket.category}</span>
-                    </div>
-                  </div>
-                ))}
-            </div>
-          </motion.div>
-
-          {/* Chat Overview */}
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="ocean-card"
-          >
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold text-[#2C5282]">Active Chats</h2>
-              <Link href="/chats" className="text-[#4A90E2] hover:text-[#2C5282] transition-colors">
-                View All →
-              </Link>
-            </div>
-            <div className="space-y-4">
-              {mockStats.activities.recent
-                .filter(activity => activity.type === 'chat')
-                .map((chat, index) => (
-                  <div key={index} className="flex items-center gap-4 p-3 bg-white/50 rounded-lg hover:bg-white/70 transition-colors">
-                    <div className="w-2 h-2 rounded-full bg-[#50C878]" />
-                    <div className="flex-1">
-                      <p className="font-medium text-[#2C5282]">{chat.contact}</p>
-                      <p className="text-sm text-[#4A5568]">{chat.description}</p>
-                    </div>
-                    <span className="text-xs text-[#4A5568]">{chat.time}</span>
-                  </div>
-                ))}
+                        {zoomLevel === 3 ? (
+                          <>
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <StatusIndicator status={ticket.status} isHeatmap={true} />
+                            </div>
+                            <div className="opacity-0 group-hover:opacity-100 absolute z-[100] bottom-full left-1/2 -translate-x-1/2 mb-1 w-48 p-2 bg-white rounded-lg shadow-lg text-xs transition-opacity duration-200 pointer-events-none">
+                              <h4 className="font-medium text-[#2C5282] mb-1 truncate">{ticket.title}</h4>
+                              <p className="text-[#4A5568] text-[10px] mb-1 truncate">{ticket.description}</p>
+                              <div className="flex flex-col gap-1 text-[10px] text-[#4A5568]">
+                                <div className="flex justify-between items-center">
+                                  <span>{new Date(ticket.created_at).toLocaleString()}</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                  <div className="flex items-center gap-1">
+                                    <span>Status:</span>
+                                    <span className="capitalize">{ticket.status}</span>
+                                    <div className="w-2 h-2 rounded-full" style={{ 
+                                      backgroundColor: ticket.status === 'urgent' ? '#FF4242' :
+                                                     ticket.status === 'in_progress' ? '#4A90E2' :
+                                                     ticket.status === 'resolved' ? '#50C878' :
+                                                     ticket.status === 'closed' ? '#718096' : '#FFB347'
+                                    }} />
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <span>Priority:</span>
+                                    <span className="capitalize">{ticket.priority}</span>
+                                    <div className="w-2 h-2 rounded-full" style={{ 
+                                      backgroundColor: ticket.priority === 'urgent' ? '#FFE4E4' :
+                                                     ticket.priority === 'high' ? '#FFD4D4' :
+                                                     ticket.priority === 'low' ? '#E3F0FF' : '#FFE8CC'
+                                    }} />
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </>
+                        ) : (
+                          <motion.div 
+                            key={`content-${ticket.id}-zoom-${zoomLevel}`}
+                            className="flex flex-col h-full"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.2 }}
+                          >
+                            <h3 className={`font-medium text-[#2C5282] ${getZoomStyles(zoomLevel).text} leading-tight truncate mb-1`}>
+                              {ticket.title}
+                            </h3>
+                            {(zoomLevel === 1 || (!expandedTickets[ticket.id] && zoomLevel === 2)) && (
+                              <motion.div 
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                transition={{ delay: 0.1 }}
+                                className="flex items-center justify-between mt-auto space-x-2"
+                              >
+                                <span className={`${getZoomStyles(zoomLevel).text} text-[#4A5568] truncate flex-shrink-0`}>
+                                  {new Date(ticket.created_at).toLocaleString()}
+                                </span>
+                                {zoomLevel === 1 && (
+                                  <>
+                                    <span className={`${getZoomStyles(zoomLevel).text} text-[#4A5568] truncate`}>{ticket.status}</span>
+                                    <span className={`${getZoomStyles(zoomLevel).text} text-[#4A5568] truncate`}>
+                                      {ticket.ticket_tags[0]?.tag.name || 'Uncategorized'}
+                                    </span>
+                                  </>
+                                )}
+                                {zoomLevel === 2 && (
+                                  <span className={`${getZoomStyles(zoomLevel).text} text-[#4A5568] truncate`}>
+                                    {ticket.ticket_tags[0]?.tag.name || 'Uncategorized'}
+                                  </span>
+                                )}
+                              </motion.div>
+                            )}
+                            {expandedTickets[ticket.id] && isExpandedView(zoomLevel) && (
+                              <motion.div
+                                initial={{ opacity: 0, y: -10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                                className="mt-2 space-y-2"
+                              >
+                                <p className="text-xs text-[#4A5568] line-clamp-2">{ticket.description}</p>
+                                <div className="grid grid-cols-2 gap-2 text-[10px]">
+                                  <div className="overflow-hidden">
+                                    <p className="font-medium text-[#4A5568]">Contact</p>
+                                    <p className="truncate">{ticket.customer.name} ({ticket.customer.email})</p>
+                                  </div>
+                                  <div className="overflow-hidden">
+                                    <p className="font-medium text-[#4A5568]">Status</p>
+                                    <p className="truncate">{ticket.status}</p>
+                                  </div>
+                                  <div className="overflow-hidden">
+                                    <p className="font-medium text-[#4A5568]">Assignee</p>
+                                    <p className="truncate">{ticket.assigned_employee?.first_name} {ticket.assigned_employee?.last_name}</p>
+                                  </div>
+                                </div>
+                              </motion.div>
+                            )}
+                          </motion.div>
+                        )}
+                      </motion.div>
+                    ))}
+                  </motion.div>
+                )}
+              </div>
             </div>
           </motion.div>
 
@@ -780,6 +1243,149 @@ export default function DashboardPage() {
             </motion.div>
           </motion.div>
         </motion.div>
+
+        {/* Add Create Ticket Modal */}
+        {isCreateTicketOpen && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="ocean-card w-full max-w-2xl mx-4"
+            >
+              <h2 className="text-xl font-bold text-[#2C5282] mb-6">Create New Ticket</h2>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-[#4A5568] mb-1">
+                    Title
+                  </label>
+                  <input
+                    type="text"
+                    value={createTicketForm.title}
+                    onChange={(e) => setCreateTicketForm(prev => ({ ...prev, title: e.target.value }))}
+                    className="w-full px-4 py-2 rounded-lg border border-[#4A90E2]/20 focus:outline-none focus:ring-2 focus:ring-[#4A90E2]/40"
+                    placeholder="Enter ticket title"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-[#4A5568] mb-1">
+                    Description
+                  </label>
+                  <textarea
+                    value={createTicketForm.description}
+                    onChange={(e) => setCreateTicketForm(prev => ({ ...prev, description: e.target.value }))}
+                    className="w-full px-4 py-2 rounded-lg border border-[#4A90E2]/20 focus:outline-none focus:ring-2 focus:ring-[#4A90E2]/40 min-h-[100px]"
+                    placeholder="Enter ticket description"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-[#4A5568] mb-1">
+                      Priority
+                    </label>
+                    <select
+                      value={createTicketForm.priority}
+                      onChange={(e) => setCreateTicketForm(prev => ({ 
+                        ...prev, 
+                        priority: e.target.value as 'low' | 'medium' | 'high' | 'urgent'
+                      }))}
+                      className="w-full px-4 py-2 rounded-lg border border-[#4A90E2]/20 focus:outline-none focus:ring-2 focus:ring-[#4A90E2]/40"
+                    >
+                      <option value="low">Low</option>
+                      <option value="medium">Medium</option>
+                      <option value="high">High</option>
+                      <option value="urgent">Urgent</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-[#4A5568] mb-1">
+                      Category
+                    </label>
+                    <input
+                      type="text"
+                      value={createTicketForm.category || ''}
+                      onChange={(e) => setCreateTicketForm(prev => ({ ...prev, category: e.target.value }))}
+                      className="w-full px-4 py-2 rounded-lg border border-[#4A90E2]/20 focus:outline-none focus:ring-2 focus:ring-[#4A90E2]/40"
+                      placeholder="Enter category"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-[#4A5568] mb-1">
+                      Due Date
+                    </label>
+                    <input
+                      type="date"
+                      value={createTicketForm.due_date || ''}
+                      onChange={(e) => setCreateTicketForm(prev => ({ ...prev, due_date: e.target.value }))}
+                      className="w-full px-4 py-2 rounded-lg border border-[#4A90E2]/20 focus:outline-none focus:ring-2 focus:ring-[#4A90E2]/40"
+                    />
+                  </div>
+
+                  <div className="flex items-center">
+                    <label className="flex items-center text-sm font-medium text-[#4A5568] cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={createTicketForm.is_internal}
+                        onChange={(e) => setCreateTicketForm(prev => ({ 
+                          ...prev, 
+                          is_internal: e.target.checked,
+                          customer_id: e.target.checked ? undefined : prev.customer_id
+                        }))}
+                        className="mr-2 rounded border-[#4A90E2]/20 text-[#4A90E2] focus:ring-[#4A90E2]/40"
+                      />
+                      Internal Ticket
+                    </label>
+                  </div>
+                </div>
+
+                {!createTicketForm.is_internal && (
+                  <div>
+                    <label className="block text-sm font-medium text-[#4A5568] mb-1">
+                      Customer ID
+                    </label>
+                    <input
+                      type="text"
+                      value={createTicketForm.customer_id || ''}
+                      onChange={(e) => setCreateTicketForm(prev => ({ ...prev, customer_id: e.target.value }))}
+                      className="w-full px-4 py-2 rounded-lg border border-[#4A90E2]/20 focus:outline-none focus:ring-2 focus:ring-[#4A90E2]/40"
+                      placeholder="Enter customer ID"
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-end gap-4 mt-6">
+                <button
+                  onClick={() => setIsCreateTicketOpen(false)}
+                  className="px-4 py-2 text-[#4A5568] hover:text-[#2C5282] transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={createTicket}
+                  disabled={isSubmitting}
+                  className="wave-button px-4 py-2 disabled:opacity-50"
+                >
+                  {isSubmitting ? 'Creating...' : 'Create Ticket'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {/* Full Screen Ticket */}
+        {selectedTicket.isOpen && (
+          <FullScreenTicket
+            ticket={tickets.find(t => t.id === selectedTicket.id)}
+            onClose={() => setSelectedTicket({ id: '', isOpen: false })}
+          />
+        )}
       </div>
     </div>
   )

@@ -38,4 +38,66 @@ export const signOut = async () => {
     console.error('Sign out error:', error)
     window.location.href = '/'
   }
+}
+
+export const getRecentOrganizationTickets = async (organizationId: string) => {
+  if (!organizationId) {
+    throw new Error('Organization ID is required')
+  }
+
+  console.log('Fetching tickets for organization:', organizationId)
+  const supabase = createClient()
+  
+  const { data: tickets, error } = await supabase
+    .from('tickets')
+    .select(`
+      *,
+      customer:customers(id, name, email),
+      assigned_employee:employees!tickets_assigned_to_fkey(id, name),
+      resolved_employee:employees!tickets_resolved_by_fkey(id, name),
+      ticket_tags(
+        tag:tags(id, name, color)
+      )
+    `)
+    .eq('organization_id', organizationId)
+    .order('created_at', { ascending: false })
+    .limit(200)
+  
+  if (error) {
+    console.error('Error fetching tickets:', error)
+    throw error
+  }
+  
+  console.log('Fetched tickets:', tickets)
+  return tickets
+}
+
+export const createTicket = async (ticketData: any) => {
+  const supabase = createClient()
+  
+  // Get the current session
+  const { data: { session } } = await supabase.auth.getSession()
+  console.log('Session check:', session)
+
+  if (!session) {
+    throw new Error('No session available')
+  }
+
+  // Use the Supabase client's functions feature
+  const { data, error } = await supabase.functions.invoke(
+    'create-ticket',
+    {
+      body: ticketData,
+      headers: {
+        Authorization: `Bearer ${session.access_token}`
+      }
+    }
+  )
+
+  if (error) {
+    console.error('Function error:', error)
+    throw error
+  }
+
+  return data
 } 

@@ -3,6 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "devDependencies": {
+    "fs": "^0.0.1-security",
+    "path": "^0.12.7",
     "supabase": "^2.6.8"
   }
-} 
+}

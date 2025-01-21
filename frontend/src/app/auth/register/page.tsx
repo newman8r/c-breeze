@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@/utils/supabase'
 import Link from 'next/link'
 
 // Decorative shape component
@@ -34,18 +34,32 @@ export default function RegisterPage() {
     setError(null)
 
     try {
-      // 1. Create user account
+      const supabase = createClient()
+
+      // 1. Create user account and get session
       const { data: authData, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
+        options: {
+          data: {
+            org_name: orgName // Store org name in user metadata
+          }
+        }
       })
 
       if (signUpError) throw signUpError
-
       if (!authData.user) throw new Error('No user data returned')
 
-      // 2. Create organization
-      const { error: orgError } = await supabase
+      // 2. Ensure we have a session
+      if (!authData.session) {
+        throw new Error('No session returned from signup')
+      }
+
+      // Set the session immediately
+      await supabase.auth.setSession(authData.session)
+
+      // 3. Create organization
+      const { data: orgData, error: orgError } = await supabase
         .from('organizations')
         .insert([
           {
@@ -56,13 +70,42 @@ export default function RegisterPage() {
           }
         ])
         .select()
+        .single()
 
       if (orgError) throw orgError
 
-      // 3. Redirect to dashboard
-      router.push('/dashboard')
+      // 4. Wait for employee record to be created by trigger and verify
+      let employeeData = null
+      let retries = 0
+      while (!employeeData && retries < 5) {
+        const { data, error } = await supabase
+          .from('employees')
+          .select('*')
+          .eq('user_id', authData.user.id)
+          .single()
+        
+        if (data) {
+          employeeData = data
+          break
+        }
+        
+        await new Promise(resolve => setTimeout(resolve, 500))
+        retries++
+      }
+
+      if (!employeeData) {
+        throw new Error('Employee record not created after multiple attempts')
+      }
+
+      // 5. Force refresh auth state
+      await supabase.auth.refreshSession()
+      
+      // 6. Redirect to dashboard
+      router.refresh()
+      router.replace('/dashboard')
       
     } catch (err) {
+      console.error('Registration error:', err)
       setError(err instanceof Error ? err.message : 'An error occurred during registration')
     } finally {
       setLoading(false)

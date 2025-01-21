@@ -1,14 +1,18 @@
-# ZenBreeze AI Tool
+# Breeze.help AI-first help desk tool
 
-A modern web application built with Next.js and Supabase, featuring user authentication and a clean, ocean-themed design.
 
 ## Features
 
+- Ticketing
+- Ticket feed heatmap
+- Admin and employee users
+- Support for organizations
 - User authentication (signup, login, logout)
 - Persistent sessions
 - Modern, responsive UI with ocean-inspired design
 - Real-time database connection status
-- User dashboard
+- User dashboard and profile
+- 3 ticketing feed views to give you a birds eye view
 
 ## Tech Stack
 
