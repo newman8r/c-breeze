@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useRole } from '@/contexts/RoleContext'
 import { signOut } from '@/utils/supabase'
+import { Activity, mockTickets } from '@/mocks/ticketData'
 
 // Types for our data
 interface Profile {
@@ -18,26 +19,6 @@ interface Profile {
   bio: string | null
   created_at: string
   updated_at: string
-}
-
-interface Activity {
-  type: 'ticket' | 'response' | 'chat' | 'automation'
-  title: string
-  description: string
-  time: string
-  status: string
-  source?: string
-  contact?: string
-  contactEmail?: string
-  company?: string
-  priority?: 'high' | 'medium' | 'low'
-  category?: string
-  assignee?: string | null
-  duration?: string
-  satisfaction?: number
-  accuracy?: string
-  categories?: string[]
-  aiConfidence?: 'high' | 'medium' | 'low'
 }
 
 interface Category {
@@ -259,7 +240,7 @@ const StatusIndicator = ({ status }: { status: string }) => {
   );
 };
 
-// Mock data for demo purposes
+// Update the mockStats object to use the imported data
 const mockStats: MockStats = {
   tickets: {
     total: 156,
@@ -277,463 +258,7 @@ const mockStats: MockStats = {
     today: 28,
     upcoming: 15,
     overdue: 7,
-    recent: [
-      {
-        type: 'ticket',
-        title: 'Login Authentication Issue',
-        description: 'User unable to access dashboard after password reset',
-        time: '10 min ago',
-        status: 'urgent',
-        source: 'Email',
-        contact: 'Sarah Chen',
-        contactEmail: 'sarah.chen@techcorp.com',
-        company: 'Tech Corp',
-        priority: 'high',
-        category: 'Authentication',
-        assignee: 'Michael Wong'
-      },
-      {
-        type: 'response',
-        title: 'API Integration Support',
-        description: 'Provided documentation for webhook setup',
-        time: '1 hour ago',
-        status: 'resolved',
-        duration: '15 min',
-        source: 'Support Portal',
-        contact: 'John Smith',
-        contactEmail: 'j.smith@acme.com',
-        company: 'Acme Inc',
-        priority: 'medium',
-        category: 'API Support',
-        satisfaction: 5
-      },
-      {
-        type: 'chat',
-        title: 'Billing Inquiry',
-        description: 'Question about enterprise plan pricing',
-        time: '2 hours ago',
-        status: 'in_progress',
-        source: 'Live Chat',
-        contact: 'Lisa Park',
-        company: 'Startup Labs',
-        priority: 'medium',
-        category: 'Billing',
-        assignee: 'Alex Johnson'
-      },
-      {
-        type: 'automation',
-        title: 'Auto-categorized Tickets',
-        description: 'AI categorized 15 new support tickets',
-        time: '3 hours ago',
-        status: 'completed',
-        accuracy: '95%',
-        categories: ['Bug Report', 'Feature Request', 'Account Issues'],
-        aiConfidence: 'high'
-      },
-      {
-        type: 'ticket',
-        title: 'Data Export Not Working',
-        description: 'Export to CSV feature throwing 500 error',
-        time: '4 hours ago',
-        status: 'open',
-        source: 'API Monitor',
-        contact: 'Dev Team',
-        company: 'Global Systems',
-        priority: 'high',
-        category: 'Bug',
-        assignee: 'Technical Support'
-      },
-      {
-        type: 'ticket',
-        title: 'Mobile App Crash on Startup',
-        description: 'iOS app crashes immediately after splash screen',
-        time: '5 hours ago',
-        status: 'urgent',
-        source: 'Crash Report',
-        contact: 'iOS Team',
-        company: 'Internal',
-        priority: 'high',
-        category: 'Mobile App',
-        assignee: 'Mobile Support'
-      },
-      {
-        type: 'ticket',
-        title: 'Payment Processing Delay',
-        description: 'Customer payments taking longer than usual to process',
-        time: '6 hours ago',
-        status: 'in_progress',
-        source: 'Email',
-        contact: 'Finance Team',
-        company: 'Payment Corp',
-        priority: 'high',
-        category: 'Billing',
-        assignee: 'Payment Support'
-      },
-      {
-        type: 'ticket',
-        title: 'Account Verification Issue',
-        description: 'Email verification links not working for new signups',
-        time: '7 hours ago',
-        status: 'open',
-        source: 'Support Portal',
-        contact: 'User Operations',
-        company: 'Internal',
-        priority: 'medium',
-        category: 'Authentication',
-        assignee: null
-      },
-      {
-        type: 'ticket',
-        title: 'API Rate Limiting',
-        description: 'Hitting rate limits too frequently on standard plan',
-        time: '8 hours ago',
-        status: 'in_progress',
-        source: 'API Monitor',
-        contact: 'David Kim',
-        company: 'Tech Solutions',
-        priority: 'medium',
-        category: 'API',
-        assignee: 'API Support'
-      },
-      {
-        type: 'ticket',
-        title: 'Dashboard Loading Slow',
-        description: 'Performance issues with analytics dashboard',
-        time: '9 hours ago',
-        status: 'open',
-        source: 'Live Chat',
-        contact: 'Maria Garcia',
-        company: 'Data Analytics Inc',
-        priority: 'medium',
-        category: 'Performance',
-        assignee: null
-      },
-      {
-        type: 'ticket',
-        title: 'Custom Integration Failed',
-        description: 'Webhook integration failing for Salesforce sync',
-        time: '10 hours ago',
-        status: 'in_progress',
-        source: 'Email',
-        contact: 'Integration Team',
-        company: 'Sales Masters',
-        priority: 'high',
-        category: 'Integration',
-        assignee: 'Integration Support'
-      },
-      {
-        type: 'ticket',
-        title: 'SSO Configuration Error',
-        description: 'Unable to set up SAML SSO with Okta',
-        time: '11 hours ago',
-        status: 'open',
-        source: 'Support Portal',
-        contact: 'IT Admin',
-        company: 'Enterprise Co',
-        priority: 'medium',
-        category: 'Authentication',
-        assignee: null
-      },
-      {
-        type: 'ticket',
-        title: 'Data Export Timeout',
-        description: 'Large data exports failing to complete',
-        time: '12 hours ago',
-        status: 'in_progress',
-        source: 'Support Portal',
-        contact: 'Data Team',
-        company: 'Big Data Corp',
-        priority: 'medium',
-        category: 'Performance',
-        assignee: 'Data Support'
-      },
-      {
-        type: 'ticket',
-        title: 'Database Replication Lag',
-        description: 'Read replicas showing increased lag time',
-        time: '13 hours ago',
-        status: 'urgent',
-        source: 'Monitoring Alert',
-        contact: 'DBA Team',
-        company: 'Internal',
-        priority: 'high',
-        category: 'Infrastructure',
-        assignee: 'Database Team'
-      },
-      {
-        type: 'ticket',
-        title: 'Password Reset Email Delay',
-        description: 'Users reporting 10+ minute delays for reset emails',
-        time: '14 hours ago',
-        status: 'in_progress',
-        source: 'Support Portal',
-        contact: 'Auth Team',
-        company: 'Internal',
-        priority: 'medium',
-        category: 'Email',
-        assignee: 'Email Service Team'
-      },
-      {
-        type: 'ticket',
-        title: 'Search Indexing Failed',
-        description: 'Product search not updating with new items',
-        time: '15 hours ago',
-        status: 'resolved',
-        source: 'Internal Monitor',
-        contact: 'Search Team',
-        company: 'Internal',
-        priority: 'high',
-        category: 'Search',
-        assignee: 'Search Ops'
-      },
-      {
-        type: 'ticket',
-        title: 'API Documentation Error',
-        description: 'Incorrect endpoint parameters listed',
-        time: '16 hours ago',
-        status: 'resolved',
-        source: 'Customer Feedback',
-        contact: 'Developer Relations',
-        company: 'External',
-        priority: 'low',
-        category: 'Documentation',
-        assignee: 'Doc Team'
-      },
-      {
-        type: 'ticket',
-        title: 'CDN Cache Issues',
-        description: 'Static assets not updating after deploy',
-        time: '17 hours ago',
-        status: 'resolved',
-        source: 'DevOps Monitor',
-        contact: 'Frontend Team',
-        company: 'Internal',
-        priority: 'medium',
-        category: 'Infrastructure',
-        assignee: 'CDN Team'
-      },
-      {
-        type: 'ticket',
-        title: 'OAuth Integration Failure',
-        description: 'Google SSO login flow broken',
-        time: '18 hours ago',
-        status: 'in_progress',
-        source: 'Error Logs',
-        contact: 'Auth Team',
-        company: 'Internal',
-        priority: 'high',
-        category: 'Authentication',
-        assignee: 'SSO Team'
-      },
-      {
-        type: 'ticket',
-        title: 'Payment Gateway Timeout',
-        description: 'Stripe webhook responses delayed',
-        time: '19 hours ago',
-        status: 'resolved',
-        source: 'Payment Monitor',
-        contact: 'Finance Ops',
-        company: 'Internal',
-        priority: 'high',
-        category: 'Payments',
-        assignee: 'Payment Systems'
-      },
-      {
-        type: 'ticket',
-        title: 'Mobile Push Notifications',
-        description: 'Android notifications not delivering',
-        time: '20 hours ago',
-        status: 'in_progress',
-        source: 'App Monitor',
-        contact: 'Mobile Team',
-        company: 'Internal',
-        priority: 'medium',
-        category: 'Mobile',
-        assignee: 'Push Notifications Team'
-      },
-      {
-        type: 'ticket',
-        title: 'Report Generation Failed',
-        description: 'Weekly analytics reports not sending',
-        time: '21 hours ago',
-        status: 'resolved',
-        source: 'Automated Alert',
-        contact: 'Analytics Team',
-        company: 'Internal',
-        priority: 'medium',
-        category: 'Analytics',
-        assignee: 'Reports Team'
-      },
-      {
-        type: 'ticket',
-        title: 'Rate Limit Exceeded',
-        description: 'Multiple enterprise customers hitting limits',
-        time: '22 hours ago',
-        status: 'urgent',
-        source: 'System Alert',
-        contact: 'Platform Team',
-        company: 'Internal',
-        priority: 'high',
-        category: 'API',
-        assignee: 'Platform Ops'
-      },
-      {
-        type: 'ticket',
-        title: 'Data Migration Stuck',
-        description: 'Legacy data import process halted',
-        time: '23 hours ago',
-        status: 'in_progress',
-        source: 'Migration Tool',
-        contact: 'Data Team',
-        company: 'Internal',
-        priority: 'medium',
-        category: 'Data',
-        assignee: 'Migration Team'
-      },
-      {
-        type: 'ticket',
-        title: 'SSL Certificate Expiring',
-        description: 'Production certificate expires in 48h',
-        time: '24 hours ago',
-        status: 'resolved',
-        source: 'Security Scan',
-        contact: 'Security Team',
-        company: 'Internal',
-        priority: 'high',
-        category: 'Security',
-        assignee: 'Security Ops'
-      },
-      {
-        type: 'ticket',
-        title: 'Memory Leak Investigation',
-        description: 'Production servers showing increased memory usage',
-        time: '25 hours ago',
-        status: 'urgent',
-        source: 'Monitoring',
-        contact: 'DevOps Team',
-        company: 'Internal',
-        priority: 'high',
-        category: 'Infrastructure',
-        assignee: 'Performance Team'
-      },
-      {
-        type: 'ticket',
-        title: 'User Session Sync Issues',
-        description: 'Multiple sessions not syncing properly',
-        time: '26 hours ago',
-        status: 'in_progress',
-        source: 'Support Portal',
-        contact: 'Auth Team',
-        company: 'Internal',
-        priority: 'medium',
-        category: 'Authentication',
-        assignee: 'Session Management'
-      },
-      {
-        type: 'ticket',
-        title: 'Database Backup Failure',
-        description: 'Nightly backup job failed to complete',
-        time: '27 hours ago',
-        status: 'resolved',
-        source: 'Automated Alert',
-        contact: 'DBA Team',
-        company: 'Internal',
-        priority: 'high',
-        category: 'Database',
-        assignee: 'Backup Team'
-      },
-      {
-        type: 'ticket',
-        title: 'API Rate Limit Increase',
-        description: 'Customer requesting higher API limits',
-        time: '28 hours ago',
-        status: 'open',
-        source: 'Email',
-        contact: 'Enterprise Support',
-        company: 'BigCorp Inc',
-        priority: 'low',
-        category: 'API',
-        assignee: null
-      },
-      {
-        type: 'ticket',
-        title: 'Mobile App Crash Reports',
-        description: 'Spike in crash reports after latest release',
-        time: '29 hours ago',
-        status: 'urgent',
-        source: 'Crash Reporter',
-        contact: 'Mobile Team',
-        company: 'Internal',
-        priority: 'high',
-        category: 'Mobile',
-        assignee: 'Mobile Support'
-      },
-      {
-        type: 'ticket',
-        title: 'Payment Gateway Integration',
-        description: 'New payment provider setup needed',
-        time: '30 hours ago',
-        status: 'in_progress',
-        source: 'Project Management',
-        contact: 'Finance Team',
-        company: 'Internal',
-        priority: 'medium',
-        category: 'Integration',
-        assignee: 'Payment Systems'
-      },
-      {
-        type: 'ticket',
-        title: 'Customer Data Export',
-        description: 'GDPR data export request',
-        time: '31 hours ago',
-        status: 'open',
-        source: 'Legal',
-        contact: 'Privacy Team',
-        company: 'Internal',
-        priority: 'high',
-        category: 'Compliance',
-        assignee: 'Data Protection'
-      },
-      {
-        type: 'ticket',
-        title: 'Search Index Optimization',
-        description: 'Search results showing high latency',
-        time: '32 hours ago',
-        status: 'in_progress',
-        source: 'Performance Monitor',
-        contact: 'Search Team',
-        company: 'Internal',
-        priority: 'medium',
-        category: 'Performance',
-        assignee: 'Search Ops'
-      },
-      {
-        type: 'ticket',
-        title: 'SSL Certificate Renewal',
-        description: 'Multiple domains need certificate updates',
-        time: '33 hours ago',
-        status: 'resolved',
-        source: 'Security Scanner',
-        contact: 'Security Team',
-        company: 'Internal',
-        priority: 'high',
-        category: 'Security',
-        assignee: 'Security Ops'
-      },
-      {
-        type: 'ticket',
-        title: 'Load Balancer Configuration',
-        description: 'New region traffic routing setup',
-        time: '34 hours ago',
-        status: 'open',
-        source: 'Infrastructure',
-        contact: 'Network Team',
-        company: 'Internal',
-        priority: 'medium',
-        category: 'Infrastructure',
-        assignee: 'Network Ops'
-      }
-    ]
+    recent: mockTickets
   },
   performance: {
     resolvedTickets: 145,
@@ -1010,124 +535,126 @@ export default function DashboardPage() {
                 </Link>
               </div>
             </div>
-            <div className="max-h-[600px] overflow-visible">
-              <motion.div 
-                key={`container-zoom-${zoomLevel}`}
-                layout={false}
-                initial="exit"
-                animate="enter"
-                exit="exit"
-                variants={getZoomStyles(zoomLevel).variants.container}
-                className={`grid ${getZoomStyles(zoomLevel).grid} ${zoomLevel === 1 ? 'gap-3' : zoomLevel === 2 ? 'gap-2' : 'gap-0'} 
-                  ${zoomLevel === 3 ? 'w-fit mx-auto bg-gray-50/50 p-2 rounded-lg relative' : ''}`}
-              >
-                {mockStats.activities.recent
-                  .filter(activity => activity.type === 'ticket')
-                  .map((ticket, index) => (
-                    <motion.div
-                      key={`ticket-${index}-zoom-${zoomLevel}`}
-                      layout={false}
-                      variants={getZoomStyles(zoomLevel).variants.item}
-                      initial="exit"
-                      animate="enter"
-                      exit="exit"
-                      className={`${getZoomStyles(zoomLevel).padding} rounded-md cursor-pointer relative
-                        ${getTicketColor(ticket.priority, ticket.status)}
-                        ${expandedTickets[`ticket-${index}`] && zoomLevel !== 3 ? (zoomLevel === 1 ? 'col-span-full' : 'col-span-2 row-span-2') : ''}
-                        ${zoomLevel === 1 ? 'w-full' : ''}
-                        ${zoomLevel === 3 ? 'w-6 h-6 group hover:z-10 shrink-0' : ''}
-                        min-h-[${zoomLevel === 1 ? '120px' : zoomLevel === 2 ? '80px' : '24px'}]
-                        flex flex-col`}
-                      onClick={() => zoomLevel !== 3 && toggleTicketExpansion(`ticket-${index}`)}
-                    >
-                      {zoomLevel === 3 ? (
-                        <>
-                          <div className="absolute inset-0 flex items-center justify-center">
-                            <StatusIndicator status={ticket.status} />
-                          </div>
-                          <div className="opacity-0 group-hover:opacity-100 absolute z-[100] bottom-full left-1/2 -translate-x-1/2 mb-1 w-48 p-2 bg-white rounded-lg shadow-lg text-xs transition-opacity duration-200 pointer-events-none">
-                            <h4 className="font-medium text-[#2C5282] mb-1 truncate">{ticket.title}</h4>
-                            <p className="text-[#4A5568] text-[10px] mb-1 truncate">{ticket.description}</p>
-                            <div className="flex justify-between text-[10px] text-[#4A5568]">
-                              <span>{ticket.time}</span>
-                              <span className="capitalize">{ticket.status}</span>
+            <div className={`relative ${zoomLevel === 3 ? 'overflow-visible' : 'overflow-hidden'}`}>
+              <div className={`${zoomLevel === 3 ? 'overflow-visible' : 'max-h-[600px] overflow-y-auto pr-2'}`}>
+                <motion.div 
+                  key={`container-zoom-${zoomLevel}`}
+                  layout={false}
+                  initial="exit"
+                  animate="enter"
+                  exit="exit"
+                  variants={getZoomStyles(zoomLevel).variants.container}
+                  className={`grid ${getZoomStyles(zoomLevel).grid} ${zoomLevel === 1 ? 'gap-3' : zoomLevel === 2 ? 'gap-2' : 'gap-0'} 
+                    ${zoomLevel === 3 ? 'w-fit mx-auto bg-gray-50/50 p-2 rounded-lg relative' : ''}`}
+                >
+                  {mockStats.activities.recent
+                    .filter(activity => activity.type === 'ticket')
+                    .map((ticket, index) => (
+                      <motion.div
+                        key={`ticket-${index}-zoom-${zoomLevel}`}
+                        layout={false}
+                        variants={getZoomStyles(zoomLevel).variants.item}
+                        initial="exit"
+                        animate="enter"
+                        exit="exit"
+                        className={`${getZoomStyles(zoomLevel).padding} rounded-md cursor-pointer relative
+                          ${getTicketColor(ticket.priority, ticket.status)}
+                          ${expandedTickets[`ticket-${index}`] && zoomLevel !== 3 ? (zoomLevel === 1 ? 'col-span-full' : 'col-span-2 row-span-2') : ''}
+                          ${zoomLevel === 1 ? 'w-full' : ''}
+                          ${zoomLevel === 3 ? 'w-6 h-6 group hover:z-10 shrink-0' : ''}
+                          min-h-[${zoomLevel === 1 ? '120px' : zoomLevel === 2 ? '80px' : '24px'}]
+                          flex flex-col`}
+                        onClick={() => zoomLevel !== 3 && toggleTicketExpansion(`ticket-${index}`)}
+                      >
+                        {zoomLevel === 3 ? (
+                          <>
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <StatusIndicator status={ticket.status} />
                             </div>
-                          </div>
-                        </>
-                      ) : (
-                        <motion.div 
-                          key={`content-${index}-zoom-${zoomLevel}`}
-                          className="flex flex-col h-full"
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          exit={{ opacity: 0 }}
-                          transition={{ duration: 0.2 }}
-                        >
-                          <h3 className={`font-medium text-[#2C5282] ${getZoomStyles(zoomLevel).text} leading-tight truncate mb-1`}>
-                            {ticket.title}
-                          </h3>
-                          {(zoomLevel === 1 || (!expandedTickets[`ticket-${index}`] && zoomLevel === 2)) && (
-                            <motion.div 
-                              initial={{ opacity: 0 }}
-                              animate={{ opacity: 1 }}
-                              transition={{ delay: 0.1 }}
-                              className="flex items-center justify-between mt-auto space-x-2"
-                            >
-                              <span className={`${getZoomStyles(zoomLevel).text} text-[#4A5568] truncate flex-shrink-0`}>{ticket.time}</span>
-                              {zoomLevel === 1 && (
-                                <>
-                                  <span className={`${getZoomStyles(zoomLevel).text} text-[#4A5568] truncate`}>{ticket.status}</span>
-                                  <span className={`${getZoomStyles(zoomLevel).text} text-[#4A5568] truncate`}>{ticket.category}</span>
-                                </>
-                              )}
-                              {zoomLevel === 2 && (
-                                <span className={`${getZoomStyles(zoomLevel).text} text-[#4A5568] truncate`}>{ticket.category}</span>
-                              )}
-                            </motion.div>
-                          )}
-                          {zoomLevel === 1 && (
-                            <motion.p 
-                              initial={{ opacity: 0 }}
-                              animate={{ opacity: 1 }}
-                              transition={{ delay: 0.2 }}
-                              className={`text-[#4A5568] mt-1 ${getZoomStyles(zoomLevel).description} text-xs`}
-                            >
-                              {ticket.description}
-                            </motion.p>
-                          )}
-                          {expandedTickets[`ticket-${index}`] && zoomLevel !== 3 && (
-                            <motion.div
-                              initial={{ opacity: 0, y: -10 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              transition={{ type: "spring", stiffness: 300, damping: 25 }}
-                              className="mt-2 space-y-2"
-                            >
-                              <p className="text-xs text-[#4A5568] line-clamp-2">{ticket.description}</p>
-                              <div className="grid grid-cols-2 gap-2 text-[10px]">
-                                <div className="overflow-hidden">
-                                  <p className="font-medium text-[#4A5568]">Contact</p>
-                                  <p className="truncate">{ticket.contact}</p>
-                                </div>
-                                <div className="overflow-hidden">
-                                  <p className="font-medium text-[#4A5568]">Company</p>
-                                  <p className="truncate">{ticket.company}</p>
-                                </div>
-                                <div className="overflow-hidden">
-                                  <p className="font-medium text-[#4A5568]">Status</p>
-                                  <p className="truncate">{ticket.status}</p>
-                                </div>
-                                <div className="overflow-hidden">
-                                  <p className="font-medium text-[#4A5568]">Assignee</p>
-                                  <p className="truncate">{ticket.assignee || 'Unassigned'}</p>
-                                </div>
+                            <div className="opacity-0 group-hover:opacity-100 absolute z-[100] bottom-full left-1/2 -translate-x-1/2 mb-1 w-48 p-2 bg-white rounded-lg shadow-lg text-xs transition-opacity duration-200 pointer-events-none">
+                              <h4 className="font-medium text-[#2C5282] mb-1 truncate">{ticket.title}</h4>
+                              <p className="text-[#4A5568] text-[10px] mb-1 truncate">{ticket.description}</p>
+                              <div className="flex justify-between text-[10px] text-[#4A5568]">
+                                <span>{ticket.time}</span>
+                                <span className="capitalize">{ticket.status}</span>
                               </div>
-                            </motion.div>
-                          )}
-                        </motion.div>
-                      )}
-                    </motion.div>
-                  ))}
-              </motion.div>
+                            </div>
+                          </>
+                        ) : (
+                          <motion.div 
+                            key={`content-${index}-zoom-${zoomLevel}`}
+                            className="flex flex-col h-full"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.2 }}
+                          >
+                            <h3 className={`font-medium text-[#2C5282] ${getZoomStyles(zoomLevel).text} leading-tight truncate mb-1`}>
+                              {ticket.title}
+                            </h3>
+                            {(zoomLevel === 1 || (!expandedTickets[`ticket-${index}`] && zoomLevel === 2)) && (
+                              <motion.div 
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                transition={{ delay: 0.1 }}
+                                className="flex items-center justify-between mt-auto space-x-2"
+                              >
+                                <span className={`${getZoomStyles(zoomLevel).text} text-[#4A5568] truncate flex-shrink-0`}>{ticket.time}</span>
+                                {zoomLevel === 1 && (
+                                  <>
+                                    <span className={`${getZoomStyles(zoomLevel).text} text-[#4A5568] truncate`}>{ticket.status}</span>
+                                    <span className={`${getZoomStyles(zoomLevel).text} text-[#4A5568] truncate`}>{ticket.category}</span>
+                                  </>
+                                )}
+                                {zoomLevel === 2 && (
+                                  <span className={`${getZoomStyles(zoomLevel).text} text-[#4A5568] truncate`}>{ticket.category}</span>
+                                )}
+                              </motion.div>
+                            )}
+                            {zoomLevel === 1 && (
+                              <motion.p 
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                transition={{ delay: 0.2 }}
+                                className={`text-[#4A5568] mt-1 ${getZoomStyles(zoomLevel).description} text-xs`}
+                              >
+                                {ticket.description}
+                              </motion.p>
+                            )}
+                            {expandedTickets[`ticket-${index}`] && zoomLevel !== 3 && (
+                              <motion.div
+                                initial={{ opacity: 0, y: -10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                                className="mt-2 space-y-2"
+                              >
+                                <p className="text-xs text-[#4A5568] line-clamp-2">{ticket.description}</p>
+                                <div className="grid grid-cols-2 gap-2 text-[10px]">
+                                  <div className="overflow-hidden">
+                                    <p className="font-medium text-[#4A5568]">Contact</p>
+                                    <p className="truncate">{ticket.contact}</p>
+                                  </div>
+                                  <div className="overflow-hidden">
+                                    <p className="font-medium text-[#4A5568]">Company</p>
+                                    <p className="truncate">{ticket.company}</p>
+                                  </div>
+                                  <div className="overflow-hidden">
+                                    <p className="font-medium text-[#4A5568]">Status</p>
+                                    <p className="truncate">{ticket.status}</p>
+                                  </div>
+                                  <div className="overflow-hidden">
+                                    <p className="font-medium text-[#4A5568]">Assignee</p>
+                                    <p className="truncate">{ticket.assignee || 'Unassigned'}</p>
+                                  </div>
+                                </div>
+                              </motion.div>
+                            )}
+                          </motion.div>
+                        )}
+                      </motion.div>
+                    ))}
+                </motion.div>
+              </div>
             </div>
           </motion.div>
 
