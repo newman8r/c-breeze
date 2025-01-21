@@ -327,11 +327,22 @@ const mockStats: MockStats = {
 
 // Add new color mapping for ticket backgrounds
 const getTicketColor = (priority: string | undefined, status: string) => {
-  // Four distinct states with their colors
+  // If the ticket is resolved, show it in green regardless of priority
   if (status === 'resolved') return 'bg-[#50C878]/20 hover:bg-[#50C878]/30';
-  if (status === 'in_progress') return 'bg-[#4A90E2]/20 hover:bg-[#4A90E2]/30';
-  if (status === 'urgent' || priority === 'high') return 'bg-[#FF7676]/20 hover:bg-[#FF7676]/30';
-  return 'bg-[#FFB347]/20 hover:bg-[#FFB347]/30'; // default/open state
+  
+  // For non-resolved tickets, use priority-based colors
+  switch (priority) {
+    case 'urgent':
+      return 'bg-[#FF4242]/20 hover:bg-[#FF4242]/30'; // Bright red for urgent
+    case 'high':
+      return 'bg-[#FF7676]/20 hover:bg-[#FF7676]/30'; // Softer red for high
+    case 'medium':
+      return 'bg-[#FFB347]/20 hover:bg-[#FFB347]/30'; // Orange for medium
+    case 'low':
+      return 'bg-[#4A90E2]/20 hover:bg-[#4A90E2]/30'; // Blue for low
+    default:
+      return 'bg-[#FFB347]/20 hover:bg-[#FFB347]/30'; // Default to medium priority color
+  }
 };
 
 // Add new interface for ticket creation form
