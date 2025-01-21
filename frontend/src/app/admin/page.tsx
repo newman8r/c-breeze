@@ -38,6 +38,17 @@ export default function AdminPanel() {
     }
   }, [role, isRootAdmin, roleLoading, router])
 
+  // Check authentication on mount
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { session }, error } = await supabase.auth.getSession()
+      if (error || !session) {
+        router.push('/auth/signin')
+      }
+    }
+    checkAuth()
+  }, [router, supabase])
+
   // Test function
   const testSession = async () => {
     console.log('=== Testing Session State ===')
@@ -79,21 +90,10 @@ export default function AdminPanel() {
     setInviteSuccess(false)
 
     try {
-      if (!user) {
-        throw new Error('You must be logged in to send invitations')
-      }
-
-      // Get the current session instead of stored token
       const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-      if (sessionError) throw sessionError
-      if (!session?.access_token) {
+      if (sessionError || !session) {
         throw new Error('No active session found')
       }
-
-      console.log('Using session token:', {
-        hasAccessToken: !!session.access_token,
-        tokenLength: session.access_token.length
-      })
 
       const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/create_invitation`, {
         method: 'POST',
@@ -117,6 +117,7 @@ export default function AdminPanel() {
 
       setInviteSuccess(true)
       setInviteForm({ name: '', email: '', role: 'employee' })
+      setTimeout(() => setShowInviteCard(false), 2000)
     } catch (err) {
       console.error('Invitation error:', err)
       if (err instanceof Error) {
@@ -248,48 +249,15 @@ export default function AdminPanel() {
                     animate={{ opacity: 1, y: 0 }}
                     className="ocean-card bg-white/50"
                   >
-                    {inviteSuccess ? (
-                      <motion.div
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        className="p-6 bg-gradient-to-r from-[#E0F7F6] to-[#F0F9F8] rounded-lg shadow-sm"
+                    <div className="flex justify-between items-start mb-4">
+                      <h3 className="text-lg font-medium text-[#2C5282]">Invite New User</h3>
+                      <button 
+                        onClick={() => setShowInviteCard(false)}
+                        className="text-[#4A5568] hover:text-[#2C5282]"
                       >
-                        <div className="flex items-center space-x-3">
-                          <div className="w-8 h-8 bg-[#4A90E2]/20 rounded-full flex items-center justify-center">
-                            <svg className="w-5 h-5 text-[#2C5282]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                            </svg>
-                          </div>
-                          <div>
-                            <h3 className="text-[#2C5282] font-medium">Invitation Sent Successfully! 🌊</h3>
-                            <p className="text-[#4A5568] text-sm mt-1">
-                              We've sent an email invitation to join your team.
-                            </p>
-                          </div>
-                        </div>
-                        <div className="mt-4 flex justify-end">
-                          <button
-                            onClick={() => {
-                              setShowInviteCard(false)
-                              setInviteSuccess(false)
-                            }}
-                            className="text-sm text-[#4A90E2] hover:text-[#2C5282] transition-colors"
-                          >
-                            Close
-                          </button>
-                        </div>
-                      </motion.div>
-                    ) : (
-                      <div className="flex justify-between items-start mb-4">
-                        <h3 className="text-lg font-medium text-[#2C5282]">Invite New User</h3>
-                        <button 
-                          onClick={() => setShowInviteCard(false)}
-                          className="text-[#4A5568] hover:text-[#2C5282]"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    )}
+                        ✕
+                      </button>
+                    </div>
 
                     <form onSubmit={handleInviteSubmit} className="space-y-4">
                       <div>
@@ -329,6 +297,10 @@ export default function AdminPanel() {
 
                       {inviteError && (
                         <div className="text-[#FF7676] text-sm">{inviteError}</div>
+                      )}
+
+                      {inviteSuccess && (
+                        <div className="text-[#50C878] text-sm">Invitation sent successfully!</div>
                       )}
 
                       <div className="flex justify-end gap-2">
