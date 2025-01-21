@@ -296,4 +296,12 @@ supabase functions deploy notification-handler
 1. Check Supabase documentation
 2. Review migration history
 3. Test in local environment
-4. Consult team documentation 
+4. Consult team documentation
+
+# Backend Configuration
+
+## Email Configuration
+- Email Domain: breeze.help
+- Email Provider: Resend
+- Used for: User invitations, notifications, and system communications
+- Verified Status: Domain verified via DNS 

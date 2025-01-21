@@ -6,6 +6,8 @@ import { supabase } from '@/lib/supabase'
 import { useUser } from '@/contexts/UserContext'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { useRole } from '@/contexts/RoleContext'
+import { signOut } from '@/utils/supabase'
 
 // Types for our data
 interface Profile {
@@ -273,6 +275,7 @@ export default function DashboardPage() {
   const { user, loading: userLoading } = useUser()
   const [userProfile, setUserProfile] = useState<Profile | null>(null)
   const [isCopilotMinimized, setIsCopilotMinimized] = useState(false)
+  const { role, isRootAdmin } = useRole()
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -334,15 +337,32 @@ export default function DashboardPage() {
             animate={{ opacity: 1, x: 0 }}
             className="flex gap-4"
           >
-            <Link href="/profile" className="wave-button px-4 py-2">
-              Profile Settings
-            </Link>
-            <button
-              onClick={() => supabase.auth.signOut()}
-              className="px-4 py-2 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
-            >
-              Sign Out
-            </button>
+            <div className="flex justify-end gap-4 mb-6">
+              {(role === 'admin' || isRootAdmin) && (
+                <Link
+                  href="/admin"
+                  className="flex items-center px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                >
+                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  Admin Panel
+                </Link>
+              )}
+              <Link href="/profile" className="wave-button px-4 py-2">
+                Profile Settings
+              </Link>
+              <button
+                onClick={async () => {
+                  await signOut()
+                  router.push('/')
+                }}
+                className="px-4 py-2 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+              >
+                Sign Out
+              </button>
+            </div>
           </motion.div>
         </div>
 

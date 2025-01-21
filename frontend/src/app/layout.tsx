@@ -1,5 +1,7 @@
 import './globals.css'
 import { UserProvider } from '@/contexts/UserContext'
+import { RoleProvider } from '@/contexts/RoleContext'
+import { SessionProvider } from '@/components/SessionProvider'
 
 export const metadata = {
   title: 'Ocean Breeze Demo',
@@ -14,9 +16,13 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <UserProvider>
-          {children}
-        </UserProvider>
+        <SessionProvider>
+          <UserProvider>
+            <RoleProvider>
+              {children}
+            </RoleProvider>
+          </UserProvider>
+        </SessionProvider>
       </body>
     </html>
   )

@@ -24,6 +24,7 @@ export default function RegisterPage() {
   const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [orgName, setOrgName] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -33,15 +34,32 @@ export default function RegisterPage() {
     setError(null)
 
     try {
-      const { data, error: signUpError } = await supabase.auth.signUp({
+      // 1. Create user account
+      const { data: authData, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
       })
 
       if (signUpError) throw signUpError
 
-      // If signup successful, redirect to dashboard
-      // Profile can be created/updated later
+      if (!authData.user) throw new Error('No user data returned')
+
+      // 2. Create organization
+      const { error: orgError } = await supabase
+        .from('organizations')
+        .insert([
+          {
+            name: orgName,
+            contact_info: { email },
+            settings: {},
+            created_by: authData.user.id
+          }
+        ])
+        .select()
+
+      if (orgError) throw orgError
+
+      // 3. Redirect to dashboard
       router.push('/dashboard')
       
     } catch (err) {
@@ -71,10 +89,30 @@ export default function RegisterPage() {
             <form onSubmit={handleRegister} className="space-y-6">
               <div>
                 <label 
+                  htmlFor="orgName" 
+                  className="block text-sm font-medium text-[#2C5282] mb-2"
+                >
+                  Organization Name
+                </label>
+                <input
+                  id="orgName"
+                  type="text"
+                  value={orgName}
+                  onChange={(e) => setOrgName(e.target.value)}
+                  className="w-full px-4 py-2 rounded-lg border border-[#4A90E2]/20 
+                           focus:outline-none focus:ring-2 focus:ring-[#4A90E2]/40
+                           bg-white/50 backdrop-blur-sm"
+                  required
+                  placeholder="Your Company Name"
+                />
+              </div>
+
+              <div>
+                <label 
                   htmlFor="email" 
                   className="block text-sm font-medium text-[#2C5282] mb-2"
                 >
-                  Email
+                  Work Email
                 </label>
                 <input
                   id="email"
@@ -85,6 +123,7 @@ export default function RegisterPage() {
                            focus:outline-none focus:ring-2 focus:ring-[#4A90E2]/40
                            bg-white/50 backdrop-blur-sm"
                   required
+                  placeholder="you@company.com"
                 />
               </div>
 
@@ -104,6 +143,8 @@ export default function RegisterPage() {
                            focus:outline-none focus:ring-2 focus:ring-[#4A90E2]/40
                            bg-white/50 backdrop-blur-sm"
                   required
+                  placeholder="8+ characters"
+                  minLength={8}
                 />
               </div>
 
