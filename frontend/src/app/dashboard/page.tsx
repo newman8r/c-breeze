@@ -2,13 +2,13 @@
 
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import { supabase } from '@/lib/supabase'
 import { useUser } from '@/contexts/UserContext'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useRole } from '@/contexts/RoleContext'
-import { signOut, getRecentOrganizationTickets, createTicket as createTicketApi } from '@/utils/supabase'
+import { signOut } from '@/utils/supabase'
 import { Activity, mockTickets } from '@/mocks/ticketData'
+import { getRecentOrganizationTickets, createClient } from '@/utils/supabase'
 
 // Types for our data
 interface Profile {
@@ -425,6 +425,7 @@ export default function DashboardPage() {
   useEffect(() => {
     async function loadProfile() {
       if (user) {
+        const supabase = createClient()
         const { data: profile } = await supabase
           .from('profiles')
           .select('*')
@@ -470,7 +471,26 @@ export default function DashboardPage() {
   const createTicket = async () => {
     try {
       setIsSubmitting(true)
-      await createTicketApi(createTicketForm)
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      
+      if (!session?.access_token) {
+        throw new Error('No access token available')
+      }
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/create-ticket`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify(createTicketForm)
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.message || 'Failed to create ticket')
+      }
 
       // Reset form and close modal
       setCreateTicketForm({

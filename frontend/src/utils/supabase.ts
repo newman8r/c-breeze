@@ -72,38 +72,32 @@ export const getRecentOrganizationTickets = async (organizationId: string) => {
   return tickets
 }
 
-interface CreateTicketForm {
-  title: string;
-  description: string;
-  customer_id?: string;
-  priority: 'low' | 'medium' | 'high' | 'urgent';
-  category?: string;
-  due_date?: string;
-  is_internal: boolean;
-}
-
-export const createTicket = async (createTicketForm: CreateTicketForm) => {
+export const createTicket = async (ticketData: any) => {
   const supabase = createClient()
   
-  // Get current session and access token
-  const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-  if (sessionError || !session?.access_token) {
-    throw new Error('No access token available')
+  // Get the current session
+  const { data: { session } } = await supabase.auth.getSession()
+  console.log('Session check:', session)
+
+  if (!session) {
+    throw new Error('No session available')
   }
 
-  const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/create-ticket`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${session.access_token}`
-    },
-    body: JSON.stringify(createTicketForm)
-  })
+  // Use the Supabase client's functions feature
+  const { data, error } = await supabase.functions.invoke(
+    'create-ticket',
+    {
+      body: ticketData,
+      headers: {
+        Authorization: `Bearer ${session.access_token}`
+      }
+    }
+  )
 
-  if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.message || 'Failed to create ticket')
+  if (error) {
+    console.error('Function error:', error)
+    throw error
   }
 
-  return response.json()
+  return data
 } 
