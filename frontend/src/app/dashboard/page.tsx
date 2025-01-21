@@ -101,6 +101,38 @@ interface ExpandedStates {
   [key: string]: boolean;
 }
 
+// Add zoom level type and helper functions
+type ZoomLevel = 1 | 2 | 3;
+
+const getZoomStyles = (zoomLevel: ZoomLevel) => {
+  switch (zoomLevel) {
+    case 1: // Full detail view
+      return {
+        grid: 'grid-cols-1',
+        padding: 'p-4',
+        text: 'text-sm',
+        description: 'line-clamp-2',
+        showExtra: true
+      };
+    case 2: // Current square view
+      return {
+        grid: 'grid-cols-3 md:grid-cols-4 lg:grid-cols-6',
+        padding: 'p-2',
+        text: 'text-xs',
+        description: 'line-clamp-1',
+        showExtra: false
+      };
+    case 3: // Heat map view
+      return {
+        grid: 'grid-cols-4 md:grid-cols-6 lg:grid-cols-8',
+        padding: 'p-1',
+        text: 'text-[10px]',
+        description: 'hidden',
+        showExtra: false
+      };
+  }
+};
+
 // Decorative shape component
 const BauhausShape = ({ color, type }: { color: string, type: 'circle' | 'triangle' | 'rectangle' }) => {
   switch (type) {
@@ -600,6 +632,7 @@ export default function DashboardPage() {
   const [isCopilotMinimized, setIsCopilotMinimized] = useState(false)
   const { role, isRootAdmin } = useRole()
   const [expandedTickets, setExpandedTickets] = useState<ExpandedStates>({});
+  const [zoomLevel, setZoomLevel] = useState<ZoomLevel>(2);
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -750,38 +783,91 @@ export default function DashboardPage() {
             className="ocean-card col-span-2"
           >
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold text-[#2C5282]">Ticket Feed</h2>
-              <Link href="/tickets" className="text-[#4A90E2] hover:text-[#2C5282] transition-colors">
-                View All Tickets →
-              </Link>
+              <div>
+                <h2 className="text-xl font-bold text-[#2C5282]">Ticket Feed</h2>
+                <p className="text-sm text-[#4A5568]">
+                  {mockStats.activities.recent.filter(activity => activity.type === 'ticket').length} tickets
+                </p>
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center bg-white/50 rounded-lg p-1">
+                  <button
+                    onClick={() => setZoomLevel(1)}
+                    className={`p-2 rounded-lg transition-colors ${zoomLevel === 1 ? 'bg-white' : 'hover:bg-white/50'}`}
+                    title="Detail View"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={() => setZoomLevel(2)}
+                    className={`p-2 rounded-lg transition-colors ${zoomLevel === 2 ? 'bg-white' : 'hover:bg-white/50'}`}
+                    title="Grid View"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={() => setZoomLevel(3)}
+                    className={`p-2 rounded-lg transition-colors ${zoomLevel === 3 ? 'bg-white' : 'hover:bg-white/50'}`}
+                    title="Heat Map View"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4h16v16H4V4z M8 4v16 M12 4v16 M16 4v16 M4 8h16 M4 12h16 M4 16h16" />
+                    </svg>
+                  </button>
+                </div>
+                <Link href="/tickets" className="text-[#4A90E2] hover:text-[#2C5282] transition-colors">
+                  View All →
+                </Link>
+              </div>
             </div>
             <div className="max-h-[600px] overflow-y-auto pr-2">
-              <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+              <motion.div 
+                layout
+                className={`grid ${getZoomStyles(zoomLevel).grid} gap-2`}
+              >
                 {mockStats.activities.recent
                   .filter(activity => activity.type === 'ticket')
                   .map((ticket, index) => (
                     <motion.div
                       key={index}
-                      className={`p-2 rounded-lg cursor-pointer transition-all duration-200
-                        ${getTicketColor(ticket.priority, ticket.status)}
-                        ${expandedTickets[`ticket-${index}`] ? 'col-span-2 row-span-2 z-10' : ''}`}
-                      onClick={() => toggleTicketExpansion(`ticket-${index}`)}
                       layout
+                      className={`${getZoomStyles(zoomLevel).padding} rounded-lg cursor-pointer transition-all duration-200
+                        ${getTicketColor(ticket.priority, ticket.status)}
+                        ${expandedTickets[`ticket-${index}`] && zoomLevel !== 3 ? 'col-span-2 row-span-2 z-10' : ''}`}
+                      onClick={() => zoomLevel !== 3 && toggleTicketExpansion(`ticket-${index}`)}
                     >
-                      <div className="flex flex-col min-h-0">
-                        <h3 className="font-medium text-[#2C5282] text-xs leading-tight truncate">
+                      <motion.div layout className="flex flex-col min-h-0">
+                        <h3 className={`font-medium text-[#2C5282] ${getZoomStyles(zoomLevel).text} leading-tight truncate`}>
                           {ticket.title}
                         </h3>
-                        {!expandedTickets[`ticket-${index}`] ? (
+                        {(zoomLevel === 1 || (!expandedTickets[`ticket-${index}`] && zoomLevel === 2)) && (
                           <div className="flex items-center justify-between mt-1">
-                            <span className="text-[10px] text-[#4A5568]">{ticket.time}</span>
-                            <span className="text-[10px] text-[#4A5568]">{ticket.category}</span>
+                            <span className={`${getZoomStyles(zoomLevel).text} text-[#4A5568]`}>{ticket.time}</span>
+                            {zoomLevel === 1 && (
+                              <>
+                                <span className={`${getZoomStyles(zoomLevel).text} text-[#4A5568]`}>{ticket.status}</span>
+                                <span className={`${getZoomStyles(zoomLevel).text} text-[#4A5568]`}>{ticket.category}</span>
+                              </>
+                            )}
+                            {zoomLevel === 2 && (
+                              <span className={`${getZoomStyles(zoomLevel).text} text-[#4A5568]`}>{ticket.category}</span>
+                            )}
                           </div>
-                        ) : (
+                        )}
+                        {zoomLevel === 1 && (
+                          <p className={`text-[#4A5568] mt-1 ${getZoomStyles(zoomLevel).description}`}>
+                            {ticket.description}
+                          </p>
+                        )}
+                        {expandedTickets[`ticket-${index}`] && zoomLevel !== 3 && (
                           <motion.div
                             initial={false}
                             animate={{ opacity: 1 }}
-                            className="mt-1 text-xs"
+                            className="mt-2 text-xs"
                           >
                             <p className="text-[#4A5568] mb-2">{ticket.description}</p>
                             <div className="grid grid-cols-2 gap-1 text-[10px]">
@@ -804,10 +890,10 @@ export default function DashboardPage() {
                             </div>
                           </motion.div>
                         )}
-                      </div>
+                      </motion.div>
                     </motion.div>
                   ))}
-              </div>
+              </motion.div>
             </div>
           </motion.div>
 
