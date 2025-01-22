@@ -139,7 +139,38 @@ export default function InvitationForm() {
 
       if (acceptError) throw acceptError;
 
-      // Redirect to dashboard
+      // Wait for a short time to ensure the employee record is created
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // Verify the employee record exists
+      const { data: employee, error: employeeError } = await supabase
+        .from('employees')
+        .select('id')
+        .eq('user_id', authData.user?.id)
+        .single();
+
+      if (employeeError) {
+        console.error('Error verifying employee record:', employeeError);
+        // Try again after a longer delay
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        const { error: retryError } = await supabase
+          .from('employees')
+          .select('id')
+          .eq('user_id', authData.user?.id)
+          .single();
+        
+        if (retryError) throw new Error('Failed to verify employee setup');
+      }
+
+      // Get a fresh session
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
+
+      if (!session) {
+        throw new Error('Failed to establish session');
+      }
+
+      // Now we can safely redirect
       router.push('/dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
