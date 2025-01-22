@@ -2,7 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { Database } from '@/lib/database.types';
 
 // Decorative shape component
 const BauhausDecoration = ({ className = '' }: { className?: string }) => (
@@ -20,46 +22,129 @@ const BauhausDecoration = ({ className = '' }: { className?: string }) => (
 
 type InvitationStatus = 'valid' | 'pending' | 'expired' | 'invalid';
 
+interface Invitation {
+  id: string;
+  organization_id: string;
+  invitee_email: string;
+  organization_name?: string;
+  is_accepted: boolean;
+  is_invalidated: boolean;
+  expires_at: string;
+}
+
 export default function InvitationForm() {
+  const router = useRouter();
   const searchParams = useSearchParams();
-  const [status, setStatus] = useState<InvitationStatus>('valid');
+  const supabase = createClientComponentClient<Database>();
+  
+  const [status, setStatus] = useState<InvitationStatus>('pending');
+  const [invitation, setInvitation] = useState<Invitation | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
-    email: '', // Will be pre-filled from the invitation
+    email: '',
     password: '',
     confirmPassword: '',
   });
 
-  // Placeholder organization data
-  const orgName = "Ocean Breeze Corp";
-
   useEffect(() => {
     const token = searchParams.get('token');
-    
     if (!token) {
       setStatus('invalid');
       return;
     }
 
-    // Simulate token validation
-    if (token === 'expired') {
-      setStatus('expired');
-    } else if (token === 'pending') {
-      setStatus('pending');
-    } else if (token === 'invalid') {
-      setStatus('invalid');
-    } else {
-      setStatus('valid');
-      // Simulate getting email from token
-      setFormData(prev => ({ ...prev, email: 'user@example.com' }));
-    }
+    const fetchInvitation = async () => {
+      try {
+        // Create a public client without auth
+        const publicClient = createClientComponentClient<Database>({
+          options: {
+            global: {
+              headers: {} // Clear any auth headers
+            }
+          }
+        });
+
+        const { data: invitation, error } = await publicClient
+          .from('invitations')
+          .select(`
+            *,
+            organizations (
+              name
+            )
+          `)
+          .eq('id', token)
+          .single();
+
+        if (error || !invitation) {
+          console.error('Error fetching invitation:', error);
+          setStatus('invalid');
+          return;
+        }
+
+        if (invitation.is_accepted || invitation.is_invalidated) {
+          setStatus('invalid');
+          return;
+        }
+
+        if (new Date(invitation.expires_at) < new Date()) {
+          setStatus('expired');
+          return;
+        }
+
+        setInvitation(invitation);
+        setFormData(prev => ({ ...prev, email: invitation.invitee_email }));
+        setStatus('valid');
+      } catch (err) {
+        console.error('Error in fetchInvitation:', err);
+        setStatus('invalid');
+      }
+    };
+
+    fetchInvitation();
   }, [searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: Implement invitation acceptance logic using Supabase
-    console.log('Form submitted:', formData);
+    setLoading(true);
+    setError(null);
+
+    try {
+      // Validate passwords match
+      if (formData.password !== formData.confirmPassword) {
+        throw new Error('Passwords do not match');
+      }
+
+      // Sign up the user
+      const { data: authData, error: signUpError } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+        options: {
+          data: {
+            first_name: formData.firstName,
+            last_name: formData.lastName,
+          },
+        },
+      });
+
+      if (signUpError) throw signUpError;
+
+      // Accept the invitation
+      const { error: acceptError } = await supabase.functions.invoke('accept-invitation', {
+        body: { invitationId: invitation?.id }
+      });
+
+      if (acceptError) throw acceptError;
+
+      // Redirect to dashboard
+      router.push('/dashboard');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+      setLoading(false);
+    }
   };
 
   if (status === 'expired') {
@@ -118,11 +203,17 @@ export default function InvitationForm() {
           
           <div className="relative z-10">
             <h1 className="text-3xl font-bold mb-2 text-center text-[#2C5282]">
-              🌊 Welcome to {orgName}!
+              🌊 Welcome to {invitation?.organization_name || 'Our Platform'}!
             </h1>
             <p className="text-center text-[#4A5568] mb-8">
               You're just a few waves away from joining the team 🏄‍♂️
             </p>
+
+            {error && (
+              <div className="mb-4 p-4 bg-red-50 border-l-4 border-red-400 text-red-700">
+                {error}
+              </div>
+            )}
 
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="grid grid-cols-2 gap-4">
@@ -143,6 +234,7 @@ export default function InvitationForm() {
                              bg-white/50 backdrop-blur-sm"
                     required
                     placeholder="Jane"
+                    disabled={loading}
                   />
                 </div>
                 <div>
@@ -162,6 +254,7 @@ export default function InvitationForm() {
                              bg-white/50 backdrop-blur-sm"
                     required
                     placeholder="Doe"
+                    disabled={loading}
                   />
                 </div>
               </div>
@@ -204,6 +297,7 @@ export default function InvitationForm() {
                   required
                   placeholder="••••••••"
                   minLength={8}
+                  disabled={loading}
                 />
               </div>
 
@@ -225,6 +319,7 @@ export default function InvitationForm() {
                   required
                   placeholder="••••••••"
                   minLength={8}
+                  disabled={loading}
                 />
               </div>
 
@@ -234,9 +329,11 @@ export default function InvitationForm() {
                          hover:from-[#5C6BC0] hover:to-[#4A90E2]
                          text-white font-medium py-3 px-4 rounded-lg
                          transform transition-all duration-200 hover:scale-[1.02]
-                         focus:outline-none focus:ring-2 focus:ring-[#4A90E2]/40"
+                         focus:outline-none focus:ring-2 focus:ring-[#4A90E2]/40
+                         disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={loading}
               >
-                Join the Team 🎉
+                {loading ? 'Setting up your account...' : 'Join the Team 🎉'}
               </button>
             </form>
           </div>
