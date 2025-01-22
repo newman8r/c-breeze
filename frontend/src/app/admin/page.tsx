@@ -1,10 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { useRole } from '@/contexts/RoleContext'
 import { useRouter } from 'next/navigation'
-import { useEffect } from 'react'
 import Link from 'next/link'
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser'
 import type { Database } from '@/lib/database.types'
@@ -17,12 +16,26 @@ interface ApiError {
   error: string
 }
 
+interface OrgUser {
+  id: string
+  role: string
+  user_id: string
+  is_root_admin: boolean
+  users: {
+    id: string
+    email: string
+    raw_user_meta_data: {
+      name?: string
+    }
+  }
+}
+
 export default function AdminPanel() {
   const router = useRouter()
   const { role, isRootAdmin, loading: roleLoading } = useRole()
   const { user } = useUser()
   const supabase = getSupabaseBrowserClient()
-  const [activeTab, setActiveTab] = useState<Tab>('users')
+  const [activeTab, setActiveTab] = useState<Tab>('employees')
   const [showInviteCard, setShowInviteCard] = useState(false)
   const [inviteForm, setInviteForm] = useState({
     name: '',
@@ -31,6 +44,9 @@ export default function AdminPanel() {
   })
   const [inviteError, setInviteError] = useState<string | null>(null)
   const [inviteSuccess, setInviteSuccess] = useState(false)
+  const [orgUsers, setOrgUsers] = useState<OrgUser[]>([])
+  const [loadingUsers, setLoadingUsers] = useState(false)
+  const [userError, setUserError] = useState<string | null>(null)
 
   // Protect route
   useEffect(() => {
@@ -49,6 +65,50 @@ export default function AdminPanel() {
     }
     checkAuth()
   }, [router, supabase])
+
+  // Fetch organization users
+  useEffect(() => {
+    const fetchOrgUsers = async () => {
+      if (activeTab === 'employees') {
+        setLoadingUsers(true)
+        setUserError(null)
+        try {
+          // Get fresh session
+          const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+          if (sessionError || !session) {
+            throw new Error('No active session')
+          }
+
+          // Log auth state for debugging
+          console.log('Fetching with token:', session.access_token?.slice(0, 10) + '...')
+          
+          const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/list_org_users`, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${session.access_token}`,
+              'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
+              'Content-Type': 'application/json',
+            },
+          })
+
+          if (!response.ok) {
+            const errorData = await response.json()
+            throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
+          }
+
+          const data = await response.json()
+          setOrgUsers(data.users)
+        } catch (err) {
+          console.error('Error fetching users:', err)
+          setUserError(err instanceof Error ? err.message : 'Failed to load users')
+        } finally {
+          setLoadingUsers(false)
+        }
+      }
+    }
+
+    fetchOrgUsers()
+  }, [activeTab, supabase])
 
   // Test function
   const testSession = async () => {
@@ -358,38 +418,120 @@ export default function AdminPanel() {
                 animate={{ opacity: 1 }}
                 className="space-y-6"
               >
-                <div className="flex justify-between items-center">
-                  <h2 className="text-xl font-bold text-[#2C5282]">Employee Management</h2>
-                  <button className="wave-button px-4 py-2">Add Employee</button>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="ocean-card bg-white/50">
-                    <h3 className="text-lg font-medium text-[#2C5282] mb-4">Roles & Permissions</h3>
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between p-2 hover:bg-white/50 rounded">
-                        <span>Admin Access</span>
-                        <input type="checkbox" className="form-checkbox" />
-                      </div>
-                      <div className="flex items-center justify-between p-2 hover:bg-white/50 rounded">
-                        <span>Ticket Management</span>
-                        <input type="checkbox" className="form-checkbox" checked readOnly />
-                      </div>
-                    </div>
-                  </div>
-                  <div className="ocean-card bg-white/50">
-                    <h3 className="text-lg font-medium text-[#2C5282] mb-4">Team Structure</h3>
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between p-2">
-                        <span>Support Team</span>
-                        <span className="text-[#4A5568]">12 members</span>
-                      </div>
-                      <div className="flex items-center justify-between p-2">
-                        <span>Admin Team</span>
-                        <span className="text-[#4A5568]">3 members</span>
-                      </div>
-                    </div>
+                <div className="flex justify-between items-center mb-6">
+                  <div>
+                    <h2 className="text-xl font-bold text-[#2C5282] mb-2">Organization Members</h2>
+                    <p className="text-[#4A5568] text-sm">Manage your team members and their roles 🏖️</p>
                   </div>
                 </div>
+
+                {userError && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-red-50 border border-red-200 text-red-600 px-6 py-4 rounded-lg shadow-sm"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">⚠️</span>
+                      <p>{userError}</p>
+                    </div>
+                  </motion.div>
+                )}
+
+                {loadingUsers ? (
+                  <div className="ocean-card bg-white/40 backdrop-blur-sm">
+                    <div className="flex flex-col items-center justify-center py-12">
+                      <motion.div
+                        animate={{ rotate: 360 }}
+                        transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+                        className="w-12 h-12 border-4 border-[#4A90E2]/20 border-t-[#4A90E2] rounded-full"
+                      />
+                      <p className="text-[#4A5568] mt-4">Loading team members... 🌊</p>
+                    </div>
+                  </div>
+                ) : orgUsers.length === 0 ? (
+                  <div className="ocean-card bg-white/40 backdrop-blur-sm">
+                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                      <span className="text-4xl mb-4">🏝️</span>
+                      <h3 className="text-lg font-medium text-[#2C5282] mb-2">No Team Members Found</h3>
+                      <p className="text-[#4A5568] max-w-md">
+                        Looks like your organization is waiting for its first members to join!
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="ocean-card overflow-hidden p-0 bg-white/40 backdrop-blur-sm">
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full divide-y divide-[#4A90E2]/10">
+                        <thead className="bg-[#4A90E2]/5">
+                          <tr>
+                            <th scope="col" className="px-6 py-4 text-left text-xs font-medium text-[#2C5282] uppercase tracking-wider">
+                              Team Member
+                            </th>
+                            <th scope="col" className="px-6 py-4 text-left text-xs font-medium text-[#2C5282] uppercase tracking-wider">
+                              Role & Status
+                            </th>
+                            <th scope="col" className="px-6 py-4 text-left text-xs font-medium text-[#2C5282] uppercase tracking-wider">
+                              Member Since
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-[#4A90E2]/10">
+                          {orgUsers.map((user, index) => (
+                            <motion.tr 
+                              key={user.id}
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ delay: index * 0.1 }}
+                              className="group hover:bg-[#4A90E2]/5 transition-colors duration-200"
+                            >
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <div className="flex items-center">
+                                  <div className="flex-shrink-0 h-10 w-10 bg-gradient-to-br from-[#4A90E2]/20 to-[#50C878]/20 rounded-full flex items-center justify-center">
+                                    <span className="text-[#2C5282] font-medium text-sm">
+                                      {(user.users.raw_user_meta_data?.name?.[0] || user.users.email[0]).toUpperCase()}
+                                    </span>
+                                  </div>
+                                  <div className="ml-4">
+                                    <div className="text-sm font-medium text-[#2C5282] group-hover:text-[#4A90E2] transition-colors">
+                                      {user.users.raw_user_meta_data?.name || 'Unnamed Member'}
+                                    </div>
+                                    <div className="text-sm text-[#4A5568]">
+                                      {user.users.email}
+                                    </div>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <div className="flex items-center space-x-2">
+                                  <span className={`
+                                    px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full
+                                    ${user.role === 'admin' 
+                                      ? 'bg-purple-100 text-purple-800' 
+                                      : 'bg-teal-100 text-teal-800'}
+                                  `}>
+                                    {user.role === 'admin' ? '👑 Admin' : '👤 Member'}
+                                  </span>
+                                  {user.is_root_admin && (
+                                    <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
+                                      🌟 Root Admin
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-[#4A5568]">
+                                <div className="flex items-center">
+                                  <span className="h-2 w-2 bg-green-400 rounded-full mr-2"></span>
+                                  Active
+                                </div>
+                              </td>
+                            </motion.tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
               </motion.div>
             )}
 

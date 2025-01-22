@@ -107,7 +107,7 @@ serve(async (req) => {
     }
 
     // Generate invite link
-    const inviteLink = `${Deno.env.get('FRONTEND_URL')}/auth/accept-invite?token=${invitation.id}`
+    const inviteLink = `${Deno.env.get('FRONTEND_URL')}/invitation?token=${invitation.id}`
 
     // Send invitation email using our existing send_email function
     const emailRes = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send_email`, {
