@@ -139,6 +139,7 @@ export default function RegisterPage() {
                 </label>
                 <input
                   id="orgName"
+                  name="organization"
                   type="text"
                   value={orgName}
                   onChange={(e) => setOrgName(e.target.value)}
@@ -147,6 +148,7 @@ export default function RegisterPage() {
                            bg-white/50 backdrop-blur-sm"
                   required
                   placeholder="Your Company Name"
+                  autoComplete="organization"
                 />
               </div>
 
@@ -159,6 +161,7 @@ export default function RegisterPage() {
                 </label>
                 <input
                   id="email"
+                  name="email"
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -167,6 +170,7 @@ export default function RegisterPage() {
                            bg-white/50 backdrop-blur-sm"
                   required
                   placeholder="you@company.com"
+                  autoComplete="username email"
                 />
               </div>
 
@@ -179,6 +183,7 @@ export default function RegisterPage() {
                 </label>
                 <input
                   id="password"
+                  name="password"
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -188,6 +193,7 @@ export default function RegisterPage() {
                   required
                   placeholder="8+ characters"
                   minLength={8}
+                  autoComplete="new-password"
                 />
               </div>
 

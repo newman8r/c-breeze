@@ -93,6 +93,7 @@ export default function LoginPage() {
                 </label>
                 <input
                   id="email"
+                  name="email"
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -100,6 +101,8 @@ export default function LoginPage() {
                            focus:outline-none focus:ring-2 focus:ring-[#4A90E2]/40
                            bg-white/50 backdrop-blur-sm"
                   required
+                  placeholder="you@company.com"
+                  autoComplete="username email"
                 />
               </div>
 
@@ -112,6 +115,7 @@ export default function LoginPage() {
                 </label>
                 <input
                   id="password"
+                  name="password"
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -119,6 +123,8 @@ export default function LoginPage() {
                            focus:outline-none focus:ring-2 focus:ring-[#4A90E2]/40
                            bg-white/50 backdrop-blur-sm"
                   required
+                  placeholder="Enter your password"
+                  autoComplete="current-password"
                 />
               </div>
 
