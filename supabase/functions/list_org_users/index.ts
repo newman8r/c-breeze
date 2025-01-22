@@ -63,7 +63,9 @@ serve(async (req) => {
         is_root_admin,
         email,
         name,
-        created_at
+        created_at,
+        first_name,
+        last_name
       `)
       .eq('organization_id', employeeData.organization_id)
       .order('created_at', { ascending: true })
@@ -79,7 +81,7 @@ serve(async (req) => {
         id: employee.user_id,
         email: employee.email,
         raw_user_meta_data: {
-          name: employee.name
+          name: employee.name || `${employee.first_name || ''} ${employee.last_name || ''}`.trim() || 'Unnamed Member'
         }
       }
     }))
