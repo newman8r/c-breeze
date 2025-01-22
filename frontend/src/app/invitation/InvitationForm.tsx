@@ -257,7 +257,9 @@ export default function InvitationForm() {
                   </label>
                   <input
                     id="firstName"
+                    name="firstName"
                     type="text"
+                    autoComplete="given-name"
                     value={formData.firstName}
                     onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
                     className="w-full px-4 py-2 rounded-lg border border-[#4A90E2]/20 
@@ -277,7 +279,9 @@ export default function InvitationForm() {
                   </label>
                   <input
                     id="lastName"
+                    name="lastName"
                     type="text"
+                    autoComplete="family-name"
                     value={formData.lastName}
                     onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
                     className="w-full px-4 py-2 rounded-lg border border-[#4A90E2]/20 
@@ -299,7 +303,9 @@ export default function InvitationForm() {
                 </label>
                 <input
                   id="email"
+                  name="email"
                   type="email"
+                  autoComplete="username email"
                   value={formData.email}
                   disabled
                   className="w-full px-4 py-2 rounded-lg border border-[#4A90E2]/20 
@@ -319,7 +325,9 @@ export default function InvitationForm() {
                 </label>
                 <input
                   id="password"
+                  name="password"
                   type="password"
+                  autoComplete="new-password"
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                   className="w-full px-4 py-2 rounded-lg border border-[#4A90E2]/20 
@@ -341,7 +349,9 @@ export default function InvitationForm() {
                 </label>
                 <input
                   id="confirmPassword"
+                  name="confirmPassword"
                   type="password"
+                  autoComplete="new-password"
                   value={formData.confirmPassword}
                   onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
                   className="w-full px-4 py-2 rounded-lg border border-[#4A90E2]/20 
