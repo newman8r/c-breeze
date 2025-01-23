@@ -52,6 +52,13 @@ const mockOrgUsers = [
   { id: '5', first_name: 'Alex', last_name: 'Brown', email: 'alex@example.com', avatar: '🧑‍💼' },
 ]
 
+// Mock data for keywords suggestions (to be replaced with real data later)
+const mockKeywordSuggestions = [
+  'bug', 'feature', 'enhancement', 'documentation', 'ui/ux',
+  'backend', 'frontend', 'database', 'security', 'performance',
+  'mobile', 'desktop', 'testing', 'deployment', 'api'
+];
+
 export const FullScreenTicket = ({ ticket, onClose }: FullScreenTicketProps) => {
   const [activeTab, setActiveTab] = useState('details');
   const [showAssignModal, setShowAssignModal] = useState(false);
@@ -61,6 +68,9 @@ export const FullScreenTicket = ({ ticket, onClose }: FullScreenTicketProps) => 
   const [isStatusOpen, setIsStatusOpen] = useState(false);
   const [isPriorityOpen, setIsPriorityOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [keywords, setKeywords] = useState<string[]>([]);
+  const [showKeywordSuggestions, setShowKeywordSuggestions] = useState(false);
+  const [keywordInput, setKeywordInput] = useState('');
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -459,6 +469,68 @@ export const FullScreenTicket = ({ ticket, onClose }: FullScreenTicketProps) => 
                   <span>👤</span>
                   <span>Assign</span>
                 </button>
+              </div>
+            </div>
+
+            {/* Keywords Section */}
+            <div className="bg-white/50 rounded-lg p-6">
+              <h3 className="text-lg font-medium text-[#2C5282] mb-4">Keywords</h3>
+              <div className="space-y-4">
+                <div className="flex flex-wrap gap-2">
+                  {keywords.map((keyword, index) => (
+                    <div
+                      key={index}
+                      className="flex items-center gap-1 px-3 py-1 bg-[#4A90E2]/10 text-[#2C5282] rounded-full text-sm"
+                    >
+                      <span>{keyword}</span>
+                      <button
+                        onClick={() => setKeywords(keywords.filter((_, i) => i !== index))}
+                        className="text-[#2C5282]/60 hover:text-[#2C5282] ml-1"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Add keyword..."
+                    className="w-full px-4 py-2 bg-white/50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4A90E2]/40"
+                    value={keywordInput}
+                    onChange={(e) => {
+                      setKeywordInput(e.target.value);
+                      setShowKeywordSuggestions(true);
+                    }}
+                    onFocus={() => setShowKeywordSuggestions(true)}
+                  />
+                  {showKeywordSuggestions && keywordInput && (
+                    <div className="absolute left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-[200px] overflow-y-auto z-[100]">
+                      {mockKeywordSuggestions
+                        .filter(suggestion => 
+                          suggestion.toLowerCase().includes(keywordInput.toLowerCase()) &&
+                          !keywords.includes(suggestion)
+                        )
+                        .map((suggestion, index) => (
+                          <div
+                            key={index}
+                            className="px-4 py-2 hover:bg-gray-50 cursor-pointer"
+                            onClick={() => {
+                              if (!keywords.includes(suggestion)) {
+                                setKeywords([...keywords, suggestion]);
+                              }
+                              setKeywordInput('');
+                              setShowKeywordSuggestions(false);
+                            }}
+                          >
+                            {suggestion}
+                          </div>
+                        ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
