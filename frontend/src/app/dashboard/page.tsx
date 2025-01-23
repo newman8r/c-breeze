@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { motion } from 'framer-motion'
+import { useEffect, useState, useCallback } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useUser } from '@/contexts/UserContext'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -9,6 +9,10 @@ import { useRole } from '@/contexts/RoleContext'
 import { signOut } from '@/utils/supabase'
 import { Activity, mockTickets } from '@/mocks/ticketData'
 import { getRecentOrganizationTickets, createClient } from '@/utils/supabase'
+import FullScreenTicket from '@/components/tickets/FullScreenTicket'
+import styles from './dashboard.module.css'
+import TicketFeed from '@/components/tickets/TicketFeed'
+import { Ticket, SelectedTicket, CreateTicketForm } from '@/types/ticket'
 
 // Types for our data
 interface Profile {
@@ -344,50 +348,6 @@ const StatusIndicator = ({ status, isHeatmap = false }: { status: string, isHeat
   );
 };
 
-// Add new interface for ticket creation form
-interface CreateTicketForm {
-  title: string
-  description: string
-  customer_id?: string
-  priority: 'low' | 'medium' | 'high' | 'urgent'
-  category?: string
-  due_date?: string
-  is_internal: boolean
-}
-
-// Add ticket type definition
-interface Ticket {
-  id: string
-  title: string
-  description: string
-  status: string
-  priority: string
-  created_at: string
-  customer: {
-    id: string
-    name: string
-    email: string
-  }
-  assigned_employee: {
-    id: string
-    first_name: string
-    last_name: string
-  } | null
-  ticket_tags: {
-    tag: {
-      id: string
-      name: string
-      color: string
-    }
-  }[]
-}
-
-// Add new interface for selected ticket state
-interface SelectedTicket {
-  id: string;
-  isOpen: boolean;
-}
-
 /**
  * Dashboard Page Component
  * 
@@ -413,6 +373,8 @@ export default function DashboardPage() {
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [selectedTicket, setSelectedTicket] = useState<SelectedTicket>({ id: '', isOpen: false });
+  const [isStatusOpen, setIsStatusOpen] = useState(false);
+  const [isPriorityOpen, setIsPriorityOpen] = useState(false);
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -515,9 +477,9 @@ export default function DashboardPage() {
   // Show loading state
   if (userLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-[#E0F2F7] via-[#4A90E2]/10 to-[#F7F3E3] p-6">
-        <div className="max-w-7xl mx-auto">
-          <div className="ocean-card">
+      <div className={styles.dashboardContainer}>
+        <div className={styles.contentWrapper}>
+          <div className={styles.oceanCard}>
             <p className="text-center">Loading...</p>
           </div>
         </div>
@@ -530,120 +492,17 @@ export default function DashboardPage() {
     return null // Router will handle redirect
   }
 
-  // Add new component for full-screen ticket view
-  const FullScreenTicket = ({ ticket, onClose }: { ticket: any; onClose: () => void }) => {
-    return (
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.95 }}
-        className="absolute inset-0 z-50 bg-gradient-to-br from-blue-50/95 to-white/95 backdrop-blur-sm rounded-lg overflow-hidden"
-      >
-        <div className="relative h-full p-6">
-          {/* Bauhaus-inspired decorative elements */}
-          <div className="absolute top-0 right-0 w-48 h-48 bg-yellow-200/20 rounded-full -translate-y-1/2 translate-x-1/2" />
-          <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-200/20 rounded-full translate-y-1/2 -translate-x-1/2" />
-          
-          {/* Close button */}
-          <button
-            onClick={onClose}
-            className="absolute top-4 right-4 p-2 rounded-full bg-white/50 hover:bg-white/80 transition-colors z-10"
-          >
-            <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-
-          {/* Content */}
-          <div className="relative z-10 max-w-3xl mx-auto">
-            <div className="flex items-start justify-between mb-6">
-              <div>
-                <h2 className="text-2xl font-bold text-[#2C5282] mb-2">{ticket.title}</h2>
-                <div className="flex items-center gap-3">
-                  <span className={`px-3 py-1 rounded-full text-sm font-medium
-                    ${ticket.priority === 'high' ? 'bg-red-100 text-red-800' : 
-                      ticket.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' : 
-                      'bg-blue-100 text-blue-800'}`}
-                  >
-                    {ticket.priority}
-                  </span>
-                  <span className={`px-3 py-1 rounded-full text-sm font-medium
-                    ${ticket.status === 'urgent' ? 'bg-red-100 text-red-800' :
-                      ticket.status === 'in_progress' ? 'bg-yellow-100 text-yellow-800' :
-                      ticket.status === 'resolved' ? 'bg-green-100 text-green-800' :
-                      'bg-blue-100 text-blue-800'}`}
-                  >
-                    {ticket.status}
-                  </span>
-                  <span className="px-3 py-1 bg-gray-100 text-gray-800 rounded-full text-sm font-medium">
-                    {ticket.category}
-                  </span>
-                </div>
-              </div>
-              <div className="text-right text-sm text-gray-600">
-                <p>Created {new Date(ticket.created_at).toLocaleDateString()}</p>
-                <p>Source: {ticket.source}</p>
-              </div>
-            </div>
-
-            <div className="bg-white/50 rounded-lg p-6 mb-6">
-              <h3 className="text-lg font-medium text-[#2C5282] mb-4">Description</h3>
-              <p className="text-gray-700 whitespace-pre-wrap">{ticket.description}</p>
-            </div>
-
-            <div className="grid grid-cols-2 gap-6">
-              <div className="bg-white/50 rounded-lg p-6">
-                <h3 className="text-lg font-medium text-[#2C5282] mb-4">Customer Details</h3>
-                <div className="space-y-3">
-                  <div>
-                    <p className="text-sm text-gray-600">Name</p>
-                    <p className="font-medium text-gray-800">{ticket.customer?.name || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Email</p>
-                    <p className="font-medium text-gray-800">{ticket.customer?.email || 'N/A'}</p>
-                  </div>
-                </div>
-              </div>
-              <div className="bg-white/50 rounded-lg p-6">
-                <h3 className="text-lg font-medium text-[#2C5282] mb-4">Assignment</h3>
-                <div className="space-y-3">
-                  <div>
-                    <p className="text-sm text-gray-600">Assigned To</p>
-                    <p className="font-medium text-gray-800">
-                      {ticket.assigned_employee ? 
-                        `${ticket.assigned_employee.first_name} ${ticket.assigned_employee.last_name}` : 
-                        'Unassigned'}
-                    </p>
-                  </div>
-                  {ticket.resolved_by && (
-                    <div>
-                      <p className="text-sm text-gray-600">Resolved By</p>
-                      <p className="font-medium text-gray-800">
-                        {ticket.resolved_by.first_name} {ticket.resolved_by.last_name}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </motion.div>
-    );
-  };
-
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#E0F2F7] via-[#4A90E2]/10 to-[#F7F3E3] p-6">
-      <div className="max-w-7xl mx-auto space-y-8">
+    <div className={styles.dashboardContainer}>
+      <div className={styles.contentWrapper}>
         {/* Header Section */}
         <div className="flex justify-between items-center">
           <motion.div 
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
-            className="ocean-card py-4 px-6 inline-flex items-center gap-4"
+            className={`${styles.oceanCard} ${styles.welcomeCard}`}
           >
-            <h1 className="text-2xl font-bold text-[#2C5282]">
+            <h1 className={styles.welcomeText}>
               Welcome, {userProfile?.display_name || user.email}
             </h1>
           </motion.div>
@@ -740,7 +599,7 @@ export default function DashboardPage() {
               <h2 className="text-xl font-bold text-[#2C5282]">Create New Ticket</h2>
               <button
                 onClick={() => setIsCreateTicketOpen(true)}
-                className="wave-button px-4 py-2"
+                className={`${styles.waveButton} px-4 py-2`}
               >
                 Create Ticket
               </button>
@@ -754,197 +613,17 @@ export default function DashboardPage() {
         {/* Main Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Ticket Feed */}
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="ocean-card col-span-2"
-          >
-            <div className="flex justify-between items-center mb-6 relative z-10">
-              <div>
-                <h2 className="text-xl font-bold text-[#2C5282]">Ticket Feed</h2>
-                <p className="text-sm text-[#4A5568]">
-                  {tickets.length} tickets
-                </p>
-              </div>
-              <div className="flex items-center gap-4">
-                <div className="flex items-center bg-white/50 rounded-lg p-1">
-                  <button
-                    onClick={() => setZoomLevel(1)}
-                    className={`p-2 rounded-lg transition-colors ${zoomLevel === 1 ? 'bg-white' : 'hover:bg-white/50'}`}
-                    title="Detail View"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
-                    </svg>
-                  </button>
-                  <button
-                    onClick={() => setZoomLevel(2)}
-                    className={`p-2 rounded-lg transition-colors ${zoomLevel === 2 ? 'bg-white' : 'hover:bg-white/50'}`}
-                    title="Grid View"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-                    </svg>
-                  </button>
-                  <button
-                    onClick={() => setZoomLevel(3)}
-                    className={`p-2 rounded-lg transition-colors ${zoomLevel === 3 ? 'bg-white' : 'hover:bg-white/50'}`}
-                    title="Heat Map View"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4h16v16H4V4z M8 4v16 M12 4v16 M16 4v16 M4 8h16 M4 12h16 M4 16h16" />
-                    </svg>
-                  </button>
-                </div>
-                <Link href="/tickets" className="text-[#4A90E2] hover:text-[#2C5282] transition-colors">
-                  View All →
-                </Link>
-              </div>
-            </div>
-            <div className={`relative ${zoomLevel === 3 ? 'overflow-visible' : 'overflow-hidden'}`}>
-              <div className={`${zoomLevel === 3 ? 'overflow-visible' : 'max-h-[600px] overflow-y-auto pr-2'}`}>
-                {ticketsLoading ? (
-                  <div className="flex items-center justify-center p-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#4A90E2]"></div>
-                  </div>
-                ) : (
-                  <motion.div 
-                    key={`container-zoom-${zoomLevel}`}
-                    layout={false}
-                    initial="exit"
-                    animate="enter"
-                    exit="exit"
-                    variants={getZoomStyles(zoomLevel).variants.container}
-                    className={`grid ${getZoomStyles(zoomLevel).grid} ${zoomLevel === 1 ? 'gap-3' : zoomLevel === 2 ? 'gap-2' : 'gap-0'} 
-                      ${zoomLevel === 3 ? 'w-fit mx-auto bg-gray-50/50 p-2 rounded-lg relative' : ''}`}
-                  >
-                    {tickets.map((ticket, index) => (
-                      <motion.div
-                        key={`ticket-${ticket.id}-zoom-${zoomLevel}`}
-                        layout={false}
-                        variants={getZoomStyles(zoomLevel).variants.item}
-                        initial="exit"
-                        animate="enter"
-                        exit="exit"
-                        className={`${getZoomStyles(zoomLevel).padding} rounded-md cursor-pointer relative
-                          ${zoomLevel === 3 ? getTicketColor(ticket.priority, ticket.status, true) : getTicketColor(ticket.priority, ticket.status)}
-                          ${expandedTickets[ticket.id] && isExpandedView(zoomLevel) ? (zoomLevel === 1 ? 'col-span-full' : 'col-span-2 row-span-2') : ''}
-                          ${zoomLevel === 1 ? 'w-full' : ''}
-                          ${zoomLevel === 3 ? 'w-6 h-6 group hover:z-10 shrink-0' : ''}
-                          min-h-[${zoomLevel === 1 ? '120px' : zoomLevel === 2 ? '80px' : '24px'}]
-                          flex flex-col`}
-                        onClick={() => {
-                          setSelectedTicket({ id: ticket.id, isOpen: true });
-                          isExpandedView(zoomLevel) && toggleTicketExpansion(ticket.id);
-                        }}
-                      >
-                        {zoomLevel === 3 ? (
-                          <>
-                            <div className="absolute inset-0 flex items-center justify-center">
-                              <StatusIndicator status={ticket.status} isHeatmap={true} />
-                            </div>
-                            <div className="opacity-0 group-hover:opacity-100 absolute z-[100] bottom-full left-1/2 -translate-x-1/2 mb-1 w-48 p-2 bg-white rounded-lg shadow-lg text-xs transition-opacity duration-200 pointer-events-none">
-                              <h4 className="font-medium text-[#2C5282] mb-1 truncate">{ticket.title}</h4>
-                              <p className="text-[#4A5568] text-[10px] mb-1 truncate">{ticket.description}</p>
-                              <div className="flex flex-col gap-1 text-[10px] text-[#4A5568]">
-                                <div className="flex justify-between items-center">
-                                  <span>{new Date(ticket.created_at).toLocaleString()}</span>
-                                </div>
-                                <div className="flex justify-between items-center">
-                                  <div className="flex items-center gap-1">
-                                    <span>Status:</span>
-                                    <span className="capitalize">{ticket.status}</span>
-                                    <div className="w-2 h-2 rounded-full" style={{ 
-                                      backgroundColor: ticket.status === 'urgent' ? '#FF4242' :
-                                                     ticket.status === 'in_progress' ? '#4A90E2' :
-                                                     ticket.status === 'resolved' ? '#50C878' :
-                                                     ticket.status === 'closed' ? '#718096' : '#FFB347'
-                                    }} />
-                                  </div>
-                                  <div className="flex items-center gap-1">
-                                    <span>Priority:</span>
-                                    <span className="capitalize">{ticket.priority}</span>
-                                    <div className="w-2 h-2 rounded-full" style={{ 
-                                      backgroundColor: ticket.priority === 'urgent' ? '#FFE4E4' :
-                                                     ticket.priority === 'high' ? '#FFD4D4' :
-                                                     ticket.priority === 'low' ? '#E3F0FF' : '#FFE8CC'
-                                    }} />
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          </>
-                        ) : (
-                          <motion.div 
-                            key={`content-${ticket.id}-zoom-${zoomLevel}`}
-                            className="flex flex-col h-full"
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            transition={{ duration: 0.2 }}
-                          >
-                            <h3 className={`font-medium text-[#2C5282] ${getZoomStyles(zoomLevel).text} leading-tight truncate mb-1`}>
-                              {ticket.title}
-                            </h3>
-                            {(zoomLevel === 1 || (!expandedTickets[ticket.id] && zoomLevel === 2)) && (
-                              <motion.div 
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                transition={{ delay: 0.1 }}
-                                className="flex items-center justify-between mt-auto space-x-2"
-                              >
-                                <span className={`${getZoomStyles(zoomLevel).text} text-[#4A5568] truncate flex-shrink-0`}>
-                                  {new Date(ticket.created_at).toLocaleString()}
-                                </span>
-                                {zoomLevel === 1 && (
-                                  <>
-                                    <span className={`${getZoomStyles(zoomLevel).text} text-[#4A5568] truncate`}>{ticket.status}</span>
-                                    <span className={`${getZoomStyles(zoomLevel).text} text-[#4A5568] truncate`}>
-                                      {ticket.ticket_tags[0]?.tag.name || 'Uncategorized'}
-                                    </span>
-                                  </>
-                                )}
-                                {zoomLevel === 2 && (
-                                  <span className={`${getZoomStyles(zoomLevel).text} text-[#4A5568] truncate`}>
-                                    {ticket.ticket_tags[0]?.tag.name || 'Uncategorized'}
-                                  </span>
-                                )}
-                              </motion.div>
-                            )}
-                            {expandedTickets[ticket.id] && isExpandedView(zoomLevel) && (
-                              <motion.div
-                                initial={{ opacity: 0, y: -10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ type: "spring", stiffness: 300, damping: 25 }}
-                                className="mt-2 space-y-2"
-                              >
-                                <p className="text-xs text-[#4A5568] line-clamp-2">{ticket.description}</p>
-                                <div className="grid grid-cols-2 gap-2 text-[10px]">
-                                  <div className="overflow-hidden">
-                                    <p className="font-medium text-[#4A5568]">Contact</p>
-                                    <p className="truncate">{ticket.customer.name} ({ticket.customer.email})</p>
-                                  </div>
-                                  <div className="overflow-hidden">
-                                    <p className="font-medium text-[#4A5568]">Status</p>
-                                    <p className="truncate">{ticket.status}</p>
-                                  </div>
-                                  <div className="overflow-hidden">
-                                    <p className="font-medium text-[#4A5568]">Assignee</p>
-                                    <p className="truncate">{ticket.assigned_employee?.first_name} {ticket.assigned_employee?.last_name}</p>
-                                  </div>
-                                </div>
-                              </motion.div>
-                            )}
-                          </motion.div>
-                        )}
-                      </motion.div>
-                    ))}
-                  </motion.div>
-                )}
-              </div>
-            </div>
-          </motion.div>
+          <div className="lg:col-span-2">
+            <TicketFeed
+              tickets={tickets}
+              ticketsLoading={ticketsLoading}
+              zoomLevel={zoomLevel}
+              setZoomLevel={setZoomLevel}
+              expandedTickets={expandedTickets}
+              toggleTicketExpansion={toggleTicketExpansion}
+              setSelectedTicket={setSelectedTicket}
+            />
+          </div>
 
           {/* Social Feed */}
           <motion.div 
@@ -1236,7 +915,7 @@ export default function DashboardPage() {
                            focus:outline-none focus:ring-2 focus:ring-[#4A90E2]/40
                            bg-white/50 backdrop-blur-sm"
                 />
-                <button className="wave-button px-4 py-2">
+                <button className={`${styles.waveButton} px-4 py-2`}>
                   Send
                 </button>
               </div>
@@ -1370,7 +1049,7 @@ export default function DashboardPage() {
                 <button
                   onClick={createTicket}
                   disabled={isSubmitting}
-                  className="wave-button px-4 py-2 disabled:opacity-50"
+                  className={`${styles.waveButton} px-4 py-2 disabled:opacity-50`}
                 >
                   {isSubmitting ? 'Creating...' : 'Create Ticket'}
                 </button>
@@ -1380,12 +1059,15 @@ export default function DashboardPage() {
         )}
 
         {/* Full Screen Ticket */}
-        {selectedTicket.isOpen && (
-          <FullScreenTicket
-            ticket={tickets.find(t => t.id === selectedTicket.id)}
-            onClose={() => setSelectedTicket({ id: '', isOpen: false })}
-          />
-        )}
+        {selectedTicket.isOpen && (() => {
+          const foundTicket = tickets.find(t => t.id === selectedTicket.id);
+          return foundTicket ? (
+            <FullScreenTicket
+              ticket={foundTicket}
+              onClose={() => setSelectedTicket({ id: '', isOpen: false })}
+            />
+          ) : null;
+        })()}
       </div>
     </div>
   )

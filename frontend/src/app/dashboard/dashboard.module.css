@@ -1,0 +1,59 @@
+.dashboardContainer {
+  min-height: 100vh;
+  background: linear-gradient(to bottom, #E0F2F7, rgba(74, 144, 226, 0.1), #F7F3E3);
+  padding: 1.5rem;
+}
+
+.contentWrapper {
+  max-width: 80rem;
+  margin: 0 auto;
+  gap: 2rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.welcomeCard {
+  display: inline-flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+}
+
+.welcomeText {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: #2C5282;
+}
+
+.oceanCard {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(10px);
+  border-radius: 1rem;
+  border: 1px solid rgba(74, 144, 226, 0.2);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  transition: all 0.2s ease-in-out;
+}
+
+.oceanCard:hover {
+  border-color: rgba(74, 144, 226, 0.4);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+.waveButton {
+  background: linear-gradient(135deg, #4A90E2, #2C5282);
+  color: white;
+  border-radius: 0.5rem;
+  transition: all 0.2s ease-in-out;
+  position: relative;
+  overflow: hidden;
+}
+
+.waveButton:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px -1px rgba(44, 82, 130, 0.2);
+}
+
+.waveButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+} 

@@ -351,4 +351,45 @@ Remember: Auth state management is critical for security. Always err on the side
 4. Verify record creation before proceeding
 5. Add comprehensive logging for debugging
 
-Remember: Auth state changes trigger context updates immediately. Ensure all required data exists before triggering these updates. 
+Remember: Auth state changes trigger context updates immediately. Ensure all required data exists before triggering these updates.
+
+## Supabase Auth Token Handling
+
+### Problem
+When making requests to Supabase Edge Functions from frontend components, we encountered "No access token available" errors. This happened because components were using direct Supabase client imports instead of the shared client utility.
+
+### Solution
+1. Use the shared client utility:
+```typescript
+import { createClient } from '@/utils/supabase'
+
+// Inside your function:
+const supabase = createClient()
+const { data: { session } } = await supabase.auth.getSession()
+```
+
+2. The shared utility in `utils/supabase.ts` maintains a singleton instance with proper session handling:
+```typescript
+let browserClient: ReturnType<typeof createClientComponentClient<Database>> | null = null
+
+export const createClient = () => {
+  if (browserClient) return browserClient
+  browserClient = createClientComponentClient<Database>()
+  return browserClient
+}
+```
+
+### Key Takeaways
+- Never import Supabase client directly in components
+- Always use the shared `createClient()` utility
+- Create client instances inside functions, not at component level
+- Check for session existence before making authenticated requests
+- Handle auth errors gracefully
+
+### Signs of This Issue
+- "No access token available" errors
+- Auth token undefined in requests
+- Edge functions returning 401 unauthorized errors
+- Inconsistent auth behavior between components
+
+Remember: Auth state management is critical for security. Always err on the side of forcing a clean state rather than trying to recover from an inconsistent one. 
