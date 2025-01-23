@@ -20,6 +20,49 @@ const BauhausDecoration = ({ className = '' }: { className?: string }) => (
   </div>
 )
 
+// Helper function to wait for database trigger completion
+async function waitForTriggerCompletion(
+  supabase: any,
+  userId: string,
+  orgId: string,
+  maxAttempts = 10,
+  delayMs = 1000
+): Promise<boolean> {
+  for (let i = 0; i < maxAttempts; i++) {
+    // Try direct database access first
+    const { data: directData, error: directError } = await supabase
+      .from('employees')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('organization_id', orgId)
+      .single()
+
+    if (directData?.id) {
+      return true
+    }
+
+    // If direct access fails, try the security definer function
+    const { data: roleData } = await supabase
+      .rpc('get_user_role', {
+        _user_id: userId,
+        _org_id: orgId
+      })
+
+    if (roleData === 'admin') {
+      return true
+    }
+
+    // Wait before next attempt
+    await new Promise(resolve => setTimeout(resolve, delayMs))
+
+    // Refresh session every other attempt
+    if (i % 2 === 0) {
+      await supabase.auth.refreshSession()
+    }
+  }
+  return false
+}
+
 export default function RegisterPage() {
   const router = useRouter()
   const [email, setEmail] = useState('')
@@ -35,31 +78,28 @@ export default function RegisterPage() {
 
     try {
       const supabase = createClient()
+      const serviceClient = createClient()
+      console.log('Starting registration process...')
 
-      // 1. Create user account and get session
+      // 1. Sign up without setting session
+      console.log('Creating user account...')
       const { data: authData, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
         options: {
           data: {
-            org_name: orgName // Store org name in user metadata
+            org_name: orgName
           }
         }
       })
 
       if (signUpError) throw signUpError
       if (!authData.user) throw new Error('No user data returned')
+      console.log('User account created successfully')
 
-      // 2. Ensure we have a session
-      if (!authData.session) {
-        throw new Error('No session returned from signup')
-      }
-
-      // Set the session immediately
-      await supabase.auth.setSession(authData.session)
-
-      // 3. Create organization
-      const { data: orgData, error: orgError } = await supabase
+      // 2. Create organization with service role client
+      console.log('Creating organization...')
+      const { data: orgData, error: orgError } = await serviceClient
         .from('organizations')
         .insert([
           {
@@ -73,34 +113,48 @@ export default function RegisterPage() {
         .single()
 
       if (orgError) throw orgError
+      console.log('Organization created successfully')
 
-      // 4. Wait for employee record to be created by trigger and verify
-      let employeeData = null
-      let retries = 0
-      while (!employeeData && retries < 5) {
-        const { data, error } = await supabase
-          .from('employees')
-          .select('*')
-          .eq('user_id', authData.user.id)
-          .single()
-        
-        if (data) {
-          employeeData = data
-          break
-        }
-        
-        await new Promise(resolve => setTimeout(resolve, 500))
-        retries++
+      // 3. Wait for trigger completion
+      console.log('Waiting for database triggers to complete...')
+      const triggerCompleted = await waitForTriggerCompletion(
+        serviceClient,
+        authData.user.id,
+        orgData.id
+      )
+
+      if (!triggerCompleted) {
+        throw new Error('Failed to verify employee record creation')
       }
+      console.log('Database triggers completed successfully')
 
-      if (!employeeData) {
-        throw new Error('Employee record not created after multiple attempts')
+      // 4. Verify employee record exists
+      console.log('Verifying employee record...')
+      const { data: employeeCheck, error: employeeError } = await serviceClient
+        .from('employees')
+        .select('id')
+        .eq('user_id', authData.user.id)
+        .eq('organization_id', orgData.id)
+        .single()
+
+      if (employeeError || !employeeCheck) {
+        throw new Error('Failed to verify employee record')
       }
+      console.log('Employee record verified successfully')
 
-      // 5. Force refresh auth state
-      await supabase.auth.refreshSession()
-      
+      // 5. Only now sign in to get session
+      console.log('Signing in user...')
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      })
+
+      if (signInError) throw signInError
+      if (!signInData.session) throw new Error('No session returned from sign in')
+      console.log('User signed in successfully')
+
       // 6. Redirect to dashboard
+      console.log('Registration complete, redirecting to dashboard...')
       router.refresh()
       router.replace('/dashboard')
       
