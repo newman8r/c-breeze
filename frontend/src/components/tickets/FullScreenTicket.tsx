@@ -49,6 +49,19 @@ interface Ticket {
   }>
 }
 
+interface TicketMessage {
+  id: string
+  content: string
+  created_at: string
+  is_private: boolean
+  sender_id: string
+  sender_type: 'employee' | 'customer' | 'system' | 'ai'
+  metadata: {
+    attachments?: Array<{ name: string, size: number }>
+  }
+  responding_to_id?: string
+}
+
 interface FullScreenTicketProps {
   ticket: Ticket
   onClose: () => void
@@ -124,6 +137,12 @@ export const FullScreenTicket = ({ ticket, onClose }: FullScreenTicketProps) => 
   const [orgUsers, setOrgUsers] = useState<Employee[]>([])
   const [isLoadingUsers, setIsLoadingUsers] = useState(false)
   const [assignmentError, setAssignmentError] = useState<string | null>(null)
+  const [messageContent, setMessageContent] = useState('');
+  const [isPrivateNote, setIsPrivateNote] = useState(false);
+  const [attachments, setAttachments] = useState<Array<{ name: string, size: number }>>([]);
+  const [messageError, setMessageError] = useState<string | null>(null);
+  const [messages, setMessages] = useState<TicketMessage[]>([])
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false)
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -291,6 +310,104 @@ export const FullScreenTicket = ({ ticket, onClose }: FullScreenTicketProps) => 
         return { bg: 'bg-[#FFB347]/20', text: 'text-[#FFB347]', dot: 'bg-[#FFB347]' };
     }
   };
+
+  const handleFileAttachment = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const newFiles = Array.from(e.target.files).map(file => ({
+        name: file.name,
+        size: file.size
+      }));
+      setAttachments([...attachments, ...newFiles]);
+    }
+  };
+
+  const removeAttachment = (index: number) => {
+    setAttachments(attachments.filter((_, i) => i !== index));
+  };
+
+  const fetchMessages = async () => {
+    try {
+      setIsLoadingMessages(true)
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+
+      if (!session?.access_token) {
+        throw new Error('No access token available')
+      }
+
+      const response = await fetch(`http://localhost:54321/functions/v1/list_ticket_messages?ticket_id=${ticket.id}`, {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`
+        }
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to fetch messages')
+      }
+
+      setMessages(data.messages)
+    } catch (error) {
+      console.error('Error fetching messages:', error)
+    } finally {
+      setIsLoadingMessages(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchMessages()
+  }, [ticket.id])
+
+  const handleSendMessage = async () => {
+    try {
+      setMessageError(null)
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+
+      if (!session?.access_token) {
+        throw new Error('No access token available')
+      }
+
+      const response = await fetch('http://localhost:54321/functions/v1/create_ticket_message', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          ticket_id: ticket.id,
+          content: messageContent,
+          is_private: isPrivateNote,
+          metadata: {
+            attachments: attachments.map(file => ({
+              name: file.name,
+              size: file.size
+            }))
+          }
+        })
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to send message')
+      }
+
+      // Clear the form
+      setMessageContent('')
+      setAttachments([])
+      setIsPrivateNote(false)
+      setMessageError(null)
+
+      // Fetch updated messages
+      await fetchMessages()
+
+    } catch (error: any) {
+      console.error('Error sending message:', error)
+      setMessageError(error.message || 'Failed to send message')
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-[100] bg-gradient-to-br from-blue-50/95 to-white/95 backdrop-blur-sm overflow-y-auto">
@@ -533,22 +650,252 @@ export const FullScreenTicket = ({ ticket, onClose }: FullScreenTicketProps) => 
                   exit={{ opacity: 0, y: -10 }}
                   className="space-y-6"
                 >
-                  {/* Activity Feed */}
-                  <div className="bg-white/50 rounded-lg p-6">
-                    <h3 className="text-lg font-medium text-[#2C5282] mb-4">Activity Feed</h3>
-                    <div className="space-y-4">
-                      {ticket.activities?.map((activity, index) => (
-                        <div key={index} className="flex gap-4">
-                          <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
-                            👤
+                  {/* Message Editor */}
+                  <div className="bg-white/50 backdrop-blur-sm rounded-lg p-6 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-lg font-medium text-[#2C5282]">Add Response</h3>
+                      <div className="flex items-center gap-2">
+                        <button 
+                          className="text-sm text-gray-600 hover:text-[#2C5282] transition-colors flex items-center gap-1"
+                          onClick={() => setIsPrivateNote(!isPrivateNote)}
+                        >
+                          {isPrivateNote ? '🔒' : '👥'} {isPrivateNote ? 'Private Note' : 'Public Response'}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Editor Toolbar */}
+                    <div className="flex items-center gap-2 p-2 bg-white/30 rounded-lg border border-gray-100">
+                      <button className="p-2 hover:bg-white/50 rounded transition-colors" title="Bold">
+                        <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 12h8a4 4 0 000-8H6v8zm0 0h8a4 4 0 010 8H6v-8z" />
+                        </svg>
+                      </button>
+                      <button className="p-2 hover:bg-white/50 rounded transition-colors" title="Italic">
+                        <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4h-8M8 16h8" />
+                        </svg>
+                      </button>
+                      <button className="p-2 hover:bg-white/50 rounded transition-colors" title="Underline">
+                        <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h10m-10 4h10M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                      </button>
+                      <div className="w-px h-6 bg-gray-200 mx-2" />
+                      <button className="p-2 hover:bg-white/50 rounded transition-colors" title="Bullet List">
+                        <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                        </svg>
+                      </button>
+                      <button className="p-2 hover:bg-white/50 rounded transition-colors" title="Numbered List">
+                        <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h12M9 12h12M9 17h12M5 7v.01M5 12v.01M5 17v.01" />
+                        </svg>
+                      </button>
+                    </div>
+
+                    {/* Editor Area */}
+                    <div className="relative">
+                      {messageError && (
+                        <div className="mb-4 p-2 bg-red-50 text-red-600 rounded-lg text-sm">
+                          {messageError}
+                        </div>
+                      )}
+                      <textarea
+                        placeholder={isPrivateNote ? "Add a private note (only visible to team members)..." : "Type your response..."}
+                        className="w-full min-h-[150px] p-4 bg-white/50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4A90E2]/40 resize-y"
+                        value={messageContent}
+                        onChange={(e) => setMessageContent(e.target.value)}
+                      />
+                      
+                      {/* Attachment Area */}
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {attachments.map((file, index) => (
+                          <div 
+                            key={index}
+                            className="flex items-center gap-2 px-3 py-1.5 bg-white/70 rounded-full text-sm text-gray-700"
+                          >
+                            <span>📎</span>
+                            <span className="truncate max-w-[150px]">{file.name}</span>
+                            <button 
+                              onClick={() => removeAttachment(index)}
+                              className="text-gray-400 hover:text-gray-600"
+                            >
+                              ×
+                            </button>
                           </div>
-                          <div>
-                            <p className="text-sm font-medium text-[#2C5282]">{activity.user}</p>
-                            <p className="text-sm text-gray-700">{activity.action}</p>
-                            <p className="text-xs text-gray-600">{new Date(activity.timestamp).toLocaleString()}</p>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex items-center justify-between pt-2">
+                      <div className="flex items-center gap-2">
+                        <button 
+                          onClick={() => document.getElementById('file-input')?.click()}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-white/50 hover:bg-white/80 rounded-lg text-gray-600 text-sm transition-colors"
+                        >
+                          📎 Attach Files
+                        </button>
+                        <input
+                          id="file-input"
+                          type="file"
+                          multiple
+                          className="hidden"
+                          onChange={handleFileAttachment}
+                        />
+                        <button className="flex items-center gap-1.5 px-3 py-1.5 bg-white/50 hover:bg-white/80 rounded-lg text-gray-600 text-sm transition-colors">
+                          🎨 Template
+                        </button>
+                        <button className="flex items-center gap-1.5 px-3 py-1.5 bg-white/50 hover:bg-white/80 rounded-lg text-gray-600 text-sm transition-colors">
+                          🤖 AI Assist
+                        </button>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button 
+                          onClick={() => {
+                            setMessageContent('')
+                            setAttachments([])
+                          }}
+                          className="px-4 py-2 text-gray-600 hover:text-gray-800 text-sm transition-colors"
+                        >
+                          Cancel
+                        </button>
+                        <button 
+                          onClick={handleSendMessage}
+                          disabled={!messageContent.trim() && attachments.length === 0}
+                          className={`px-4 py-2 rounded-lg text-sm transition-colors ${
+                            messageContent.trim() || attachments.length > 0
+                              ? 'bg-[#4A90E2] hover:bg-[#2C5282] text-white'
+                              : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                          }`}
+                        >
+                          {isPrivateNote ? 'Add Note' : 'Send Response'} {isPrivateNote ? '🔒' : '↗️'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Message Thread */}
+                  <div className="bg-white/50 backdrop-blur-sm rounded-lg p-6">
+                    <h3 className="text-lg font-medium text-[#2C5282] mb-4">Message History</h3>
+                    <div className="space-y-6">
+                      {/* Loading State */}
+                      {isLoadingMessages && (
+                        <div className="flex items-center justify-center py-8">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#4A90E2]"></div>
+                        </div>
+                      )}
+
+                      {/* Message List */}
+                      {!isLoadingMessages && messages.map((message) => {
+                        // Find the sender in orgUsers if it's an employee
+                        const sender = message.sender_type === 'employee' 
+                          ? orgUsers.find(user => user.id === message.sender_id)
+                          : null;
+
+                        return (
+                          <div key={message.id} className="flex gap-4">
+                            <div className="flex-shrink-0">
+                              <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
+                                {message.sender_type === 'employee' && sender
+                                  ? `${sender.first_name[0]}${sender.last_name[0]}`
+                                  : message.sender_type === 'system' 
+                                    ? '🤖'
+                                    : '👤'}
+                              </div>
+                            </div>
+                            <div className="flex-1 space-y-2">
+                              <div className="flex items-baseline justify-between gap-2">
+                                <div>
+                                  <span className="font-medium text-[#2C5282]">
+                                    {message.sender_type === 'employee' && sender
+                                      ? `${sender.first_name} ${sender.last_name}`
+                                      : message.sender_type === 'system'
+                                        ? 'System'
+                                        : 'Customer'}
+                                  </span>
+                                  {message.is_private && (
+                                    <span className="text-sm text-amber-600 ml-2">Private Note 🔒</span>
+                                  )}
+                                </div>
+                                <span className="text-sm text-gray-500">
+                                  {new Date(message.created_at).toLocaleString()}
+                                </span>
+                              </div>
+                              <div className="bg-white/70 rounded-lg p-4">
+                                <div className="text-gray-700 whitespace-pre-wrap">
+                                  {message.content}
+                                </div>
+                                {message.metadata?.attachments && message.metadata.attachments.length > 0 && (
+                                  <div className="mt-3 pt-3 border-t border-gray-100">
+                                    <p className="text-sm text-gray-500 mb-2">Attachments:</p>
+                                    <div className="flex flex-wrap gap-2">
+                                      {message.metadata.attachments.map((file, index) => (
+                                        <div 
+                                          key={index}
+                                          className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-full text-sm text-gray-700"
+                                        >
+                                          <span>📎</span>
+                                          <span className="truncate max-w-[150px]">{file.name}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2 text-sm">
+                                <button className="text-gray-500 hover:text-[#2C5282] transition-colors">
+                                  Reply
+                                </button>
+                                <span className="text-gray-300">•</span>
+                                <button className="text-gray-500 hover:text-[#2C5282] transition-colors">
+                                  Copy Link
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      {/* Initial Ticket Message */}
+                      <div className="flex gap-4 relative">
+                        <div className="absolute -left-3 top-0 bottom-0 w-1 bg-gradient-to-b from-[#4A90E2] to-[#2C5282] rounded-full" />
+                        <div className="flex-shrink-0">
+                          <div className="w-10 h-10 rounded-full bg-[#4A90E2]/10 border-2 border-[#4A90E2] flex items-center justify-center">
+                            {ticket.customer?.name?.[0] || '👤'}
                           </div>
                         </div>
-                      ))}
+                        <div className="flex-1 space-y-2">
+                          <div className="flex items-baseline justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-[#2C5282]">{ticket.customer?.name}</span>
+                              <span className="text-sm text-gray-500">reported via web</span>
+                              <span className="px-2 py-0.5 bg-[#4A90E2]/10 text-[#2C5282] rounded-full text-xs font-medium">
+                                Original Ticket 🎫
+                              </span>
+                            </div>
+                            <span className="text-sm text-gray-500">
+                              {new Date(ticket.created_at).toLocaleString()}
+                            </span>
+                          </div>
+                          <div className="bg-gradient-to-br from-white/80 to-[#4A90E2]/5 rounded-lg p-4 space-y-3 border border-[#4A90E2]/10">
+                            <h4 className="font-medium text-[#2C5282]">{ticket.title}</h4>
+                            <div className="text-gray-700 whitespace-pre-wrap">
+                              {ticket.description}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 text-sm">
+                            <button className="text-gray-500 hover:text-[#2C5282] transition-colors">
+                              Reply
+                            </button>
+                            <span className="text-gray-300">•</span>
+                            <button className="text-gray-500 hover:text-[#2C5282] transition-colors">
+                              Copy Link
+                            </button>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </motion.div>
