@@ -304,4 +304,9 @@ supabase functions deploy notification-handler
 - Email Domain: breeze.help
 - Email Provider: Resend
 - Used for: User invitations, notifications, and system communications
-- Verified Status: Domain verified via DNS 
+- Verified Status: Domain verified via DNS
+
+## Core Features
+
+### Audit Logs
+The system includes a comprehensive audit logging system that tracks all events and actions. See [Audit Logs Documentation](../docs/backend/features/audit-logs.md) for detailed information. 

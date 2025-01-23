@@ -8,6 +8,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
+import { logAuditEvent } from '../_shared/audit.ts'
 
 console.log("Hello from Functions!")
 
@@ -22,7 +23,7 @@ interface TicketData {
 }
 
 serve(async (req) => {
-  // Handle CORS
+  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
@@ -30,12 +31,29 @@ serve(async (req) => {
   try {
     console.log("Request received:", req.method)
 
+    // Log all potential IP address headers
+    const ipInfo = {
+      'x-forwarded-for': req.headers.get('x-forwarded-for'),
+      'x-real-ip': req.headers.get('x-real-ip'),
+      'cf-connecting-ip': req.headers.get('cf-connecting-ip'),
+      'true-client-ip': req.headers.get('true-client-ip'),
+      'x-client-ip': req.headers.get('x-client-ip'),
+      'remote-addr': req.headers.get('remote-addr')
+    }
+    console.log('IP Address Debug Info:', JSON.stringify(ipInfo, null, 2))
+
     // Verify auth
     const authHeader = req.headers.get('Authorization')
     console.log("Auth header present:", !!authHeader)
     
     if (!authHeader) {
-      throw new Error('No auth header')
+      return new Response(
+        JSON.stringify({ error: 'No auth header' }),
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 401
+        }
+      )
     }
 
     // Get request body
@@ -117,6 +135,33 @@ serve(async (req) => {
       .single()
 
     if (ticketError) throw ticketError
+
+    // Log the audit event using shared module
+    console.log('Logging ticket creation to audit log...')
+    const { success: auditSuccess, error: auditError } = await logAuditEvent(supabase, {
+      organization_id: employeeData.organization_id,
+      actor_id: user.id,
+      actor_type: 'employee',
+      action_type: 'create',
+      resource_type: 'ticket',
+      resource_id: ticket.id,
+      action_description: 'Created new ticket',
+      action_meta: {
+        title: ticket.title,
+        priority: ticket.priority,
+        customer_id: ticket.customer_id,
+        is_internal: true
+      },
+      details_after: ticket,
+      severity: 'info',
+      status: 'success',
+      client_ip: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || req.headers.get('cf-connecting-ip')
+    })
+
+    if (!auditSuccess) {
+      console.error('Failed to log audit event:', auditError)
+      // Don't throw error here, just log it - we don't want to fail the ticket creation
+    }
 
     return new Response(JSON.stringify(ticket), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

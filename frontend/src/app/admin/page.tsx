@@ -10,7 +10,7 @@ import type { Database } from '@/lib/database.types'
 import { useUser } from '@/contexts/UserContext'
 
 // Tab type definition
-type Tab = 'users' | 'employees' | 'ticketing' | 'automation' | 'billing'
+type Tab = 'users' | 'employees' | 'ticketing' | 'automation' | 'billing' | 'audit-logs'
 
 interface ApiError {
   error: string
@@ -35,6 +35,8 @@ export default function AdminPanel() {
   const { role, isRootAdmin, loading: roleLoading } = useRole()
   const { user } = useUser()
   const supabase = getSupabaseBrowserClient()
+  
+  // All state declarations grouped together at the top
   const [activeTab, setActiveTab] = useState<Tab>('employees')
   const [showInviteCard, setShowInviteCard] = useState(false)
   const [inviteForm, setInviteForm] = useState({
@@ -47,6 +49,10 @@ export default function AdminPanel() {
   const [orgUsers, setOrgUsers] = useState<OrgUser[]>([])
   const [loadingUsers, setLoadingUsers] = useState(false)
   const [userError, setUserError] = useState<string | null>(null)
+  const [auditLogs, setAuditLogs] = useState<any[]>([])
+  const [loadingAuditLogs, setLoadingAuditLogs] = useState(false)
+  const [auditLogsError, setAuditLogsError] = useState<string | null>(null)
+  const [expandedLogs, setExpandedLogs] = useState<Record<string, boolean>>({})
 
   // Protect route
   useEffect(() => {
@@ -108,6 +114,38 @@ export default function AdminPanel() {
     }
 
     fetchOrgUsers()
+  }, [activeTab, supabase])
+
+  // Fetch audit logs
+  useEffect(() => {
+    const fetchAuditLogs = async () => {
+      if (activeTab === 'audit-logs') {
+        setLoadingAuditLogs(true)
+        setAuditLogsError(null)
+        try {
+          const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+          if (sessionError || !session) {
+            throw new Error('No active session')
+          }
+
+          const { data, error } = await supabase
+            .from('audit_logs')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(100)
+
+          if (error) throw error
+          setAuditLogs(data || [])
+        } catch (err) {
+          console.error('Error fetching audit logs:', err)
+          setAuditLogsError(err instanceof Error ? err.message : 'Failed to load audit logs')
+        } finally {
+          setLoadingAuditLogs(false)
+        }
+      }
+    }
+
+    fetchAuditLogs()
   }, [activeTab, supabase])
 
   // Test function
@@ -176,6 +214,31 @@ export default function AdminPanel() {
         throw new Error(data.error || 'Failed to send invitation')
       }
 
+      // Log the invitation creation
+      const { error: auditError } = await supabase.functions.invoke('audit-logger', {
+        body: {
+          organization_id: data.invitation.organization_id,
+          actor_id: user?.id,
+          actor_type: 'employee',
+          action_type: 'create',
+          resource_type: 'invitation',
+          resource_id: data.invitation.id,
+          action_description: 'Created new employee invitation',
+          action_meta: {
+            invitee_email: inviteForm.email,
+            invitee_name: inviteForm.name,
+            role: inviteForm.role
+          },
+          severity: 'info',
+          status: 'success'
+        }
+      })
+
+      if (auditError) {
+        console.error('Failed to log invitation creation:', auditError)
+        // Don't throw, continue with success flow
+      }
+
       setInviteSuccess(true)
       setInviteForm({ name: '', email: '', role: 'employee' })
       setTimeout(() => setShowInviteCard(false), 2000)
@@ -201,12 +264,14 @@ export default function AdminPanel() {
     )
   }
 
+  // Define tabs
   const tabs: { id: Tab; label: string }[] = [
     { id: 'users', label: 'Users' },
     { id: 'employees', label: 'Employees' },
     { id: 'ticketing', label: 'Ticketing' },
     { id: 'automation', label: 'Automation' },
-    { id: 'billing', label: 'Billing' }
+    { id: 'billing', label: 'Billing' },
+    { id: 'audit-logs', label: '🔍 Audit Logs' }
   ]
 
   return (
@@ -225,6 +290,7 @@ export default function AdminPanel() {
 
         {/* Back to Dashboard */}
         <motion.div
+          key="back-to-dashboard-link"
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
         >
@@ -251,6 +317,7 @@ export default function AdminPanel() {
 
         {/* Header */}
         <motion.div
+          key="admin-panel-header"
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           className="ocean-card"
@@ -260,35 +327,240 @@ export default function AdminPanel() {
         </motion.div>
 
         {/* Tabs */}
-        <div className="ocean-card p-0 overflow-hidden">
-          <div className="border-b border-[#4A90E2]/20">
-            <div className="flex">
-              {tabs.map(tab => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`px-6 py-4 text-sm font-medium transition-colors relative
-                    ${activeTab === tab.id
-                      ? 'text-[#2C5282] bg-white/50'
-                      : 'text-[#4A5568] hover:text-[#2C5282] hover:bg-white/30'
-                    }`}
-                >
-                  {tab.label}
-                  {activeTab === tab.id && (
-                    <motion.div
-                      layoutId="activeTab"
-                      className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#4A90E2]"
-                    />
-                  )}
-                </button>
-              ))}
-            </div>
+        <div className="ocean-card overflow-hidden">
+          <div className="flex space-x-1 mb-6 overflow-x-auto pb-2">
+            {tabs.map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`px-4 py-2 rounded-full transition-all duration-200 whitespace-nowrap
+                  ${activeTab === tab.id
+                    ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg transform scale-105'
+                    : 'bg-white/50 hover:bg-white/80'
+                  }`}
+              >
+                {tab.label}
+              </button>
+            ))}
           </div>
+
+          {/* Audit Logs Panel */}
+          {activeTab === 'audit-logs' && (
+            <div className="space-y-4">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-bold text-[#2C5282]">System Activity Log</h3>
+                <div className="flex space-x-2">
+                  <button className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full hover:bg-blue-200 transition-colors">
+                    Filter
+                  </button>
+                  <button className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full hover:bg-blue-200 transition-colors">
+                    Export
+                  </button>
+                </div>
+              </div>
+
+              {loadingAuditLogs ? (
+                <div className="h-32 flex items-center justify-center">
+                  <div className="animate-pulse text-blue-500">Loading audit logs...</div>
+                </div>
+              ) : auditLogsError ? (
+                <div className="h-32 flex items-center justify-center">
+                  <div className="text-red-500">
+                    <p>Failed to load audit logs</p>
+                    <p className="text-sm">{auditLogsError}</p>
+                  </div>
+                </div>
+              ) : auditLogs.length === 0 ? (
+                <div className="h-32 flex items-center justify-center">
+                  <div className="text-gray-500">
+                    <p>No audit logs found</p>
+                    <p className="text-sm">System activity will appear here</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  {auditLogs.map((log, index) => {
+                    // Determine action color based on type
+                    const actionColor = {
+                      create: 'text-emerald-600',
+                      update: 'text-blue-600',
+                      delete: 'text-red-600',
+                      execute: 'text-purple-600',
+                      read: 'text-gray-600',
+                      other: 'text-gray-600'
+                    }[log.action_type] || 'text-gray-600';
+
+                    // Determine resource icon based on type
+                    const resourceIcon = {
+                      organization: '🏢',
+                      employee: '👤',
+                      customer: '🤝',
+                      ticket: '🎫',
+                      tag: '🏷️',
+                      invitation: '✉️',
+                      profile: '📝',
+                      user_settings: '⚙️',
+                      system: '🔧'
+                    }[log.resource_type] || '📄';
+
+                    const logKey = log.id || `${log.created_at}-${index}`;
+                    const isExpanded = expandedLogs[logKey] || false;
+
+                    return (
+                      <motion.div
+                        key={`audit-log-${logKey}`}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.03 }}
+                        onClick={() => setExpandedLogs(prev => ({
+                          ...prev,
+                          [logKey]: !prev[logKey]
+                        }))}
+                        className={`cursor-pointer group transition-all duration-200 rounded-lg
+                          ${isExpanded ? 'bg-white shadow-lg p-4' : 'hover:bg-white/50 p-2'}
+                          ${log.severity === 'error' ? 'border-l-2 border-red-500' :
+                            log.severity === 'warning' ? 'border-l-2 border-yellow-500' :
+                            log.severity === 'critical' ? 'border-l-2 border-red-700' :
+                            'border-l-2 border-transparent'}`}
+                      >
+                        {/* Compact View */}
+                        <div className="flex items-center justify-between gap-2">
+                          {/* Left section with timestamp */}
+                          <div className="flex-shrink-0 w-32 text-xs text-gray-500">
+                            {new Date(log.created_at).toLocaleTimeString()}
+                          </div>
+
+                          {/* Center section with main info */}
+                          <div className="flex-grow flex items-center gap-2 min-w-0">
+                            <span className="flex-shrink-0">{resourceIcon}</span>
+                            <span className={`${actionColor} font-medium`}>
+                              {log.action_type}
+                            </span>
+                            <span className="truncate text-gray-600">
+                              {log.action_description}
+                            </span>
+                          </div>
+
+                          {/* Right section with metadata */}
+                          <div className="flex-shrink-0 flex items-center gap-2">
+                            {log.duration_ms && (
+                              <span className="text-xs text-gray-500">
+                                {log.duration_ms}ms
+                              </span>
+                            )}
+                            {log.status === 'failure' && (
+                              <span className="w-2 h-2 rounded-full bg-red-500"></span>
+                            )}
+                            <motion.span
+                              animate={{ rotate: isExpanded ? 180 : 0 }}
+                              className="text-gray-400 group-hover:text-gray-600"
+                            >
+                              ▼
+                            </motion.span>
+                          </div>
+                        </div>
+
+                        {/* Expanded View */}
+                        {isExpanded && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            className="mt-4 space-y-3 text-sm"
+                          >
+                            {/* Actor Information */}
+                            <div className="flex gap-4">
+                              <div className="flex-1">
+                                <h4 className="text-xs uppercase text-gray-500 mb-1">Actor</h4>
+                                <p className="text-gray-700">
+                                  {log.actor_type} {log.actor_id && `(${log.actor_id})`}
+                                </p>
+                              </div>
+                              <div className="flex-1">
+                                <h4 className="text-xs uppercase text-gray-500 mb-1">Resource</h4>
+                                <p className="text-gray-700">
+                                  {log.resource_type} {log.resource_id && `(${log.resource_id})`}
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Technical Details */}
+                            <div className="flex gap-4">
+                              <div className="flex-1">
+                                <h4 className="text-xs uppercase text-gray-500 mb-1">Client Info</h4>
+                                <p className="text-gray-700">
+                                  {log.ip_address && <span className="mr-2">IP: {log.ip_address}</span>}
+                                  {log.session_id && <span>Session: {log.session_id}</span>}
+                                </p>
+                              </div>
+                              <div className="flex-1">
+                                <h4 className="text-xs uppercase text-gray-500 mb-1">Performance</h4>
+                                <p className="text-gray-700">
+                                  {log.duration_ms ? `${log.duration_ms}ms` : 'N/A'}
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Metadata Sections */}
+                            {(log.action_meta || log.details_before || log.details_after) && (
+                              <div className="space-y-2">
+                                {log.action_meta && (
+                                  <div>
+                                    <h4 className="text-xs uppercase text-gray-500 mb-1">Metadata</h4>
+                                    <pre className="bg-gray-50 p-2 rounded text-xs overflow-x-auto">
+                                      {JSON.stringify(log.action_meta, null, 2)}
+                                    </pre>
+                                  </div>
+                                )}
+                                {(log.details_before || log.details_after) && (
+                                  <div className="grid grid-cols-2 gap-4">
+                                    {log.details_before && (
+                                      <div>
+                                        <h4 className="text-xs uppercase text-gray-500 mb-1">Before</h4>
+                                        <pre className="bg-gray-50 p-2 rounded text-xs overflow-x-auto">
+                                          {JSON.stringify(log.details_before, null, 2)}
+                                        </pre>
+                                      </div>
+                                    )}
+                                    {log.details_after && (
+                                      <div>
+                                        <h4 className="text-xs uppercase text-gray-500 mb-1">After</h4>
+                                        <pre className="bg-gray-50 p-2 rounded text-xs overflow-x-auto">
+                                          {JSON.stringify(log.details_after, null, 2)}
+                                        </pre>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Error Information */}
+                            {log.status === 'failure' && (
+                              <div className="bg-red-50 p-3 rounded">
+                                <h4 className="text-xs uppercase text-red-700 mb-1">Error Details</h4>
+                                {log.error_code && (
+                                  <p className="text-red-600 font-mono">{log.error_code}</p>
+                                )}
+                                {log.error_message && (
+                                  <p className="text-red-700 mt-1">{log.error_message}</p>
+                                )}
+                              </div>
+                            )}
+                          </motion.div>
+                        )}
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Tab Content */}
           <div className="p-6">
             {activeTab === 'users' && (
               <motion.div
+                key="users-tab-panel"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 className="space-y-6"
@@ -306,6 +578,7 @@ export default function AdminPanel() {
                 {/* Invite User Card */}
                 {showInviteCard && (
                   <motion.div
+                    key="invite-user-form"
                     initial={{ opacity: 0, y: -20 }}
                     animate={{ opacity: 1, y: 0 }}
                     className="ocean-card bg-white/50"
@@ -479,7 +752,7 @@ export default function AdminPanel() {
                         <tbody className="divide-y divide-[#4A90E2]/10">
                           {orgUsers.map((user, index) => (
                             <motion.tr 
-                              key={user.id}
+                              key={`team-member-${user.id}`}
                               initial={{ opacity: 0, y: 10 }}
                               animate={{ opacity: 1, y: 0 }}
                               transition={{ delay: index * 0.1 }}
