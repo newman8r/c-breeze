@@ -12,6 +12,7 @@ export interface Ticket {
     phone?: string
   }
   assigned_employee?: {
+    id: string
     first_name: string
     last_name: string
   } | null

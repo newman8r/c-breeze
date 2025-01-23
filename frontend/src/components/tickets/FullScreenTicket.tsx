@@ -43,6 +43,15 @@ interface FullScreenTicketProps {
   onClose: () => void
 }
 
+// Mock data for organization users (to be replaced with real data later)
+const mockOrgUsers = [
+  { id: '1', first_name: 'John', last_name: 'Doe', email: 'john@example.com', avatar: '👨‍💼' },
+  { id: '2', first_name: 'Jane', last_name: 'Smith', email: 'jane@example.com', avatar: '👩‍💼' },
+  { id: '3', first_name: 'Mike', last_name: 'Johnson', email: 'mike@example.com', avatar: '👨‍💻' },
+  { id: '4', first_name: 'Sarah', last_name: 'Wilson', email: 'sarah@example.com', avatar: '👩‍💻' },
+  { id: '5', first_name: 'Alex', last_name: 'Brown', email: 'alex@example.com', avatar: '🧑‍💼' },
+]
+
 export const FullScreenTicket = ({ ticket, onClose }: FullScreenTicketProps) => {
   const [activeTab, setActiveTab] = useState('details');
   const [showAssignModal, setShowAssignModal] = useState(false);
@@ -51,6 +60,7 @@ export const FullScreenTicket = ({ ticket, onClose }: FullScreenTicketProps) => 
   const [isSnoozing, setIsSnoozing] = useState(false);
   const [isStatusOpen, setIsStatusOpen] = useState(false);
   const [isPriorityOpen, setIsPriorityOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -482,17 +492,30 @@ export const FullScreenTicket = ({ ticket, onClose }: FullScreenTicketProps) => 
             <div className="bg-white/50 rounded-lg p-6">
               <h3 className="text-lg font-medium text-[#2C5282] mb-4">Assignment</h3>
               <div className="space-y-4">
-                <div>
-                  <p className="text-sm text-gray-600">Assigned To</p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <div className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center text-sm">
-                      👤
-                    </div>
-                    <p className="font-medium text-[#2C5282]">
+                <div className="relative">
+                  <p className="text-sm text-gray-600 mb-1">Assigned To</p>
+                  <div 
+                    onClick={() => setShowAssignModal(true)}
+                    className="flex items-center gap-2 p-2 bg-white/50 rounded-lg cursor-pointer hover:bg-white/80 transition-colors group"
+                  >
+                    <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-sm">
                       {ticket.assigned_employee ? 
-                        `${ticket.assigned_employee.first_name} ${ticket.assigned_employee.last_name}` : 
-                        'Unassigned'}
-                    </p>
+                        `${ticket.assigned_employee.first_name[0]}${ticket.assigned_employee.last_name[0]}` : 
+                        '👤'}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-[#2C5282] truncate">
+                        {ticket.assigned_employee ? 
+                          `${ticket.assigned_employee.first_name} ${ticket.assigned_employee.last_name}` : 
+                          'Unassigned'}
+                      </p>
+                      <p className="text-xs text-gray-500">Click to assign</p>
+                    </div>
+                    <span className="text-gray-400 group-hover:text-gray-600">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </span>
                   </div>
                 </div>
                 <div>
@@ -509,6 +532,71 @@ export const FullScreenTicket = ({ ticket, onClose }: FullScreenTicketProps) => 
                 )}
               </div>
             </div>
+
+            {/* Assignment Modal */}
+            {showAssignModal && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[200]" onClick={() => setShowAssignModal(false)}>
+                <div className="bg-white rounded-lg w-full max-w-md mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
+                  <div className="p-6">
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="text-lg font-medium text-[#2C5282]">Assign Ticket</h3>
+                      <button onClick={() => setShowAssignModal(false)} className="text-gray-400 hover:text-gray-600">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                    <div className="relative mb-4">
+                      <input
+                        type="text"
+                        placeholder="Search users..."
+                        className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4A90E2]/40"
+                        value={searchQuery}
+                        onChange={e => setSearchQuery(e.target.value)}
+                      />
+                      <svg className="w-5 h-5 absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                    </div>
+                    <div className="max-h-[300px] overflow-y-auto">
+                      {mockOrgUsers
+                        .filter(user => 
+                          `${user.first_name} ${user.last_name} ${user.email}`
+                            .toLowerCase()
+                            .includes(searchQuery.toLowerCase())
+                        )
+                        .map(user => (
+                          <div
+                            key={user.id}
+                            className="flex items-center gap-3 p-3 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors"
+                            onClick={() => {
+                              // Assignment logic will go here
+                              setShowAssignModal(false)
+                            }}
+                          >
+                            <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-lg">
+                              {user.avatar}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-[#2C5282] truncate">
+                                {user.first_name} {user.last_name}
+                              </p>
+                              <p className="text-sm text-gray-500 truncate">{user.email}</p>
+                            </div>
+                            {ticket.assigned_employee?.id === user.id && (
+                              <span className="text-[#4A90E2]">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                </svg>
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
