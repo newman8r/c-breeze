@@ -17,6 +17,18 @@ interface ModifyTicketRequest {
   assigned_employee_id?: string | null
 }
 
+interface AuditLogEntry {
+  organization_id: string
+  actor_id?: string
+  actor_type: 'employee' | 'customer' | 'ai' | 'system'
+  action_type: 'create' | 'read' | 'update' | 'delete' | 'execute' | 'other'
+  action_description: string
+  resource_type: 'ticket'
+  resource_id: string
+  details_before?: any
+  details_after?: any
+}
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -53,6 +65,18 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
+    // Get the current state of the ticket for audit logging
+    const { data: currentTicket, error: fetchError } = await supabaseClient
+      .from('tickets')
+      .select('*')
+      .eq('id', requestBody.ticket_id)
+      .single()
+
+    if (fetchError) {
+      console.error('Error fetching current ticket:', fetchError)
+      throw fetchError
+    }
+
     // Start building the update object
     const updates: Record<string, any> = {}
 
@@ -74,36 +98,95 @@ serve(async (req) => {
       updates.assigned_employee_id = requestBody.assigned_employee_id
       
       // If assigning someone and status is 'open', automatically move to 'in_progress'
-      if (requestBody.assigned_employee_id && !requestBody.status) {
-        const { data: currentTicket } = await supabaseClient
-          .from('tickets')
-          .select('status')
-          .eq('id', requestBody.ticket_id)
-          .single()
-
-        if (currentTicket?.status === 'open') {
-          updates.status = 'in_progress'
-        }
+      if (requestBody.assigned_employee_id && !requestBody.status && currentTicket.status === 'open') {
+        updates.status = 'in_progress'
       }
     }
 
     console.log('Final updates object:', updates)
 
     // Update the ticket
-    const { data, error } = await supabaseClient
+    const { data: updatedTicket, error: updateError } = await supabaseClient
       .from('tickets')
       .update(updates)
       .eq('id', requestBody.ticket_id)
       .select()
       .single()
 
-    if (error) {
-      console.error('Error updating ticket:', error)
-      throw error
+    if (updateError) {
+      console.error('Error updating ticket:', updateError)
+      throw updateError
+    }
+
+    // Create audit log entry
+    const changes: Record<string, { from: any; to: any }> = {}
+    Object.keys(updates).forEach(key => {
+      if (currentTicket[key] !== updatedTicket[key]) {
+        changes[key] = {
+          from: currentTicket[key],
+          to: updatedTicket[key]
+        }
+      }
+    })
+
+    // Get user ID from auth header if available
+    let userId: string | undefined
+    const authHeader = req.headers.get('authorization')
+    if (authHeader) {
+      try {
+        const token = authHeader.split(' ')[1]
+        const { data: { user } } = await supabaseClient.auth.getUser(token)
+        userId = user?.id
+      } catch (error) {
+        console.warn('Could not get user ID from token:', error)
+      }
+    }
+
+    // Get organization ID from the ticket
+    const { data: ticketOrg } = await supabaseClient
+      .from('tickets')
+      .select('organization_id')
+      .eq('id', requestBody.ticket_id)
+      .single()
+
+    const auditEntry: AuditLogEntry = {
+      organization_id: ticketOrg.organization_id,
+      actor_id: userId,
+      actor_type: userId ? 'employee' : 'system',
+      action_type: 'update',
+      action_description: `Modified ticket: ${Object.keys(changes).join(', ')}`,
+      resource_type: 'ticket',
+      resource_id: requestBody.ticket_id,
+      details_before: currentTicket,
+      details_after: updatedTicket
+    }
+
+    console.log('Attempting to create audit log entry:', auditEntry)
+
+    const { error: auditError } = await supabaseClient
+      .rpc('log_audit_event', {
+        _organization_id: auditEntry.organization_id,
+        _actor_id: auditEntry.actor_id,
+        _actor_type: auditEntry.actor_type,
+        _action_type: auditEntry.action_type,
+        _action_description: auditEntry.action_description,
+        _resource_type: auditEntry.resource_type,
+        _resource_id: auditEntry.resource_id,
+        _details_before: auditEntry.details_before,
+        _details_after: auditEntry.details_after
+      })
+
+    if (auditError) {
+      console.error('Error creating audit log entry. Full error:', auditError)
+      console.error('Error code:', auditError.code)
+      console.error('Error message:', auditError.message)
+      console.error('Error details:', auditError.details)
+    } else {
+      console.log('Successfully created audit log entry')
     }
 
     return new Response(
-      JSON.stringify({ data, message: 'Ticket updated successfully' }),
+      JSON.stringify({ data: updatedTicket, message: 'Ticket updated successfully' }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200,
