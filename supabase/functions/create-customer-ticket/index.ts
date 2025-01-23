@@ -15,7 +15,17 @@ serve(async (req) => {
   }
 
   try {
-    const { email, description, organization_id } = await req.json() as CustomerTicketRequest
+    console.log("Request received:", req.method)
+    console.log("Request headers:", Object.fromEntries(req.headers.entries()))
+    
+    const requestBody = await req.json()
+    console.log("Request body:", requestBody)
+    
+    const { email, description, organization_id } = requestBody as CustomerTicketRequest
+
+    if (!email || !description || !organization_id) {
+      throw new Error('Missing required fields: email, description, or organization_id')
+    }
 
     // Create Supabase client with service role
     const supabaseAdmin = createClient(
@@ -37,6 +47,7 @@ serve(async (req) => {
       return acc
     }, '')
 
+    console.log('Creating customer...')
     // Start a transaction
     const { data: customer, error: customerError } = await supabaseAdmin
       .from('customers')
@@ -50,9 +61,12 @@ serve(async (req) => {
       .single()
 
     if (customerError) {
+      console.error('Customer creation error:', customerError)
       throw customerError
     }
+    console.log('Customer created:', customer)
 
+    console.log('Creating ticket...')
     // Create the ticket
     const { data: ticket, error: ticketError } = await supabaseAdmin
       .from('tickets')
@@ -60,6 +74,7 @@ serve(async (req) => {
         organization_id,
         customer_id: customer.id,
         title,
+        description,
         status: 'open',
         priority: 'medium'
       })
@@ -67,22 +82,28 @@ serve(async (req) => {
       .single()
 
     if (ticketError) {
+      console.error('Ticket creation error:', ticketError)
       throw ticketError
     }
+    console.log('Ticket created:', ticket)
 
+    console.log('Creating ticket message...')
     // Create the initial message
     const { error: messageError } = await supabaseAdmin
       .from('ticket_messages')
       .insert({
         ticket_id: ticket.id,
+        organization_id,
         content: description,
         sender_type: 'customer',
-        message_origin: 'ticket'
+        origin: 'ticket'
       })
 
     if (messageError) {
+      console.error('Message creation error:', messageError)
       throw messageError
     }
+    console.log('Message created successfully')
 
     // TODO: Send verification email
     // For now, we'll just log that we would send it
@@ -101,8 +122,12 @@ serve(async (req) => {
     )
 
   } catch (error) {
+    console.error("Function error:", error)
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ 
+        error: error.message,
+        details: error.toString()
+      }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 400,
