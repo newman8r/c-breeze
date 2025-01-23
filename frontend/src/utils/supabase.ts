@@ -15,11 +15,21 @@ export const signOut = async () => {
   const supabase = createClient()
   
   try {
-    const { error } = await supabase.auth.signOut()
-    if (error) throw error
-    
-    console.log('Supabase sign out successful')
-    
+    // First call our edge function to log the event and invalidate the session
+    const { data: { session } } = await supabase.auth.getSession()
+    if (session) {
+      const { error: logoutError } = await supabase.functions.invoke('handle-logout', {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`
+        }
+      })
+      
+      if (logoutError) {
+        console.error('Error calling logout function:', logoutError)
+        // Continue with local cleanup even if the edge function fails
+      }
+    }
+
     // Clear all storage in one go
     localStorage.clear()
     sessionStorage.clear()
@@ -36,6 +46,7 @@ export const signOut = async () => {
     
   } catch (error) {
     console.error('Sign out error:', error)
+    // Still redirect to home page on error
     window.location.href = '/'
   }
 }
