@@ -78,6 +78,32 @@ We want to employ thoughtful UX design - we want to make sure that the user expe
         The UI is between states, often accompanied by animations.
         Example: Page transitions or modal entry/exit animations.
 
+##Status Colors
+
+Our ticket status colors follow a semantic color scheme that helps users quickly identify the state of a ticket:
+
+    Open:
+        Color: Red (#EF4444)
+        Usage: Indicates tickets that need immediate attention and haven't been assigned
+        Classes: bg-red-100 text-red-800 (pill), bg-red-500 (dot)
+
+    In Progress:
+        Color: Amber/Yellow-Orange (#F59E0B)
+        Usage: Shows actively being worked on tickets
+        Classes: bg-amber-100 text-amber-800 (pill), bg-amber-500 (dot)
+
+    Resolved:
+        Color: Emerald (#10B981)
+        Usage: Indicates successfully completed tickets
+        Classes: bg-emerald-100 text-emerald-800 (pill), bg-emerald-500 (dot)
+
+    Closed:
+        Color: Neutral Dark Gray (#404040)
+        Usage: For force-closed tickets that were never officially resolved
+        Classes: bg-neutral-100 text-neutral-800 (pill), bg-neutral-700 (dot)
+
+Note: These status colors are distinct from priority levels (low, medium, high, urgent) which have their own color scheme.
+
 ##Notes
 
 - We want a mobile-first approach - we want to make sure that the app is responsive and looks good on both mobile and desktop, but we want to prioritize mobile. Content needs to be hidden thoughtfully and easy to pop out and find for mobile users.
