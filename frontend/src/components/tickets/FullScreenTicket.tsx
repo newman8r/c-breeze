@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { supabase } from '@/lib/supabase'
 
 interface Ticket {
   id: string
@@ -18,6 +19,7 @@ interface Ticket {
     phone?: string
   }
   assigned_employee?: {
+    id: string
     first_name: string
     last_name: string
   } | null
@@ -59,6 +61,40 @@ const mockKeywordSuggestions = [
   'mobile', 'desktop', 'testing', 'deployment', 'api'
 ];
 
+async function modifyTicket(updates: {
+  ticket_id: string
+  status?: string
+  priority?: string
+  assigned_employee_id?: string | null
+}) {
+  try {
+    console.log('Sending request with updates:', updates)
+    const session = await supabase.auth.getSession()
+    console.log('Auth session:', session)
+
+    const response = await fetch('http://localhost:54321/functions/v1/modify-ticket', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.data.session?.access_token}`
+      },
+      body: JSON.stringify(updates)
+    })
+
+    const data = await response.json()
+    console.log('Response data:', data)
+
+    if (!response.ok) {
+      throw new Error(data.error || data.details || 'Failed to modify ticket')
+    }
+
+    return data
+  } catch (error) {
+    console.error('Error modifying ticket:', error)
+    throw error
+  }
+}
+
 export const FullScreenTicket = ({ ticket, onClose }: FullScreenTicketProps) => {
   const [activeTab, setActiveTab] = useState('details');
   const [showAssignModal, setShowAssignModal] = useState(false);
@@ -86,15 +122,35 @@ export const FullScreenTicket = ({ ticket, onClose }: FullScreenTicketProps) => 
     return () => document.removeEventListener('click', handleClickOutside);
   }, []);
 
-  const handleStatusChange = (newStatus: string) => {
-    console.log('Changing status to:', newStatus);
-    setIsStatusOpen(false);
-  };
+  const handleStatusChange = async (newStatus: string) => {
+    try {
+      await modifyTicket({
+        ticket_id: ticket.id,
+        status: newStatus
+      })
+      // Optimistically update the UI
+      ticket.status = newStatus
+      setIsStatusOpen(false)
+    } catch (error) {
+      console.error('Failed to update status:', error)
+      // You might want to show an error message to the user here
+    }
+  }
 
-  const handlePriorityChange = (newPriority: string) => {
-    console.log('Changing priority to:', newPriority);
-    setIsPriorityOpen(false);
-  };
+  const handlePriorityChange = async (newPriority: string) => {
+    try {
+      await modifyTicket({
+        ticket_id: ticket.id,
+        priority: newPriority
+      })
+      // Optimistically update the UI
+      ticket.priority = newPriority
+      setIsPriorityOpen(false)
+    } catch (error) {
+      console.error('Failed to update priority:', error)
+      // You might want to show an error message to the user here
+    }
+  }
 
   const statusOptions = [
     { id: 'open', label: 'Open' },
