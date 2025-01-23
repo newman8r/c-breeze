@@ -104,6 +104,48 @@ Our ticket status colors follow a semantic color scheme that helps users quickly
 
 Note: These status colors are distinct from priority levels (low, medium, high, urgent) which have their own color scheme.
 
+##Dropdowns and Search Auto-fill
+
+Our dropdowns and search auto-fill components follow a consistent pattern for a cohesive user experience:
+
+    Dropdown Triggers:
+        Background: bg-white/50 (semi-transparent white)
+        Border: border border-gray-200
+        Hover: bg-white/80
+        Padding: p-2
+        Corners: rounded-lg
+        Icon: Small chevron that rotates on open
+        
+    Dropdown/Search Panels:
+        Position: Absolute positioning with z-[100] or higher
+        Background: bg-white
+        Border: border border-gray-200
+        Shadow: shadow-lg
+        Max Height: max-h-[200px] or [300px] with overflow-y-auto
+        Corners: rounded-lg
+        
+    Option Items:
+        Padding: px-4 py-2
+        Hover: hover:bg-gray-50
+        Selected: Indicated with a checkmark icon in primary blue (#4A90E2)
+        
+    Search Inputs:
+        Background: bg-white/50 or bg-gray-50
+        Border: border border-gray-200
+        Focus: ring-2 ring-[#4A90E2]/40
+        Padding: px-4 py-2
+        Icon: Search icon positioned absolutely on the right
+        
+    Common Features:
+        - Click outside to close
+        - Keyboard navigation support
+        - Smooth transitions
+        - Clear visual hierarchy
+        - Consistent spacing
+        - Mobile-friendly touch targets
+
+Note: All dropdowns and search panels should have sufficient z-index layering to appear above other content but below modals.
+
 ##Notes
 
 - We want a mobile-first approach - we want to make sure that the app is responsive and looks good on both mobile and desktop, but we want to prioritize mobile. Content needs to be hidden thoughtfully and easy to pop out and find for mobile users.
