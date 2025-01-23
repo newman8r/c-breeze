@@ -176,6 +176,29 @@ export default function AdminPanel() {
         throw new Error(data.error || 'Failed to send invitation')
       }
 
+      // Log the invitation creation
+      const { error: auditError } = await supabase.rpc('log_audit_event', {
+        _organization_id: data.invitation.organization_id,
+        _actor_id: user?.id,
+        _actor_type: 'employee',
+        _action_type: 'create',
+        _resource_type: 'invitation',
+        _resource_id: data.invitation.id,
+        _action_description: 'Created new employee invitation',
+        _action_meta: {
+          invitee_email: inviteForm.email,
+          invitee_name: inviteForm.name,
+          role: inviteForm.role
+        },
+        _severity: 'info',
+        _status: 'success'
+      })
+
+      if (auditError) {
+        console.error('Failed to log invitation creation:', auditError)
+        // Don't throw, continue with success flow
+      }
+
       setInviteSuccess(true)
       setInviteForm({ name: '', email: '', role: 'employee' })
       setTimeout(() => setShowInviteCard(false), 2000)

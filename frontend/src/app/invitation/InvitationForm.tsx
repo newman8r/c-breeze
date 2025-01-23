@@ -139,6 +139,28 @@ export default function InvitationForm() {
 
       if (acceptError) throw acceptError;
 
+      // Log invitation acceptance
+      const { error: acceptAuditError } = await supabase.rpc('log_audit_event', {
+        _organization_id: invitation?.organization_id,
+        _actor_id: authData.user?.id,
+        _actor_type: 'employee',
+        _action_type: 'update',
+        _resource_type: 'invitation',
+        _resource_id: invitation?.id,
+        _action_description: 'Accepted employee invitation',
+        _action_meta: {
+          invitee_email: formData.email,
+          invitee_name: `${formData.firstName} ${formData.lastName}`
+        },
+        _severity: 'info',
+        _status: 'success'
+      });
+
+      if (acceptAuditError) {
+        console.error('Failed to log invitation acceptance:', acceptAuditError);
+        // Don't throw, continue with flow
+      }
+
       // Wait for a short time to ensure the employee record is created
       await new Promise(resolve => setTimeout(resolve, 1000));
 
@@ -160,6 +182,30 @@ export default function InvitationForm() {
           .single();
         
         if (retryError) throw new Error('Failed to verify employee setup');
+      }
+
+      // Log new employee account creation
+      const { error: employeeAuditError } = await supabase.rpc('log_audit_event', {
+        _organization_id: invitation?.organization_id,
+        _actor_id: authData.user?.id,
+        _actor_type: 'employee',
+        _action_type: 'create',
+        _resource_type: 'employee',
+        _resource_id: employee?.id,
+        _action_description: 'New employee account created via invitation',
+        _action_meta: {
+          email: formData.email,
+          first_name: formData.firstName,
+          last_name: formData.lastName,
+          invitation_id: invitation?.id
+        },
+        _severity: 'info',
+        _status: 'success'
+      });
+
+      if (employeeAuditError) {
+        console.error('Failed to log employee creation:', employeeAuditError);
+        // Don't throw, continue with flow
       }
 
       // Get a fresh session
