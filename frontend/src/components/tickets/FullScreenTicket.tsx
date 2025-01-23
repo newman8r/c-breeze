@@ -730,7 +730,10 @@ export const FullScreenTicket = ({ ticket, onClose }: FullScreenTicketProps) => 
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-[#2C5282] truncate">
                         {ticket.assigned_employee ? 
-                          `${ticket.assigned_employee.first_name || ''} ${ticket.assigned_employee.last_name || ''}`.trim() || 'Unnamed User' : 
+                          (() => {
+                            const assignedUser = orgUsers.find(user => user.id === ticket.assigned_employee?.id);
+                            return assignedUser ? `${assignedUser.first_name} ${assignedUser.last_name}` : 'Unassigned';
+                          })() : 
                           'Unassigned'}
                       </p>
                       <p className="text-xs text-gray-500">Click to assign</p>
