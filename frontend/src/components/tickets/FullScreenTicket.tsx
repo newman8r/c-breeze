@@ -49,6 +49,19 @@ interface Ticket {
   }>
 }
 
+interface TicketMessage {
+  id: string
+  content: string
+  created_at: string
+  is_private: boolean
+  sender_id: string
+  sender_type: 'employee' | 'customer' | 'system' | 'ai'
+  metadata: {
+    attachments?: Array<{ name: string, size: number }>
+  }
+  responding_to_id?: string
+}
+
 interface FullScreenTicketProps {
   ticket: Ticket
   onClose: () => void
@@ -127,6 +140,9 @@ export const FullScreenTicket = ({ ticket, onClose }: FullScreenTicketProps) => 
   const [messageContent, setMessageContent] = useState('');
   const [isPrivateNote, setIsPrivateNote] = useState(false);
   const [attachments, setAttachments] = useState<Array<{ name: string, size: number }>>([]);
+  const [messageError, setMessageError] = useState<string | null>(null);
+  const [messages, setMessages] = useState<TicketMessage[]>([])
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false)
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -309,14 +325,89 @@ export const FullScreenTicket = ({ ticket, onClose }: FullScreenTicketProps) => 
     setAttachments(attachments.filter((_, i) => i !== index));
   };
 
-  const handleSendMessage = () => {
-    // We'll implement this later when we add the edge function
-    console.log('Sending message:', {
-      content: messageContent,
-      isPrivate: isPrivateNote,
-      attachments
-    });
-  };
+  const fetchMessages = async () => {
+    try {
+      setIsLoadingMessages(true)
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+
+      if (!session?.access_token) {
+        throw new Error('No access token available')
+      }
+
+      const response = await fetch(`http://localhost:54321/functions/v1/list_ticket_messages?ticket_id=${ticket.id}`, {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`
+        }
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to fetch messages')
+      }
+
+      setMessages(data.messages)
+    } catch (error) {
+      console.error('Error fetching messages:', error)
+    } finally {
+      setIsLoadingMessages(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchMessages()
+  }, [ticket.id])
+
+  const handleSendMessage = async () => {
+    try {
+      setMessageError(null)
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+
+      if (!session?.access_token) {
+        throw new Error('No access token available')
+      }
+
+      const response = await fetch('http://localhost:54321/functions/v1/create_ticket_message', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          ticket_id: ticket.id,
+          content: messageContent,
+          is_private: isPrivateNote,
+          metadata: {
+            attachments: attachments.map(file => ({
+              name: file.name,
+              size: file.size
+            }))
+          }
+        })
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to send message')
+      }
+
+      // Clear the form
+      setMessageContent('')
+      setAttachments([])
+      setIsPrivateNote(false)
+      setMessageError(null)
+
+      // Fetch updated messages
+      await fetchMessages()
+
+    } catch (error: any) {
+      console.error('Error sending message:', error)
+      setMessageError(error.message || 'Failed to send message')
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-[100] bg-gradient-to-br from-blue-50/95 to-white/95 backdrop-blur-sm overflow-y-auto">
@@ -605,6 +696,11 @@ export const FullScreenTicket = ({ ticket, onClose }: FullScreenTicketProps) => 
 
                     {/* Editor Area */}
                     <div className="relative">
+                      {messageError && (
+                        <div className="mb-4 p-2 bg-red-50 text-red-600 rounded-lg text-sm">
+                          {messageError}
+                        </div>
+                      )}
                       <textarea
                         placeholder={isPrivateNote ? "Add a private note (only visible to team members)..." : "Type your response..."}
                         className="w-full min-h-[150px] p-4 bg-white/50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4A90E2]/40 resize-y"
@@ -718,6 +814,84 @@ export const FullScreenTicket = ({ ticket, onClose }: FullScreenTicketProps) => 
                           </div>
                         </div>
                       </div>
+
+                      {/* Loading State */}
+                      {isLoadingMessages && (
+                        <div className="flex items-center justify-center py-8">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#4A90E2]"></div>
+                        </div>
+                      )}
+
+                      {/* Message List */}
+                      {!isLoadingMessages && messages.map((message) => {
+                        // Find the sender in orgUsers if it's an employee
+                        const sender = message.sender_type === 'employee' 
+                          ? orgUsers.find(user => user.id === message.sender_id)
+                          : null;
+
+                        return (
+                          <div key={message.id} className="flex gap-4">
+                            <div className="flex-shrink-0">
+                              <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
+                                {message.sender_type === 'employee' && sender
+                                  ? `${sender.first_name[0]}${sender.last_name[0]}`
+                                  : message.sender_type === 'system' 
+                                    ? '🤖'
+                                    : '👤'}
+                              </div>
+                            </div>
+                            <div className="flex-1 space-y-2">
+                              <div className="flex items-baseline justify-between gap-2">
+                                <div>
+                                  <span className="font-medium text-[#2C5282]">
+                                    {message.sender_type === 'employee' && sender
+                                      ? `${sender.first_name} ${sender.last_name}`
+                                      : message.sender_type === 'system'
+                                        ? 'System'
+                                        : 'Customer'}
+                                  </span>
+                                  {message.is_private && (
+                                    <span className="text-sm text-amber-600 ml-2">Private Note 🔒</span>
+                                  )}
+                                </div>
+                                <span className="text-sm text-gray-500">
+                                  {new Date(message.created_at).toLocaleString()}
+                                </span>
+                              </div>
+                              <div className="bg-white/70 rounded-lg p-4">
+                                <div className="text-gray-700 whitespace-pre-wrap">
+                                  {message.content}
+                                </div>
+                                {message.metadata?.attachments && message.metadata.attachments.length > 0 && (
+                                  <div className="mt-3 pt-3 border-t border-gray-100">
+                                    <p className="text-sm text-gray-500 mb-2">Attachments:</p>
+                                    <div className="flex flex-wrap gap-2">
+                                      {message.metadata.attachments.map((file, index) => (
+                                        <div 
+                                          key={index}
+                                          className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-full text-sm text-gray-700"
+                                        >
+                                          <span>📎</span>
+                                          <span className="truncate max-w-[150px]">{file.name}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2 text-sm">
+                                <button className="text-gray-500 hover:text-[#2C5282] transition-colors">
+                                  Reply
+                                </button>
+                                <span className="text-gray-300">•</span>
+                                <button className="text-gray-500 hover:text-[#2C5282] transition-colors">
+                                  Copy Link
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 </motion.div>
