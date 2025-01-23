@@ -413,6 +413,8 @@ export default function DashboardPage() {
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [selectedTicket, setSelectedTicket] = useState<SelectedTicket>({ id: '', isOpen: false });
+  const [isStatusOpen, setIsStatusOpen] = useState(false);
+  const [isPriorityOpen, setIsPriorityOpen] = useState(false);
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -534,20 +536,49 @@ export default function DashboardPage() {
   const FullScreenTicket = ({ ticket, onClose }: { ticket: any; onClose: () => void }) => {
     const [activeTab, setActiveTab] = useState('details');
     const [showAssignModal, setShowAssignModal] = useState(false);
-    const [isStatusOpen, setIsStatusOpen] = useState(false);
     const [showMergeModal, setShowMergeModal] = useState(false);
     const [showSplitModal, setShowSplitModal] = useState(false);
     const [isSnoozing, setIsSnoozing] = useState(false);
+    const [isStatusOpen, setIsStatusOpen] = useState(false);
+    const [isPriorityOpen, setIsPriorityOpen] = useState(false);
 
-    const handleStatusClick = useCallback(() => {
-      setIsStatusOpen(prev => !prev);
+    // Close dropdowns when clicking outside
+    useEffect(() => {
+      const handleClickOutside = (event: MouseEvent) => {
+        const target = event.target as HTMLElement;
+        if (!target.closest('[data-dropdown]')) {
+          setIsStatusOpen(false);
+          setIsPriorityOpen(false);
+        }
+      };
+
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
     }, []);
 
-    const handleStatusChange = useCallback((newStatus: string) => {
-      // TODO: Implement status change logic
+    const handleStatusChange = (newStatus: string) => {
       console.log('Changing status to:', newStatus);
-      setIsStatusOpen(false); // Close the panel after selection
-    }, []);
+      setIsStatusOpen(false);
+    };
+
+    const handlePriorityChange = (newPriority: string) => {
+      console.log('Changing priority to:', newPriority);
+      setIsPriorityOpen(false);
+    };
+
+    const statusOptions = [
+      { id: 'open', label: 'Open' },
+      { id: 'in_progress', label: 'In Progress' },
+      { id: 'resolved', label: 'Resolved' },
+      { id: 'closed', label: 'Closed' }
+    ];
+
+    const priorityOptions = [
+      { id: 'urgent', label: 'Urgent' },
+      { id: 'high', label: 'High' },
+      { id: 'medium', label: 'Medium' },
+      { id: 'low', label: 'Low' }
+    ];
 
     const getStatusColor = (status: string) => {
       switch (status.toLowerCase()) {
@@ -564,26 +595,29 @@ export default function DashboardPage() {
       }
     };
 
-    const statusOptions = [
-      { id: 'open', label: 'Open' },
-      { id: 'in_progress', label: 'In Progress' },
-      { id: 'resolved', label: 'Resolved' },
-      { id: 'closed', label: 'Closed' }
-    ];
+    const getPriorityColor = (priority: string) => {
+      switch (priority.toLowerCase()) {
+        case 'urgent':
+          return { bg: 'bg-[#FF4242]/20', text: 'text-[#FF4242]', dot: 'bg-[#FF4242]' };
+        case 'high':
+          return { bg: 'bg-[#FF7676]/20', text: 'text-[#FF7676]', dot: 'bg-[#FF7676]' };
+        case 'medium':
+          return { bg: 'bg-[#FFB347]/20', text: 'text-[#FFB347]', dot: 'bg-[#FFB347]' };
+        case 'low':
+          return { bg: 'bg-[#4A90E2]/20', text: 'text-[#4A90E2]', dot: 'bg-[#4A90E2]' };
+        default:
+          return { bg: 'bg-[#FFB347]/20', text: 'text-[#FFB347]', dot: 'bg-[#FFB347]' };
+      }
+    };
 
     return (
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.95 }}
-        className="fixed inset-0 z-50 bg-gradient-to-br from-blue-50/95 to-white/95 backdrop-blur-sm overflow-y-auto"
-      >
+      <div className="fixed inset-0 z-[100] bg-gradient-to-br from-blue-50/95 to-white/95 backdrop-blur-sm overflow-y-auto">
         {/* Bauhaus-inspired decorative elements */}
         <div className="absolute top-0 right-0 w-48 h-48 bg-yellow-200/20 rounded-full -translate-y-1/2 translate-x-1/2" />
         <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-200/20 rounded-full translate-y-1/2 -translate-x-1/2" />
         
-        {/* Header */}
-        <div className="relative z-10 max-w-6xl mx-auto">
+        {/* Content */}
+        <div className="relative z-[105] max-w-6xl mx-auto">
           <div className="flex items-start justify-between mb-6">
             <div className="flex-1">
               {/* Ticket ID and Title */}
@@ -595,40 +629,125 @@ export default function DashboardPage() {
               </div>
               
               {/* Status Pills */}
-              <div className="flex items-center gap-3">
-                <span className={`px-3 py-1 rounded-full text-sm font-medium
-                  ${ticket.priority === 'high' ? 'bg-red-100 text-red-800' : 
-                    ticket.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' : 
-                    'bg-blue-100 text-blue-800'}`}
-                >
-                  {ticket.priority}
-                </span>
-                <span className={`px-3 py-1 rounded-full text-sm font-medium
-                  ${ticket.status === 'urgent' ? 'bg-red-100 text-red-800' :
-                    ticket.status === 'in_progress' ? 'bg-yellow-100 text-yellow-800' :
-                    ticket.status === 'resolved' ? 'bg-green-100 text-green-800' :
-                    'bg-blue-100 text-blue-800'}`}
-                >
-                  {ticket.status}
-                </span>
+              <div className="flex items-center gap-3 mt-4">
+                {/* Priority Dropdown */}
+                <div className="relative" data-dropdown>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsPriorityOpen(!isPriorityOpen);
+                      setIsStatusOpen(false);
+                    }}
+                    className={`flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium transition-colors
+                      ${getPriorityColor(ticket.priority).bg} ${getPriorityColor(ticket.priority).text}
+                      hover:shadow-sm hover:scale-[1.02]`}
+                  >
+                    <span className={`w-2 h-2 rounded-full ${getPriorityColor(ticket.priority).dot}`} />
+                    {ticket.priority}
+                    <svg
+                      className={`w-4 h-4 transition-transform ${isPriorityOpen ? 'rotate-180' : ''}`}
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                  {isPriorityOpen && (
+                    <div className="absolute top-full left-0 mt-1 w-48 bg-white rounded-lg shadow-lg overflow-hidden z-[200]">
+                      <div className="p-2">
+                        {priorityOptions.map((option) => (
+                          <button
+                            key={option.id}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handlePriorityChange(option.id);
+                            }}
+                            className={`w-full p-2 rounded-lg transition-colors flex items-center justify-between
+                              ${ticket.priority === option.id 
+                                ? `${getPriorityColor(option.id).bg} ${getPriorityColor(option.id).text} font-medium` 
+                                : 'hover:bg-blue-50/50 text-[#4A5568]'
+                              }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className={`w-2 h-2 rounded-full ${getPriorityColor(option.id).dot}`} />
+                              <span>{option.label}</span>
+                            </div>
+                            {ticket.priority === option.id && <span>✓</span>}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Status Dropdown */}
+                <div className="relative" data-dropdown>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsStatusOpen(!isStatusOpen);
+                      setIsPriorityOpen(false);
+                    }}
+                    className={`flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium transition-colors
+                      ${getStatusColor(ticket.status).bg} ${getStatusColor(ticket.status).text}
+                      hover:shadow-sm hover:scale-[1.02]`}
+                  >
+                    <span className={`w-2 h-2 rounded-full ${getStatusColor(ticket.status).dot}`} />
+                    {ticket.status}
+                    <svg
+                      className={`w-4 h-4 transition-transform ${isStatusOpen ? 'rotate-180' : ''}`}
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                  {isStatusOpen && (
+                    <div className="absolute top-full left-0 mt-1 w-48 bg-white rounded-lg shadow-lg overflow-hidden z-[200]">
+                      <div className="p-2">
+                        {statusOptions.map((option) => (
+                          <button
+                            key={option.id}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleStatusChange(option.id);
+                            }}
+                            className={`w-full p-2 rounded-lg transition-colors flex items-center justify-between
+                              ${ticket.status === option.id 
+                                ? `${getStatusColor(option.id).bg} ${getStatusColor(option.id).text} font-medium` 
+                                : 'hover:bg-blue-50/50 text-[#4A5568]'
+                              }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className={`w-2 h-2 rounded-full ${getStatusColor(option.id).dot}`} />
+                              <span>{option.label}</span>
+                            </div>
+                            {ticket.status === option.id && <span>✓</span>}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 <span className="px-3 py-1 bg-gray-100 text-gray-800 rounded-full text-sm font-medium">
                   {ticket.category}
                 </span>
               </div>
             </div>
 
-            {/* Action Buttons */}
-            <div className="flex items-center gap-2">
-              <button
-                onClick={onClose}
-                className="p-2 rounded-full bg-white/50 hover:bg-white/80 transition-colors"
-                title="Close"
-              >
-                <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
+            {/* Close Button */}
+            <button
+              onClick={onClose}
+              className="p-2 rounded-full bg-white/50 hover:bg-white/80 transition-colors"
+              title="Close"
+            >
+              <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
 
           {/* Main Content */}
@@ -823,95 +942,6 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              {/* Status Controls */}
-              <div className="bg-white/50 rounded-lg p-6">
-                <button 
-                  type="button"
-                  onClick={handleStatusClick}
-                  className="w-full flex items-center group hover:bg-gradient-to-r hover:from-blue-50/50 hover:to-transparent rounded-lg transition-all duration-300 ease-in-out p-2"
-                >
-                  <div className="flex items-center gap-3">
-                    <h3 className="text-lg font-medium text-[#2C5282]">Status</h3>
-                    <div className="flex items-center">
-                      <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium 
-                        ${getStatusColor(ticket.status).bg} ${getStatusColor(ticket.status).text}
-                        group-hover:shadow-sm group-hover:scale-[1.02] transition-all duration-300 ease-in-out`}
-                      >
-                        <span className={`w-2 h-2 rounded-full ${getStatusColor(ticket.status).dot}`}></span>
-                        {ticket.status}
-                      </div>
-                      <motion.span
-                        animate={{ rotate: isStatusOpen ? 180 : 0 }}
-                        transition={{ duration: 0.3, ease: "easeInOut" }}
-                        className="text-[#4A5568] ml-2 opacity-75 group-hover:opacity-100"
-                      >
-                        ▼
-                      </motion.span>
-                    </div>
-                  </div>
-                </button>
-
-                <AnimatePresence>
-                  {isStatusOpen && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: 'auto', opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.3, ease: "easeInOut" }}
-                      className="overflow-hidden"
-                    >
-                      <div className="pt-4 space-y-4">
-                        {/* Status Options */}
-                        <div className="grid grid-cols-1 gap-2">
-                          {statusOptions.map((option) => (
-                            <button
-                              key={option.id}
-                              type="button"
-                              onClick={() => handleStatusChange(option.id)}
-                              className={`p-3 rounded-lg transition-all duration-300 ease-in-out flex items-center justify-between
-                                ${ticket.status === option.id 
-                                  ? `${getStatusColor(option.id).bg} ${getStatusColor(option.id).text} font-medium shadow-sm scale-[1.02]` 
-                                  : 'bg-white/50 hover:bg-gradient-to-r hover:from-blue-50/50 hover:to-transparent hover:scale-[1.02] hover:shadow-sm text-[#4A5568]'
-                                }`}
-                            >
-                              <div className="flex items-center gap-2">
-                                <span className={`w-2 h-2 rounded-full ${getStatusColor(option.id).dot} transition-all duration-300`}></span>
-                                <span>{option.label}</span>
-                              </div>
-                              {ticket.status === option.id && (
-                                <motion.span
-                                  initial={{ scale: 0 }}
-                                  animate={{ scale: 1 }}
-                                  transition={{ duration: 0.2 }}
-                                >
-                                  ✓
-                                </motion.span>
-                              )}
-                            </button>
-                          ))}
-                        </div>
-
-                        {/* Additional Controls */}
-                        <div className="flex items-center justify-between pt-2 border-t border-gray-200/50">
-                          <button 
-                            type="button"
-                            className="text-sm text-[#4A90E2] hover:text-[#2C5282] transition-all duration-300 ease-in-out opacity-75 hover:opacity-100"
-                          >
-                            View Status History
-                          </button>
-                          <button 
-                            type="button"
-                            className="text-sm text-[#4A90E2] hover:text-[#2C5282] transition-all duration-300 ease-in-out opacity-75 hover:opacity-100"
-                          >
-                            Add Note
-                          </button>
-                        </div>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-
               {/* Requester Information */}
               <div className="bg-white/50 rounded-lg p-6">
                 <h3 className="text-lg font-medium text-[#2C5282] mb-4">Requester</h3>
@@ -972,32 +1002,7 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
-
-        {/* Modals */}
-        {showAssignModal && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            {/* Add assign modal content */}
-          </div>
-        )}
-
-        {showMergeModal && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            {/* Add merge modal content */}
-          </div>
-        )}
-
-        {showSplitModal && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            {/* Add split modal content */}
-          </div>
-        )}
-
-        {isSnoozing && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            {/* Add snooze modal content */}
-          </div>
-        )}
-      </motion.div>
+      </div>
     );
   };
 
