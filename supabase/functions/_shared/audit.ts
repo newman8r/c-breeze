@@ -15,6 +15,7 @@ export interface AuditLogParams {
   status?: 'success' | 'failure'
   error_code?: string
   error_message?: string
+  client_ip?: string
 }
 
 export async function logAuditEvent(
@@ -22,6 +23,16 @@ export async function logAuditEvent(
   params: AuditLogParams
 ): Promise<{ success: boolean; error?: string }> {
   console.log('Creating audit log entry:', JSON.stringify(params, null, 2))
+
+  let ipAddress = null
+  if (params.client_ip) {
+    console.log('Raw client IP:', params.client_ip)
+    
+    const firstIp = params.client_ip.split(',')[0].trim()
+    console.log('Parsed IP:', firstIp)
+    
+    ipAddress = firstIp
+  }
 
   try {
     const { data: eventId, error: auditError } = await supabase.rpc('log_audit_event', {
@@ -39,7 +50,7 @@ export async function logAuditEvent(
       _status: params.status || 'success',
       _error_code: params.error_code,
       _error_message: params.error_message,
-      _ip_address: null, // Explicitly null for testing
+      _ip_address: ipAddress,
       _user_agent: null
     })
 

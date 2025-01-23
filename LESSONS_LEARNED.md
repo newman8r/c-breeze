@@ -115,6 +115,8 @@
 - Always test migrations locally first with `supabase db reset`
 - Push to production using `supabase db push`
 - Verify changes in Supabase dashboard after pushing
+- If encountering unexpected database behavior, check if all migrations have been applied using `supabase migration list`
+- Pay attention to migrations that show up in LOCAL but not in REMOTE - these need to be applied
 
 ### Deployment Issues
 1. If changes aren't reflecting:

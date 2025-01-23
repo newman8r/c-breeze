@@ -31,6 +31,17 @@ serve(async (req) => {
   try {
     console.log("Request received:", req.method)
 
+    // Log all potential IP address headers
+    const ipInfo = {
+      'x-forwarded-for': req.headers.get('x-forwarded-for'),
+      'x-real-ip': req.headers.get('x-real-ip'),
+      'cf-connecting-ip': req.headers.get('cf-connecting-ip'),
+      'true-client-ip': req.headers.get('true-client-ip'),
+      'x-client-ip': req.headers.get('x-client-ip'),
+      'remote-addr': req.headers.get('remote-addr')
+    }
+    console.log('IP Address Debug Info:', JSON.stringify(ipInfo, null, 2))
+
     // Verify auth
     const authHeader = req.headers.get('Authorization')
     console.log("Auth header present:", !!authHeader)
@@ -143,7 +154,8 @@ serve(async (req) => {
       },
       details_after: ticket,
       severity: 'info',
-      status: 'success'
+      status: 'success',
+      client_ip: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || req.headers.get('cf-connecting-ip')
     })
 
     if (!auditSuccess) {
