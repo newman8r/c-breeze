@@ -12,46 +12,67 @@ const demoKnowledgeBase = [
 
 interface CustomerPortalProps {
   company: string;
+  onSubmit: (email: string, description: string) => Promise<void>;
+  isSubmitting: boolean;
+  error: string | null;
 }
 
-export default function CustomerPortal({ company }: CustomerPortalProps) {
-  const [searchQuery, setSearchQuery] = useState('');
+export default function CustomerPortal({ 
+  company, 
+  onSubmit,
+  isSubmitting,
+  error 
+}: CustomerPortalProps) {
   const [ticketQuery, setTicketQuery] = useState('');
   const [email, setEmail] = useState('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (ticketQuery.trim() && email.trim()) {
+      await onSubmit(email.trim(), ticketQuery.trim());
+    }
+  };
 
   return (
     <div className={styles.container}>
       {/* Bauhaus-inspired decorative elements */}
+      <div className={styles.decorativeWave} />
       <div className={styles.decorativeCircle} />
-      <div className={styles.decorativeSquare} />
-      <div className={styles.decorativeTriangle} />
+      <div className={styles.decorativeDots} />
       
       <header className={styles.header}>
+        <div className={styles.headerDecorative} />
         <h1>Welcome to {company} Support</h1>
-        <button className={styles.loginButton}>
-          Sign In with Email 📧
-        </button>
       </header>
 
       <main className={styles.main}>
         <section className={styles.ticketSection}>
           <h2>How can we help you today? 🌊</h2>
-          <textarea
-            className={styles.ticketTextarea}
-            placeholder="Type your question here... We'll help you right away! ✨"
-            value={ticketQuery}
-            onChange={(e) => setTicketQuery(e.target.value)}
-          />
-          <input
-            type="email"
-            className={styles.emailInput}
-            placeholder="Enter your email to receive updates ✉️"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-          <button className={styles.submitButton}>
-            Get Help Now 🌟
-          </button>
+          <form onSubmit={handleSubmit}>
+            <textarea
+              className={styles.ticketTextarea}
+              placeholder="Type your question here... We'll help you right away! ✨"
+              value={ticketQuery}
+              onChange={(e) => setTicketQuery(e.target.value)}
+              required
+            />
+            <input
+              type="email"
+              className={styles.emailInput}
+              placeholder="Enter your email to receive updates ✉️"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+            {error && <div className={styles.error}>{error}</div>}
+            <button 
+              type="submit" 
+              className={styles.submitButton}
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? 'Creating Ticket...' : 'Get Help Now 🌟'}
+            </button>
+          </form>
         </section>
 
         <section className={styles.knowledgeBaseSection}>
@@ -61,8 +82,6 @@ export default function CustomerPortal({ company }: CustomerPortalProps) {
               type="text"
               className={styles.searchInput}
               placeholder="Search our knowledge base..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
 
