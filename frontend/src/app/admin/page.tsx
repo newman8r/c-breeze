@@ -10,7 +10,7 @@ import type { Database } from '@/lib/database.types'
 import { useUser } from '@/contexts/UserContext'
 
 // Tab type definition
-type Tab = 'users' | 'employees' | 'ticketing' | 'automation' | 'billing'
+type Tab = 'users' | 'employees' | 'ticketing' | 'automation' | 'billing' | 'audit-logs'
 
 interface ApiError {
   error: string
@@ -35,6 +35,8 @@ export default function AdminPanel() {
   const { role, isRootAdmin, loading: roleLoading } = useRole()
   const { user } = useUser()
   const supabase = getSupabaseBrowserClient()
+  
+  // All state declarations grouped together at the top
   const [activeTab, setActiveTab] = useState<Tab>('employees')
   const [showInviteCard, setShowInviteCard] = useState(false)
   const [inviteForm, setInviteForm] = useState({
@@ -47,6 +49,9 @@ export default function AdminPanel() {
   const [orgUsers, setOrgUsers] = useState<OrgUser[]>([])
   const [loadingUsers, setLoadingUsers] = useState(false)
   const [userError, setUserError] = useState<string | null>(null)
+  const [auditLogs, setAuditLogs] = useState<any[]>([])
+  const [loadingAuditLogs, setLoadingAuditLogs] = useState(false)
+  const [auditLogsError, setAuditLogsError] = useState<string | null>(null)
 
   // Protect route
   useEffect(() => {
@@ -108,6 +113,38 @@ export default function AdminPanel() {
     }
 
     fetchOrgUsers()
+  }, [activeTab, supabase])
+
+  // Fetch audit logs
+  useEffect(() => {
+    const fetchAuditLogs = async () => {
+      if (activeTab === 'audit-logs') {
+        setLoadingAuditLogs(true)
+        setAuditLogsError(null)
+        try {
+          const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+          if (sessionError || !session) {
+            throw new Error('No active session')
+          }
+
+          const { data, error } = await supabase
+            .from('audit_logs')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(100)
+
+          if (error) throw error
+          setAuditLogs(data || [])
+        } catch (err) {
+          console.error('Error fetching audit logs:', err)
+          setAuditLogsError(err instanceof Error ? err.message : 'Failed to load audit logs')
+        } finally {
+          setLoadingAuditLogs(false)
+        }
+      }
+    }
+
+    fetchAuditLogs()
   }, [activeTab, supabase])
 
   // Test function
@@ -226,12 +263,14 @@ export default function AdminPanel() {
     )
   }
 
+  // Define tabs
   const tabs: { id: Tab; label: string }[] = [
     { id: 'users', label: 'Users' },
     { id: 'employees', label: 'Employees' },
     { id: 'ticketing', label: 'Ticketing' },
     { id: 'automation', label: 'Automation' },
-    { id: 'billing', label: 'Billing' }
+    { id: 'billing', label: 'Billing' },
+    { id: 'audit-logs', label: '🔍 Audit Logs' }
   ]
 
   return (
@@ -250,6 +289,7 @@ export default function AdminPanel() {
 
         {/* Back to Dashboard */}
         <motion.div
+          key="back-to-dashboard-link"
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
         >
@@ -276,6 +316,7 @@ export default function AdminPanel() {
 
         {/* Header */}
         <motion.div
+          key="admin-panel-header"
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           className="ocean-card"
@@ -285,35 +326,106 @@ export default function AdminPanel() {
         </motion.div>
 
         {/* Tabs */}
-        <div className="ocean-card p-0 overflow-hidden">
-          <div className="border-b border-[#4A90E2]/20">
-            <div className="flex">
-              {tabs.map(tab => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`px-6 py-4 text-sm font-medium transition-colors relative
-                    ${activeTab === tab.id
-                      ? 'text-[#2C5282] bg-white/50'
-                      : 'text-[#4A5568] hover:text-[#2C5282] hover:bg-white/30'
-                    }`}
-                >
-                  {tab.label}
-                  {activeTab === tab.id && (
-                    <motion.div
-                      layoutId="activeTab"
-                      className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#4A90E2]"
-                    />
-                  )}
-                </button>
-              ))}
-            </div>
+        <div className="ocean-card overflow-hidden">
+          <div className="flex space-x-1 mb-6 overflow-x-auto pb-2">
+            {tabs.map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`px-4 py-2 rounded-full transition-all duration-200 whitespace-nowrap
+                  ${activeTab === tab.id
+                    ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg transform scale-105'
+                    : 'bg-white/50 hover:bg-white/80'
+                  }`}
+              >
+                {tab.label}
+              </button>
+            ))}
           </div>
+
+          {/* Audit Logs Panel */}
+          {activeTab === 'audit-logs' && (
+            <div className="space-y-6">
+              <div className="flex justify-between items-center">
+                <h3 className="text-xl font-bold text-[#2C5282]">System Activity Log</h3>
+                <div className="flex space-x-2">
+                  <button className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full hover:bg-blue-200 transition-colors">
+                    Filter
+                  </button>
+                  <button className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full hover:bg-blue-200 transition-colors">
+                    Export
+                  </button>
+                </div>
+              </div>
+
+              {loadingAuditLogs ? (
+                <div className="h-64 flex items-center justify-center">
+                  <div className="animate-pulse text-blue-500">Loading audit logs...</div>
+                </div>
+              ) : auditLogsError ? (
+                <div className="h-64 flex items-center justify-center">
+                  <div className="text-red-500">
+                    <p>Failed to load audit logs</p>
+                    <p className="text-sm">{auditLogsError}</p>
+                  </div>
+                </div>
+              ) : auditLogs.length === 0 ? (
+                <div className="h-64 flex items-center justify-center">
+                  <div className="text-gray-500">
+                    <p>No audit logs found</p>
+                    <p className="text-sm">System activity will appear here</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {auditLogs.map((log, index) => (
+                    <motion.div
+                      key={`audit-log-${log.id || `${log.created_at}-${index}`}`}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className={`p-4 rounded-lg transition-all duration-200
+                        ${log.severity === 'error' ? 'bg-red-50 border-l-4 border-red-500' :
+                          log.severity === 'warning' ? 'bg-yellow-50 border-l-4 border-yellow-500' :
+                          'bg-white/80 hover:bg-white'}`}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <p className="font-medium text-gray-900">
+                            {log.action_description}
+                          </p>
+                          <p className="text-sm text-gray-500">
+                            {new Date(log.created_at).toLocaleString()}
+                          </p>
+                        </div>
+                        <div className={`px-2 py-1 rounded text-sm
+                          ${log.severity === 'error' ? 'bg-red-100 text-red-800' :
+                            log.severity === 'warning' ? 'bg-yellow-100 text-yellow-800' :
+                            'bg-blue-100 text-blue-800'}`}
+                        >
+                          {log.severity}
+                        </div>
+                      </div>
+                      <div className="mt-2 text-sm text-gray-600">
+                        <p>Actor: {log.actor_type} ({log.actor_id})</p>
+                        <p>Action: {log.action_type} on {log.resource_type}</p>
+                        {log.action_meta && (
+                          <pre className="mt-2 p-2 bg-gray-50 rounded overflow-x-auto">
+                            {JSON.stringify(log.action_meta, null, 2)}
+                          </pre>
+                        )}
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Tab Content */}
           <div className="p-6">
             {activeTab === 'users' && (
               <motion.div
+                key="users-tab-panel"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 className="space-y-6"
@@ -331,6 +443,7 @@ export default function AdminPanel() {
                 {/* Invite User Card */}
                 {showInviteCard && (
                   <motion.div
+                    key="invite-user-form"
                     initial={{ opacity: 0, y: -20 }}
                     animate={{ opacity: 1, y: 0 }}
                     className="ocean-card bg-white/50"
@@ -504,7 +617,7 @@ export default function AdminPanel() {
                         <tbody className="divide-y divide-[#4A90E2]/10">
                           {orgUsers.map((user, index) => (
                             <motion.tr 
-                              key={user.id}
+                              key={`team-member-${user.id}`}
                               initial={{ opacity: 0, y: 10 }}
                               animate={{ opacity: 1, y: 0 }}
                               transition={{ delay: index * 0.1 }}
