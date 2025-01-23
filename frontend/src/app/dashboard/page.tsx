@@ -10,6 +10,7 @@ import { signOut } from '@/utils/supabase'
 import { Activity, mockTickets } from '@/mocks/ticketData'
 import { getRecentOrganizationTickets, createClient } from '@/utils/supabase'
 import FullScreenTicket from '@/components/tickets/FullScreenTicket'
+import styles from './dashboard.module.css'
 
 // Types for our data
 interface Profile {
@@ -518,9 +519,9 @@ export default function DashboardPage() {
   // Show loading state
   if (userLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-[#E0F2F7] via-[#4A90E2]/10 to-[#F7F3E3] p-6">
-        <div className="max-w-7xl mx-auto">
-          <div className="ocean-card">
+      <div className={styles.dashboardContainer}>
+        <div className={styles.contentWrapper}>
+          <div className={styles.oceanCard}>
             <p className="text-center">Loading...</p>
           </div>
         </div>
@@ -534,16 +535,16 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#E0F2F7] via-[#4A90E2]/10 to-[#F7F3E3] p-6">
-      <div className="max-w-7xl mx-auto space-y-8">
+    <div className={styles.dashboardContainer}>
+      <div className={styles.contentWrapper}>
         {/* Header Section */}
         <div className="flex justify-between items-center">
           <motion.div 
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
-            className="ocean-card py-4 px-6 inline-flex items-center gap-4"
+            className={`${styles.oceanCard} ${styles.welcomeCard}`}
           >
-            <h1 className="text-2xl font-bold text-[#2C5282]">
+            <h1 className={styles.welcomeText}>
               Welcome, {userProfile?.display_name || user.email}
             </h1>
           </motion.div>
@@ -1136,7 +1137,7 @@ export default function DashboardPage() {
                            focus:outline-none focus:ring-2 focus:ring-[#4A90E2]/40
                            bg-white/50 backdrop-blur-sm"
                 />
-                <button className="wave-button px-4 py-2">
+                <button className={`${styles.waveButton} px-4 py-2`}>
                   Send
                 </button>
               </div>
@@ -1270,7 +1271,7 @@ export default function DashboardPage() {
                 <button
                   onClick={createTicket}
                   disabled={isSubmitting}
-                  className="wave-button px-4 py-2 disabled:opacity-50"
+                  className={`${styles.waveButton} px-4 py-2 disabled:opacity-50`}
                 >
                   {isSubmitting ? 'Creating...' : 'Create Ticket'}
                 </button>
