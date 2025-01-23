@@ -124,6 +124,9 @@ export const FullScreenTicket = ({ ticket, onClose }: FullScreenTicketProps) => 
   const [orgUsers, setOrgUsers] = useState<Employee[]>([])
   const [isLoadingUsers, setIsLoadingUsers] = useState(false)
   const [assignmentError, setAssignmentError] = useState<string | null>(null)
+  const [messageContent, setMessageContent] = useState('');
+  const [isPrivateNote, setIsPrivateNote] = useState(false);
+  const [attachments, setAttachments] = useState<Array<{ name: string, size: number }>>([]);
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -290,6 +293,29 @@ export const FullScreenTicket = ({ ticket, onClose }: FullScreenTicketProps) => 
       default:
         return { bg: 'bg-[#FFB347]/20', text: 'text-[#FFB347]', dot: 'bg-[#FFB347]' };
     }
+  };
+
+  const handleFileAttachment = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const newFiles = Array.from(e.target.files).map(file => ({
+        name: file.name,
+        size: file.size
+      }));
+      setAttachments([...attachments, ...newFiles]);
+    }
+  };
+
+  const removeAttachment = (index: number) => {
+    setAttachments(attachments.filter((_, i) => i !== index));
+  };
+
+  const handleSendMessage = () => {
+    // We'll implement this later when we add the edge function
+    console.log('Sending message:', {
+      content: messageContent,
+      isPrivate: isPrivateNote,
+      attachments
+    });
   };
 
   return (
@@ -533,22 +559,165 @@ export const FullScreenTicket = ({ ticket, onClose }: FullScreenTicketProps) => 
                   exit={{ opacity: 0, y: -10 }}
                   className="space-y-6"
                 >
-                  {/* Activity Feed */}
-                  <div className="bg-white/50 rounded-lg p-6">
-                    <h3 className="text-lg font-medium text-[#2C5282] mb-4">Activity Feed</h3>
-                    <div className="space-y-4">
-                      {ticket.activities?.map((activity, index) => (
-                        <div key={index} className="flex gap-4">
-                          <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
-                            👤
+                  {/* Message Editor */}
+                  <div className="bg-white/50 backdrop-blur-sm rounded-lg p-6 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-lg font-medium text-[#2C5282]">Add Response</h3>
+                      <div className="flex items-center gap-2">
+                        <button 
+                          className="text-sm text-gray-600 hover:text-[#2C5282] transition-colors flex items-center gap-1"
+                          onClick={() => setIsPrivateNote(!isPrivateNote)}
+                        >
+                          {isPrivateNote ? '🔒' : '👥'} {isPrivateNote ? 'Private Note' : 'Public Response'}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Editor Toolbar */}
+                    <div className="flex items-center gap-2 p-2 bg-white/30 rounded-lg border border-gray-100">
+                      <button className="p-2 hover:bg-white/50 rounded transition-colors" title="Bold">
+                        <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 12h8a4 4 0 000-8H6v8zm0 0h8a4 4 0 010 8H6v-8z" />
+                        </svg>
+                      </button>
+                      <button className="p-2 hover:bg-white/50 rounded transition-colors" title="Italic">
+                        <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4h-8M8 16h8" />
+                        </svg>
+                      </button>
+                      <button className="p-2 hover:bg-white/50 rounded transition-colors" title="Underline">
+                        <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h10m-10 4h10M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                      </button>
+                      <div className="w-px h-6 bg-gray-200 mx-2" />
+                      <button className="p-2 hover:bg-white/50 rounded transition-colors" title="Bullet List">
+                        <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                        </svg>
+                      </button>
+                      <button className="p-2 hover:bg-white/50 rounded transition-colors" title="Numbered List">
+                        <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h12M9 12h12M9 17h12M5 7v.01M5 12v.01M5 17v.01" />
+                        </svg>
+                      </button>
+                    </div>
+
+                    {/* Editor Area */}
+                    <div className="relative">
+                      <textarea
+                        placeholder={isPrivateNote ? "Add a private note (only visible to team members)..." : "Type your response..."}
+                        className="w-full min-h-[150px] p-4 bg-white/50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4A90E2]/40 resize-y"
+                        value={messageContent}
+                        onChange={(e) => setMessageContent(e.target.value)}
+                      />
+                      
+                      {/* Attachment Area */}
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {attachments.map((file, index) => (
+                          <div 
+                            key={index}
+                            className="flex items-center gap-2 px-3 py-1.5 bg-white/70 rounded-full text-sm text-gray-700"
+                          >
+                            <span>📎</span>
+                            <span className="truncate max-w-[150px]">{file.name}</span>
+                            <button 
+                              onClick={() => removeAttachment(index)}
+                              className="text-gray-400 hover:text-gray-600"
+                            >
+                              ×
+                            </button>
                           </div>
-                          <div>
-                            <p className="text-sm font-medium text-[#2C5282]">{activity.user}</p>
-                            <p className="text-sm text-gray-700">{activity.action}</p>
-                            <p className="text-xs text-gray-600">{new Date(activity.timestamp).toLocaleString()}</p>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex items-center justify-between pt-2">
+                      <div className="flex items-center gap-2">
+                        <button 
+                          onClick={() => document.getElementById('file-input')?.click()}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-white/50 hover:bg-white/80 rounded-lg text-gray-600 text-sm transition-colors"
+                        >
+                          📎 Attach Files
+                        </button>
+                        <input
+                          id="file-input"
+                          type="file"
+                          multiple
+                          className="hidden"
+                          onChange={handleFileAttachment}
+                        />
+                        <button className="flex items-center gap-1.5 px-3 py-1.5 bg-white/50 hover:bg-white/80 rounded-lg text-gray-600 text-sm transition-colors">
+                          🎨 Template
+                        </button>
+                        <button className="flex items-center gap-1.5 px-3 py-1.5 bg-white/50 hover:bg-white/80 rounded-lg text-gray-600 text-sm transition-colors">
+                          🤖 AI Assist
+                        </button>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button 
+                          onClick={() => {
+                            setMessageContent('')
+                            setAttachments([])
+                          }}
+                          className="px-4 py-2 text-gray-600 hover:text-gray-800 text-sm transition-colors"
+                        >
+                          Cancel
+                        </button>
+                        <button 
+                          onClick={handleSendMessage}
+                          disabled={!messageContent.trim() && attachments.length === 0}
+                          className={`px-4 py-2 rounded-lg text-sm transition-colors ${
+                            messageContent.trim() || attachments.length > 0
+                              ? 'bg-[#4A90E2] hover:bg-[#2C5282] text-white'
+                              : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                          }`}
+                        >
+                          {isPrivateNote ? 'Add Note' : 'Send Response'} {isPrivateNote ? '🔒' : '↗️'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Message Thread */}
+                  <div className="bg-white/50 backdrop-blur-sm rounded-lg p-6">
+                    <h3 className="text-lg font-medium text-[#2C5282] mb-4">Message History</h3>
+                    <div className="space-y-6">
+                      {/* Initial Ticket Message */}
+                      <div className="flex gap-4">
+                        <div className="flex-shrink-0">
+                          <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
+                            {ticket.customer?.name?.[0] || '👤'}
                           </div>
                         </div>
-                      ))}
+                        <div className="flex-1 space-y-2">
+                          <div className="flex items-baseline justify-between gap-2">
+                            <div>
+                              <span className="font-medium text-[#2C5282]">{ticket.customer?.name}</span>
+                              <span className="text-sm text-gray-500 ml-2">reported via web</span>
+                            </div>
+                            <span className="text-sm text-gray-500">
+                              {new Date(ticket.created_at).toLocaleString()}
+                            </span>
+                          </div>
+                          <div className="bg-white/70 rounded-lg p-4 space-y-3">
+                            <h4 className="font-medium text-[#2C5282]">{ticket.title}</h4>
+                            <div className="text-gray-700 whitespace-pre-wrap">
+                              {ticket.description}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 text-sm">
+                            <button className="text-gray-500 hover:text-[#2C5282] transition-colors">
+                              Reply
+                            </button>
+                            <span className="text-gray-300">•</span>
+                            <button className="text-gray-500 hover:text-[#2C5282] transition-colors">
+                              Copy Link
+                            </button>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </motion.div>
