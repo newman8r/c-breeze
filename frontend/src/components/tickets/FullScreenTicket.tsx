@@ -229,7 +229,7 @@ export const FullScreenTicket = ({ ticket, onClose }: FullScreenTicketProps) => 
         },
         body: JSON.stringify({
           ticket_id: ticket.id,
-          assigned_employee_id: userId
+          assigned_to: userId
         })
       })
 
@@ -724,13 +724,13 @@ export const FullScreenTicket = ({ ticket, onClose }: FullScreenTicketProps) => 
                   >
                     <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-sm">
                       {ticket.assigned_employee ? 
-                        `${ticket.assigned_employee.first_name[0]}${ticket.assigned_employee.last_name[0]}` : 
+                        `${(ticket.assigned_employee.first_name || '')[0] || ''}${(ticket.assigned_employee.last_name || '')[0] || ''}` || '👤' : 
                         '👤'}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-[#2C5282] truncate">
                         {ticket.assigned_employee ? 
-                          `${ticket.assigned_employee.first_name} ${ticket.assigned_employee.last_name}` : 
+                          `${ticket.assigned_employee.first_name || ''} ${ticket.assigned_employee.last_name || ''}`.trim() || 'Unnamed User' : 
                           'Unassigned'}
                       </p>
                       <p className="text-xs text-gray-500">Click to assign</p>

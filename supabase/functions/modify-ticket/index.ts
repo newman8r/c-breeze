@@ -16,7 +16,7 @@ interface ModifyTicketRequest {
   ticket_id: string
   status?: string
   priority?: string
-  assigned_employee_id?: string | null
+  assigned_to?: string | null
 }
 
 interface AuditLogEntry {
@@ -121,12 +121,12 @@ serve(async (req) => {
     }
 
     // Handle assignment change
-    if (requestBody.assigned_employee_id !== undefined) {
-      console.log('Updating assignment to:', requestBody.assigned_employee_id)
-      updates.assigned_employee_id = requestBody.assigned_employee_id
+    if (requestBody.assigned_to !== undefined) {
+      console.log('Updating assignment to:', requestBody.assigned_to)
+      updates.assigned_to = requestBody.assigned_to
       
       // If assigning someone and status is 'open', automatically move to 'in_progress'
-      if (requestBody.assigned_employee_id && !requestBody.status && currentTicket.status === 'open') {
+      if (requestBody.assigned_to && !requestBody.status && currentTicket.status === 'open') {
         updates.status = 'in_progress'
       }
     }
