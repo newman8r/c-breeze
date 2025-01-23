@@ -52,6 +52,7 @@ export default function AdminPanel() {
   const [auditLogs, setAuditLogs] = useState<any[]>([])
   const [loadingAuditLogs, setLoadingAuditLogs] = useState(false)
   const [auditLogsError, setAuditLogsError] = useState<string | null>(null)
+  const [expandedLogs, setExpandedLogs] = useState<Record<string, boolean>>({})
 
   // Protect route
   useEffect(() => {
@@ -345,8 +346,8 @@ export default function AdminPanel() {
 
           {/* Audit Logs Panel */}
           {activeTab === 'audit-logs' && (
-            <div className="space-y-6">
-              <div className="flex justify-between items-center">
+            <div className="space-y-4">
+              <div className="flex justify-between items-center mb-6">
                 <h3 className="text-xl font-bold text-[#2C5282]">System Activity Log</h3>
                 <div className="flex space-x-2">
                   <button className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full hover:bg-blue-200 transition-colors">
@@ -359,63 +360,197 @@ export default function AdminPanel() {
               </div>
 
               {loadingAuditLogs ? (
-                <div className="h-64 flex items-center justify-center">
+                <div className="h-32 flex items-center justify-center">
                   <div className="animate-pulse text-blue-500">Loading audit logs...</div>
                 </div>
               ) : auditLogsError ? (
-                <div className="h-64 flex items-center justify-center">
+                <div className="h-32 flex items-center justify-center">
                   <div className="text-red-500">
                     <p>Failed to load audit logs</p>
                     <p className="text-sm">{auditLogsError}</p>
                   </div>
                 </div>
               ) : auditLogs.length === 0 ? (
-                <div className="h-64 flex items-center justify-center">
+                <div className="h-32 flex items-center justify-center">
                   <div className="text-gray-500">
                     <p>No audit logs found</p>
                     <p className="text-sm">System activity will appear here</p>
                   </div>
                 </div>
               ) : (
-                <div className="space-y-4">
-                  {auditLogs.map((log, index) => (
-                    <motion.div
-                      key={`audit-log-${log.id || `${log.created_at}-${index}`}`}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className={`p-4 rounded-lg transition-all duration-200
-                        ${log.severity === 'error' ? 'bg-red-50 border-l-4 border-red-500' :
-                          log.severity === 'warning' ? 'bg-yellow-50 border-l-4 border-yellow-500' :
-                          'bg-white/80 hover:bg-white'}`}
-                    >
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <p className="font-medium text-gray-900">
-                            {log.action_description}
-                          </p>
-                          <p className="text-sm text-gray-500">
-                            {new Date(log.created_at).toLocaleString()}
-                          </p>
+                <div className="space-y-1">
+                  {auditLogs.map((log, index) => {
+                    // Determine action color based on type
+                    const actionColor = {
+                      create: 'text-emerald-600',
+                      update: 'text-blue-600',
+                      delete: 'text-red-600',
+                      execute: 'text-purple-600',
+                      read: 'text-gray-600',
+                      other: 'text-gray-600'
+                    }[log.action_type] || 'text-gray-600';
+
+                    // Determine resource icon based on type
+                    const resourceIcon = {
+                      organization: '🏢',
+                      employee: '👤',
+                      customer: '🤝',
+                      ticket: '🎫',
+                      tag: '🏷️',
+                      invitation: '✉️',
+                      profile: '📝',
+                      user_settings: '⚙️',
+                      system: '🔧'
+                    }[log.resource_type] || '📄';
+
+                    const logKey = log.id || `${log.created_at}-${index}`;
+                    const isExpanded = expandedLogs[logKey] || false;
+
+                    return (
+                      <motion.div
+                        key={`audit-log-${logKey}`}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.03 }}
+                        onClick={() => setExpandedLogs(prev => ({
+                          ...prev,
+                          [logKey]: !prev[logKey]
+                        }))}
+                        className={`cursor-pointer group transition-all duration-200 rounded-lg
+                          ${isExpanded ? 'bg-white shadow-lg p-4' : 'hover:bg-white/50 p-2'}
+                          ${log.severity === 'error' ? 'border-l-2 border-red-500' :
+                            log.severity === 'warning' ? 'border-l-2 border-yellow-500' :
+                            log.severity === 'critical' ? 'border-l-2 border-red-700' :
+                            'border-l-2 border-transparent'}`}
+                      >
+                        {/* Compact View */}
+                        <div className="flex items-center justify-between gap-2">
+                          {/* Left section with timestamp */}
+                          <div className="flex-shrink-0 w-32 text-xs text-gray-500">
+                            {new Date(log.created_at).toLocaleTimeString()}
+                          </div>
+
+                          {/* Center section with main info */}
+                          <div className="flex-grow flex items-center gap-2 min-w-0">
+                            <span className="flex-shrink-0">{resourceIcon}</span>
+                            <span className={`${actionColor} font-medium`}>
+                              {log.action_type}
+                            </span>
+                            <span className="truncate text-gray-600">
+                              {log.action_description}
+                            </span>
+                          </div>
+
+                          {/* Right section with metadata */}
+                          <div className="flex-shrink-0 flex items-center gap-2">
+                            {log.duration_ms && (
+                              <span className="text-xs text-gray-500">
+                                {log.duration_ms}ms
+                              </span>
+                            )}
+                            {log.status === 'failure' && (
+                              <span className="w-2 h-2 rounded-full bg-red-500"></span>
+                            )}
+                            <motion.span
+                              animate={{ rotate: isExpanded ? 180 : 0 }}
+                              className="text-gray-400 group-hover:text-gray-600"
+                            >
+                              ▼
+                            </motion.span>
+                          </div>
                         </div>
-                        <div className={`px-2 py-1 rounded text-sm
-                          ${log.severity === 'error' ? 'bg-red-100 text-red-800' :
-                            log.severity === 'warning' ? 'bg-yellow-100 text-yellow-800' :
-                            'bg-blue-100 text-blue-800'}`}
-                        >
-                          {log.severity}
-                        </div>
-                      </div>
-                      <div className="mt-2 text-sm text-gray-600">
-                        <p>Actor: {log.actor_type} ({log.actor_id})</p>
-                        <p>Action: {log.action_type} on {log.resource_type}</p>
-                        {log.action_meta && (
-                          <pre className="mt-2 p-2 bg-gray-50 rounded overflow-x-auto">
-                            {JSON.stringify(log.action_meta, null, 2)}
-                          </pre>
+
+                        {/* Expanded View */}
+                        {isExpanded && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            className="mt-4 space-y-3 text-sm"
+                          >
+                            {/* Actor Information */}
+                            <div className="flex gap-4">
+                              <div className="flex-1">
+                                <h4 className="text-xs uppercase text-gray-500 mb-1">Actor</h4>
+                                <p className="text-gray-700">
+                                  {log.actor_type} {log.actor_id && `(${log.actor_id})`}
+                                </p>
+                              </div>
+                              <div className="flex-1">
+                                <h4 className="text-xs uppercase text-gray-500 mb-1">Resource</h4>
+                                <p className="text-gray-700">
+                                  {log.resource_type} {log.resource_id && `(${log.resource_id})`}
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Technical Details */}
+                            <div className="flex gap-4">
+                              <div className="flex-1">
+                                <h4 className="text-xs uppercase text-gray-500 mb-1">Client Info</h4>
+                                <p className="text-gray-700">
+                                  {log.ip_address && <span className="mr-2">IP: {log.ip_address}</span>}
+                                  {log.session_id && <span>Session: {log.session_id}</span>}
+                                </p>
+                              </div>
+                              <div className="flex-1">
+                                <h4 className="text-xs uppercase text-gray-500 mb-1">Performance</h4>
+                                <p className="text-gray-700">
+                                  {log.duration_ms ? `${log.duration_ms}ms` : 'N/A'}
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Metadata Sections */}
+                            {(log.action_meta || log.details_before || log.details_after) && (
+                              <div className="space-y-2">
+                                {log.action_meta && (
+                                  <div>
+                                    <h4 className="text-xs uppercase text-gray-500 mb-1">Metadata</h4>
+                                    <pre className="bg-gray-50 p-2 rounded text-xs overflow-x-auto">
+                                      {JSON.stringify(log.action_meta, null, 2)}
+                                    </pre>
+                                  </div>
+                                )}
+                                {(log.details_before || log.details_after) && (
+                                  <div className="grid grid-cols-2 gap-4">
+                                    {log.details_before && (
+                                      <div>
+                                        <h4 className="text-xs uppercase text-gray-500 mb-1">Before</h4>
+                                        <pre className="bg-gray-50 p-2 rounded text-xs overflow-x-auto">
+                                          {JSON.stringify(log.details_before, null, 2)}
+                                        </pre>
+                                      </div>
+                                    )}
+                                    {log.details_after && (
+                                      <div>
+                                        <h4 className="text-xs uppercase text-gray-500 mb-1">After</h4>
+                                        <pre className="bg-gray-50 p-2 rounded text-xs overflow-x-auto">
+                                          {JSON.stringify(log.details_after, null, 2)}
+                                        </pre>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Error Information */}
+                            {log.status === 'failure' && (
+                              <div className="bg-red-50 p-3 rounded">
+                                <h4 className="text-xs uppercase text-red-700 mb-1">Error Details</h4>
+                                {log.error_code && (
+                                  <p className="text-red-600 font-mono">{log.error_code}</p>
+                                )}
+                                {log.error_message && (
+                                  <p className="text-red-700 mt-1">{log.error_message}</p>
+                                )}
+                              </div>
+                            )}
+                          </motion.div>
                         )}
-                      </div>
-                    </motion.div>
-                  ))}
+                      </motion.div>
+                    );
+                  })}
                 </div>
               )}
             </div>
