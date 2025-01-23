@@ -4,6 +4,15 @@ import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { createClient } from '@/utils/supabase'
 
+interface Employee {
+  id: string
+  first_name: string
+  last_name: string
+  email: string
+  role: string
+  avatar?: string
+}
+
 interface Ticket {
   id: string
   title: string
@@ -112,6 +121,9 @@ export const FullScreenTicket = ({ ticket, onClose }: FullScreenTicketProps) => 
   const [keywords, setKeywords] = useState<string[]>([]);
   const [showKeywordSuggestions, setShowKeywordSuggestions] = useState(false);
   const [keywordInput, setKeywordInput] = useState('');
+  const [orgUsers, setOrgUsers] = useState<Employee[]>([])
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false)
+  const [assignmentError, setAssignmentError] = useState<string | null>(null)
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -126,6 +138,48 @@ export const FullScreenTicket = ({ ticket, onClose }: FullScreenTicketProps) => 
     document.addEventListener('click', handleClickOutside);
     return () => document.removeEventListener('click', handleClickOutside);
   }, []);
+
+  // Fetch organization users
+  useEffect(() => {
+    const fetchOrgUsers = async () => {
+      try {
+        setIsLoadingUsers(true)
+        const supabase = createClient()
+        const { data: { session } } = await supabase.auth.getSession()
+        
+        if (!session?.access_token) {
+          throw new Error('No access token available')
+        }
+
+        const response = await fetch('http://localhost:54321/functions/v1/list_org_users', {
+          headers: {
+            Authorization: `Bearer ${session.access_token}`
+          }
+        })
+
+        const data = await response.json()
+        
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to fetch users')
+        }
+
+        // Transform the data to include a default avatar
+        const usersWithAvatars = data.users.map((user: Employee) => ({
+          ...user,
+          avatar: '👤' // Using a single avatar for all users as requested
+        }))
+
+        setOrgUsers(usersWithAvatars)
+      } catch (error) {
+        console.error('Error fetching org users:', error)
+        setAssignmentError('Failed to load users')
+      } finally {
+        setIsLoadingUsers(false)
+      }
+    }
+
+    fetchOrgUsers()
+  }, [])
 
   const handleStatusChange = async (newStatus: string) => {
     try {
@@ -154,6 +208,43 @@ export const FullScreenTicket = ({ ticket, onClose }: FullScreenTicketProps) => 
     } catch (error) {
       console.error('Failed to update priority:', error)
       // You might want to show an error message to the user here
+    }
+  }
+
+  const handleAssignUser = async (userId: string | null) => {
+    try {
+      setAssignmentError(null)
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+
+      if (!session?.access_token) {
+        throw new Error('No access token available')
+      }
+
+      const response = await fetch('http://localhost:54321/functions/v1/modify-ticket', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          ticket_id: ticket.id,
+          assigned_employee_id: userId
+        })
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to assign user')
+      }
+
+      // Update the local ticket state with the new assignment
+      ticket.assigned_employee = userId ? orgUsers.find(user => user.id === userId) || null : null
+      setShowAssignModal(false)
+    } catch (error) {
+      console.error('Error assigning user:', error)
+      setAssignmentError('Failed to assign user')
     }
   }
 
@@ -679,6 +770,11 @@ export const FullScreenTicket = ({ ticket, onClose }: FullScreenTicketProps) => 
                         </svg>
                       </button>
                     </div>
+                    {assignmentError && (
+                      <div className="mb-4 p-2 bg-red-50 text-red-600 rounded-lg text-sm">
+                        {assignmentError}
+                      </div>
+                    )}
                     <div className="relative mb-4">
                       <input
                         type="text"
@@ -692,39 +788,58 @@ export const FullScreenTicket = ({ ticket, onClose }: FullScreenTicketProps) => 
                       </svg>
                     </div>
                     <div className="max-h-[300px] overflow-y-auto">
-                      {mockOrgUsers
-                        .filter(user => 
-                          `${user.first_name} ${user.last_name} ${user.email}`
-                            .toLowerCase()
-                            .includes(searchQuery.toLowerCase())
-                        )
-                        .map(user => (
+                      {isLoadingUsers ? (
+                        <div className="flex items-center justify-center py-4">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#4A90E2]"></div>
+                        </div>
+                      ) : (
+                        <>
+                          {/* Unassign option */}
                           <div
-                            key={user.id}
                             className="flex items-center gap-3 p-3 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors"
-                            onClick={() => {
-                              // Assignment logic will go here
-                              setShowAssignModal(false)
-                            }}
+                            onClick={() => handleAssignUser(null)}
                           >
                             <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-lg">
-                              {user.avatar}
+                              ❌
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="font-medium text-[#2C5282] truncate">
-                                {user.first_name} {user.last_name}
-                              </p>
-                              <p className="text-sm text-gray-500 truncate">{user.email}</p>
+                              <p className="font-medium text-[#2C5282] truncate">Unassign</p>
+                              <p className="text-sm text-gray-500 truncate">Remove current assignment</p>
                             </div>
-                            {ticket.assigned_employee?.id === user.id && (
-                              <span className="text-[#4A90E2]">
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                </svg>
-                              </span>
-                            )}
                           </div>
-                        ))}
+                          {/* User list */}
+                          {orgUsers
+                            .filter(user => 
+                              `${user.first_name} ${user.last_name} ${user.email}`
+                                .toLowerCase()
+                                .includes(searchQuery.toLowerCase())
+                            )
+                            .map(user => (
+                              <div
+                                key={user.id}
+                                className="flex items-center gap-3 p-3 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors"
+                                onClick={() => handleAssignUser(user.id)}
+                              >
+                                <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-lg">
+                                  {user.avatar}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-medium text-[#2C5282] truncate">
+                                    {user.first_name} {user.last_name}
+                                  </p>
+                                  <p className="text-sm text-gray-500 truncate">{user.email}</p>
+                                </div>
+                                {ticket.assigned_employee?.id === user.id && (
+                                  <span className="text-[#4A90E2]">
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                    </svg>
+                                  </span>
+                                )}
+                              </div>
+                            ))}
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
