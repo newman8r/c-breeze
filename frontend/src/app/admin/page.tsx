@@ -177,21 +177,23 @@ export default function AdminPanel() {
       }
 
       // Log the invitation creation
-      const { error: auditError } = await supabase.rpc('log_audit_event', {
-        _organization_id: data.invitation.organization_id,
-        _actor_id: user?.id,
-        _actor_type: 'employee',
-        _action_type: 'create',
-        _resource_type: 'invitation',
-        _resource_id: data.invitation.id,
-        _action_description: 'Created new employee invitation',
-        _action_meta: {
-          invitee_email: inviteForm.email,
-          invitee_name: inviteForm.name,
-          role: inviteForm.role
-        },
-        _severity: 'info',
-        _status: 'success'
+      const { error: auditError } = await supabase.functions.invoke('audit-logger', {
+        body: {
+          organization_id: data.invitation.organization_id,
+          actor_id: user?.id,
+          actor_type: 'employee',
+          action_type: 'create',
+          resource_type: 'invitation',
+          resource_id: data.invitation.id,
+          action_description: 'Created new employee invitation',
+          action_meta: {
+            invitee_email: inviteForm.email,
+            invitee_name: inviteForm.name,
+            role: inviteForm.role
+          },
+          severity: 'info',
+          status: 'success'
+        }
       })
 
       if (auditError) {

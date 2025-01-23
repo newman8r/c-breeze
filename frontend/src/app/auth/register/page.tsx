@@ -117,20 +117,22 @@ export default function RegisterPage() {
 
       // Log organization creation
       console.log('Logging organization creation...')
-      const { error: orgAuditError } = await serviceClient.rpc('log_audit_event', {
-        _organization_id: orgData.id,
-        _actor_id: authData.user.id,
-        _actor_type: 'employee',
-        _action_type: 'create',
-        _resource_type: 'organization',
-        _resource_id: orgData.id,
-        _action_description: 'New organization created during registration',
-        _action_meta: {
-          org_name: orgName,
-          created_by: authData.user.id
-        },
-        _severity: 'info',
-        _status: 'success'
+      const { error: orgAuditError } = await serviceClient.functions.invoke('audit-logger', {
+        body: {
+          organization_id: orgData.id,
+          actor_id: authData.user.id,
+          actor_type: 'employee',
+          action_type: 'create',
+          resource_type: 'organization',
+          resource_id: orgData.id,
+          action_description: 'New organization created during registration',
+          action_meta: {
+            org_name: orgName,
+            created_by: authData.user.id
+          },
+          severity: 'info',
+          status: 'success'
+        }
       })
 
       if (orgAuditError) {
@@ -167,20 +169,22 @@ export default function RegisterPage() {
 
       // Log employee creation
       console.log('Logging employee creation...')
-      const { error: empAuditError } = await serviceClient.rpc('log_audit_event', {
-        _organization_id: orgData.id,
-        _actor_id: authData.user.id,
-        _actor_type: 'employee',
-        _action_type: 'create',
-        _resource_type: 'employee',
-        _resource_id: employeeCheck.id,
-        _action_description: 'New root employee registered',
-        _action_meta: {
-          user_email: email,
-          is_root_user: true
-        },
-        _severity: 'info',
-        _status: 'success'
+      const { error: empAuditError } = await serviceClient.functions.invoke('audit-logger', {
+        body: {
+          organization_id: orgData.id,
+          actor_id: authData.user.id,
+          actor_type: 'employee',
+          action_type: 'create',
+          resource_type: 'employee',
+          resource_id: employeeCheck.id,
+          action_description: 'New root employee registered',
+          action_meta: {
+            user_email: email,
+            is_root_user: true
+          },
+          severity: 'info',
+          status: 'success'
+        }
       })
 
       if (empAuditError) {

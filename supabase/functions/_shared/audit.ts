@@ -28,10 +28,22 @@ export async function logAuditEvent(
   if (params.client_ip) {
     console.log('Raw client IP:', params.client_ip)
     
+    // Handle comma-separated IP addresses (e.g. from x-forwarded-for)
     const firstIp = params.client_ip.split(',')[0].trim()
     console.log('Parsed IP:', firstIp)
     
-    ipAddress = firstIp
+    // Basic IP validation (IPv4 or IPv6)
+    const ipv4Regex = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/
+    const ipv6Regex = /^[0-9a-fA-F:]+$/
+    
+    if (ipv4Regex.test(firstIp) || ipv6Regex.test(firstIp)) {
+      ipAddress = firstIp
+      console.log('Valid IP address detected:', ipAddress)
+    } else {
+      console.warn('Invalid IP address format:', firstIp)
+    }
+  } else {
+    console.log('No client IP provided')
   }
 
   try {

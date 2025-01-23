@@ -140,20 +140,22 @@ export default function InvitationForm() {
       if (acceptError) throw acceptError;
 
       // Log invitation acceptance
-      const { error: acceptAuditError } = await supabase.rpc('log_audit_event', {
-        _organization_id: invitation?.organization_id,
-        _actor_id: authData.user?.id,
-        _actor_type: 'employee',
-        _action_type: 'update',
-        _resource_type: 'invitation',
-        _resource_id: invitation?.id,
-        _action_description: 'Accepted employee invitation',
-        _action_meta: {
-          invitee_email: formData.email,
-          invitee_name: `${formData.firstName} ${formData.lastName}`
-        },
-        _severity: 'info',
-        _status: 'success'
+      const { error: acceptAuditError } = await supabase.functions.invoke('audit-logger', {
+        body: {
+          organization_id: invitation?.organization_id,
+          actor_id: authData.user?.id,
+          actor_type: 'employee',
+          action_type: 'update',
+          resource_type: 'invitation',
+          resource_id: invitation?.id,
+          action_description: 'Accepted employee invitation',
+          action_meta: {
+            invitee_email: formData.email,
+            invitee_name: `${formData.firstName} ${formData.lastName}`
+          },
+          severity: 'info',
+          status: 'success'
+        }
       });
 
       if (acceptAuditError) {
@@ -185,22 +187,24 @@ export default function InvitationForm() {
       }
 
       // Log new employee account creation
-      const { error: employeeAuditError } = await supabase.rpc('log_audit_event', {
-        _organization_id: invitation?.organization_id,
-        _actor_id: authData.user?.id,
-        _actor_type: 'employee',
-        _action_type: 'create',
-        _resource_type: 'employee',
-        _resource_id: employee?.id,
-        _action_description: 'New employee account created via invitation',
-        _action_meta: {
-          email: formData.email,
-          first_name: formData.firstName,
-          last_name: formData.lastName,
-          invitation_id: invitation?.id
-        },
-        _severity: 'info',
-        _status: 'success'
+      const { error: employeeAuditError } = await supabase.functions.invoke('audit-logger', {
+        body: {
+          organization_id: invitation?.organization_id,
+          actor_id: authData.user?.id,
+          actor_type: 'employee',
+          action_type: 'create',
+          resource_type: 'employee',
+          resource_id: employee?.id,
+          action_description: 'New employee account created via invitation',
+          action_meta: {
+            email: formData.email,
+            first_name: formData.firstName,
+            last_name: formData.lastName,
+            invitation_id: invitation?.id
+          },
+          severity: 'info',
+          status: 'success'
+        }
       });
 
       if (employeeAuditError) {

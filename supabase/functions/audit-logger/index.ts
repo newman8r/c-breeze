@@ -1,5 +1,8 @@
-import { createClient } from '@supabase/supabase-js'
-import { serve } from 'https://deno.fresh.dev/std@v9.6.1/http/server.ts'
+// Setup type definitions for built-in Supabase Runtime APIs
+import "jsr:@supabase/functions-js/edge-runtime.d.ts"
+
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
 
 interface AuditLogRequest {
@@ -49,11 +52,23 @@ serve(async (req) => {
     console.log('Received audit log request:', JSON.stringify(requestBody, null, 2))
 
     // Extract client information
+    const clientIp = req.headers.get('x-forwarded-for') || 
+                    req.headers.get('x-real-ip') || 
+                    req.headers.get('cf-connecting-ip') ||
+                    req.headers.get('true-client-ip')
+
+    // Debug logging for IP address headers
+    console.log('IP Address Headers:', {
+      'x-forwarded-for': req.headers.get('x-forwarded-for'),
+      'x-real-ip': req.headers.get('x-real-ip'),
+      'cf-connecting-ip': req.headers.get('cf-connecting-ip'),
+      'true-client-ip': req.headers.get('true-client-ip'),
+      'selected_ip': clientIp
+    })
+
     const clientInfo = {
-      ip: req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip'),
+      ip: clientIp,
       user_agent: req.headers.get('user-agent'),
-      // Note: In testing, we're not validating IP format
-      // TODO: Implement proper IP validation for production
     }
     console.log('Client info:', JSON.stringify(clientInfo, null, 2))
 
@@ -67,7 +82,7 @@ serve(async (req) => {
       _organization_id: requestBody.organization_id,
       _actor_id: requestBody.actor_id,
       _actor_type: requestBody.actor_type,
-      _ip_address: null, // Explicitly set to null for testing
+      _ip_address: clientIp,
       _user_agent: clientInfo.user_agent,
       _action_type: requestBody.action_type,
       _action_description: requestBody.action_description,
