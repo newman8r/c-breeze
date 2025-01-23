@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useUser } from '@/contexts/UserContext'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -532,33 +532,38 @@ export default function DashboardPage() {
 
   // Add new component for full-screen ticket view
   const FullScreenTicket = ({ ticket, onClose }: { ticket: any; onClose: () => void }) => {
+    const [activeTab, setActiveTab] = useState('details'); // ['details', 'activity', 'attachments']
+    const [showAssignModal, setShowAssignModal] = useState(false);
+    const [showStatusModal, setShowStatusModal] = useState(false);
+    const [showMergeModal, setShowMergeModal] = useState(false);
+    const [showSplitModal, setShowSplitModal] = useState(false);
+    const [isSnoozing, setIsSnoozing] = useState(false);
+
     return (
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.95 }}
-        className="absolute inset-0 z-50 bg-gradient-to-br from-blue-50/95 to-white/95 backdrop-blur-sm rounded-lg overflow-hidden"
+        className="fixed inset-0 z-50 bg-gradient-to-br from-blue-50/95 to-white/95 backdrop-blur-sm overflow-y-auto"
       >
-        <div className="relative h-full p-6">
+        <div className="relative min-h-full p-6">
           {/* Bauhaus-inspired decorative elements */}
           <div className="absolute top-0 right-0 w-48 h-48 bg-yellow-200/20 rounded-full -translate-y-1/2 translate-x-1/2" />
           <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-200/20 rounded-full translate-y-1/2 -translate-x-1/2" />
           
-          {/* Close button */}
-          <button
-            onClick={onClose}
-            className="absolute top-4 right-4 p-2 rounded-full bg-white/50 hover:bg-white/80 transition-colors z-10"
-          >
-            <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-
-          {/* Content */}
-          <div className="relative z-10 max-w-3xl mx-auto">
+          {/* Header */}
+          <div className="relative z-10 max-w-6xl mx-auto">
             <div className="flex items-start justify-between mb-6">
-              <div>
-                <h2 className="text-2xl font-bold text-[#2C5282] mb-2">{ticket.title}</h2>
+              <div className="flex-1">
+                {/* Ticket ID and Title */}
+                <div className="flex flex-col gap-2">
+                  <span className="text-sm font-medium text-[#4A5568] bg-white/50 px-2 py-1 rounded w-fit">
+                    #{ticket.id}
+                  </span>
+                  <h2 className="text-2xl font-bold text-[#2C5282]">{ticket.title}</h2>
+                </div>
+                
+                {/* Status Pills */}
                 <div className="flex items-center gap-3">
                   <span className={`px-3 py-1 rounded-full text-sm font-medium
                     ${ticket.priority === 'high' ? 'bg-red-100 text-red-800' : 
@@ -580,55 +585,333 @@ export default function DashboardPage() {
                   </span>
                 </div>
               </div>
-              <div className="text-right text-sm text-gray-600">
-                <p>Created {new Date(ticket.created_at).toLocaleDateString()}</p>
-                <p>Source: {ticket.source}</p>
+
+              {/* Action Buttons */}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={onClose}
+                  className="p-2 rounded-full bg-white/50 hover:bg-white/80 transition-colors"
+                  title="Close"
+                >
+                  <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
               </div>
             </div>
 
-            <div className="bg-white/50 rounded-lg p-6 mb-6">
-              <h3 className="text-lg font-medium text-[#2C5282] mb-4">Description</h3>
-              <p className="text-gray-700 whitespace-pre-wrap">{ticket.description}</p>
-            </div>
+            {/* Main Content */}
+            <div className="grid grid-cols-3 gap-6">
+              {/* Left Column - Details and Activity */}
+              <div className="col-span-2 space-y-6">
+                {/* Tabs */}
+                <div className="flex gap-4 border-b border-gray-200">
+                  <button
+                    onClick={() => setActiveTab('details')}
+                    className={`px-4 py-2 text-sm font-medium transition-colors relative
+                      ${activeTab === 'details' ? 'text-[#2C5282]' : 'text-gray-500 hover:text-[#2C5282]'}`}
+                  >
+                    Details
+                    {activeTab === 'details' && (
+                      <motion.div
+                        layoutId="activeTab"
+                        className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#2C5282]"
+                      />
+                    )}
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('activity')}
+                    className={`px-4 py-2 text-sm font-medium transition-colors relative
+                      ${activeTab === 'activity' ? 'text-[#2C5282]' : 'text-gray-500 hover:text-[#2C5282]'}`}
+                  >
+                    Activity
+                    {activeTab === 'activity' && (
+                      <motion.div
+                        layoutId="activeTab"
+                        className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#2C5282]"
+                      />
+                    )}
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('attachments')}
+                    className={`px-4 py-2 text-sm font-medium transition-colors relative
+                      ${activeTab === 'attachments' ? 'text-[#2C5282]' : 'text-gray-500 hover:text-[#2C5282]'}`}
+                  >
+                    Attachments
+                    {activeTab === 'attachments' && (
+                      <motion.div
+                        layoutId="activeTab"
+                        className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#2C5282]"
+                      />
+                    )}
+                  </button>
+                </div>
 
-            <div className="grid grid-cols-2 gap-6">
-              <div className="bg-white/50 rounded-lg p-6">
-                <h3 className="text-lg font-medium text-[#2C5282] mb-4">Customer Details</h3>
-                <div className="space-y-3">
-                  <div>
-                    <p className="text-sm text-gray-600">Name</p>
-                    <p className="font-medium text-gray-800">{ticket.customer?.name || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Email</p>
-                    <p className="font-medium text-gray-800">{ticket.customer?.email || 'N/A'}</p>
+                {/* Tab Content */}
+                <AnimatePresence mode="wait">
+                  {activeTab === 'details' && (
+                    <motion.div
+                      key="details"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className="space-y-6"
+                    >
+                      {/* Description */}
+                      <div className="bg-white/50 rounded-lg p-6">
+                        <h3 className="text-lg font-medium text-[#2C5282] mb-4">Description</h3>
+                        <p className="text-gray-700 whitespace-pre-wrap">{ticket.description}</p>
+                      </div>
+
+                      {/* Timeline */}
+                      <div className="bg-white/50 rounded-lg p-6">
+                        <h3 className="text-lg font-medium text-[#2C5282] mb-4">Timeline</h3>
+                        <div className="space-y-4">
+                          {/* Sample timeline items */}
+                          <div className="flex gap-4">
+                            <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
+                              📝
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-[#2C5282]">Ticket Created</p>
+                              <p className="text-sm text-gray-600">{new Date(ticket.created_at).toLocaleString()}</p>
+                            </div>
+                          </div>
+                          {ticket.status_changes?.map((change: any, index: number) => (
+                            <div key={index} className="flex gap-4">
+                              <div className="w-8 h-8 rounded-full bg-yellow-100 flex items-center justify-center">
+                                🔄
+                              </div>
+                              <div>
+                                <p className="text-sm font-medium text-[#2C5282]">Status Changed to {change.new_status}</p>
+                                <p className="text-sm text-gray-600">{new Date(change.timestamp).toLocaleString()}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {activeTab === 'activity' && (
+                    <motion.div
+                      key="activity"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className="space-y-6"
+                    >
+                      {/* Activity Feed */}
+                      <div className="bg-white/50 rounded-lg p-6">
+                        <h3 className="text-lg font-medium text-[#2C5282] mb-4">Activity Feed</h3>
+                        <div className="space-y-4">
+                          {ticket.activities?.map((activity: any, index: number) => (
+                            <div key={index} className="flex gap-4">
+                              <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
+                                👤
+                              </div>
+                              <div>
+                                <p className="text-sm font-medium text-[#2C5282]">{activity.user}</p>
+                                <p className="text-sm text-gray-700">{activity.action}</p>
+                                <p className="text-xs text-gray-600">{new Date(activity.timestamp).toLocaleString()}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {activeTab === 'attachments' && (
+                    <motion.div
+                      key="attachments"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className="space-y-6"
+                    >
+                      {/* Attachments */}
+                      <div className="bg-white/50 rounded-lg p-6">
+                        <h3 className="text-lg font-medium text-[#2C5282] mb-4">Attachments</h3>
+                        <div className="grid grid-cols-2 gap-4">
+                          {ticket.attachments?.map((attachment: any, index: number) => (
+                            <div key={index} className="flex items-center gap-3 p-3 bg-white rounded-lg">
+                              <div className="w-10 h-10 rounded bg-gray-100 flex items-center justify-center">
+                                📎
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-[#2C5282] truncate">{attachment.name}</p>
+                                <p className="text-xs text-gray-600">{attachment.size}</p>
+                              </div>
+                              <button className="p-2 hover:bg-gray-100 rounded-full">
+                                ⬇️
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              {/* Right Column - Actions and Info */}
+              <div className="space-y-6">
+                {/* Action Buttons */}
+                <div className="bg-white/50 rounded-lg p-6">
+                  <h3 className="text-lg font-medium text-[#2C5282] mb-4">Actions</h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={() => {/* Handle reply */}}
+                      className="flex items-center justify-center gap-2 p-2 bg-[#4A90E2] text-white rounded-lg hover:bg-[#2C5282] transition-colors"
+                    >
+                      <span>↩️</span>
+                      <span>Reply</span>
+                    </button>
+                    <button
+                      onClick={() => {/* Handle internal note */}}
+                      className="flex items-center justify-center gap-2 p-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                    >
+                      <span>📝</span>
+                      <span>Note</span>
+                    </button>
+                    <button
+                      onClick={() => {/* Handle forward */}}
+                      className="flex items-center justify-center gap-2 p-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                    >
+                      <span>↗️</span>
+                      <span>Forward</span>
+                    </button>
+                    <button
+                      onClick={() => setShowAssignModal(true)}
+                      className="flex items-center justify-center gap-2 p-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                    >
+                      <span>👤</span>
+                      <span>Assign</span>
+                    </button>
+                    <button
+                      onClick={() => setShowStatusModal(true)}
+                      className="flex items-center justify-center gap-2 p-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                    >
+                      <span>🔄</span>
+                      <span>Status</span>
+                    </button>
+                    <button
+                      onClick={() => setIsSnoozing(true)}
+                      className="flex items-center justify-center gap-2 p-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                    >
+                      <span>⏰</span>
+                      <span>Snooze</span>
+                    </button>
+                    <button
+                      onClick={() => setShowMergeModal(true)}
+                      className="flex items-center justify-center gap-2 p-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors col-span-2"
+                    >
+                      <span>🔗</span>
+                      <span>Merge Tickets</span>
+                    </button>
+                    <button
+                      onClick={() => setShowSplitModal(true)}
+                      className="flex items-center justify-center gap-2 p-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors col-span-2"
+                    >
+                      <span>✂️</span>
+                      <span>Split Ticket</span>
+                    </button>
                   </div>
                 </div>
-              </div>
-              <div className="bg-white/50 rounded-lg p-6">
-                <h3 className="text-lg font-medium text-[#2C5282] mb-4">Assignment</h3>
-                <div className="space-y-3">
-                  <div>
-                    <p className="text-sm text-gray-600">Assigned To</p>
-                    <p className="font-medium text-gray-800">
-                      {ticket.assigned_employee ? 
-                        `${ticket.assigned_employee.first_name} ${ticket.assigned_employee.last_name}` : 
-                        'Unassigned'}
-                    </p>
-                  </div>
-                  {ticket.resolved_by && (
-                    <div>
-                      <p className="text-sm text-gray-600">Resolved By</p>
-                      <p className="font-medium text-gray-800">
-                        {ticket.resolved_by.first_name} {ticket.resolved_by.last_name}
-                      </p>
+
+                {/* Requester Information */}
+                <div className="bg-white/50 rounded-lg p-6">
+                  <h3 className="text-lg font-medium text-[#2C5282] mb-4">Requester</h3>
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
+                        👤
+                      </div>
+                      <div>
+                        <p className="font-medium text-[#2C5282]">{ticket.customer?.name}</p>
+                        <p className="text-sm text-gray-600">{ticket.customer?.email}</p>
+                      </div>
                     </div>
-                  )}
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div>
+                        <p className="text-gray-600">Company</p>
+                        <p className="font-medium text-[#2C5282]">{ticket.customer?.company || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-600">Phone</p>
+                        <p className="font-medium text-[#2C5282]">{ticket.customer?.phone || 'N/A'}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Assignment Information */}
+                <div className="bg-white/50 rounded-lg p-6">
+                  <h3 className="text-lg font-medium text-[#2C5282] mb-4">Assignment</h3>
+                  <div className="space-y-4">
+                    <div>
+                      <p className="text-sm text-gray-600">Assigned To</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <div className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center text-sm">
+                          👤
+                        </div>
+                        <p className="font-medium text-[#2C5282]">
+                          {ticket.assigned_employee ? 
+                            `${ticket.assigned_employee.first_name} ${ticket.assigned_employee.last_name}` : 
+                            'Unassigned'}
+                        </p>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Team</p>
+                      <p className="font-medium text-[#2C5282]">{ticket.team || 'N/A'}</p>
+                    </div>
+                    {ticket.due_date && (
+                      <div>
+                        <p className="text-sm text-gray-600">Due Date</p>
+                        <p className="font-medium text-[#2C5282]">
+                          {new Date(ticket.due_date).toLocaleDateString()}
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
+
+        {/* Modals */}
+        {showAssignModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            {/* Add assign modal content */}
+          </div>
+        )}
+
+        {showStatusModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            {/* Add status modal content */}
+          </div>
+        )}
+
+        {showMergeModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            {/* Add merge modal content */}
+          </div>
+        )}
+
+        {showSplitModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            {/* Add split modal content */}
+          </div>
+        )}
+
+        {isSnoozing && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            {/* Add snooze modal content */}
+          </div>
+        )}
       </motion.div>
     );
   };
