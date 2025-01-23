@@ -7,6 +7,8 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { corsHeaders } from '../_shared/cors.ts'
+import { logAuditEvent } from '../_shared/audit.ts'
 
 console.log("Hello from Functions!")
 
@@ -64,6 +66,32 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
+
+    // Verify auth
+    const authHeader = req.headers.get('Authorization')
+    console.log("Auth header present:", !!authHeader)
+    
+    if (!authHeader || authHeader === 'Bearer undefined') {
+      return new Response(
+        JSON.stringify({ error: 'No valid auth header' }),
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 401
+        }
+      )
+    }
+
+    const { data: { user }, error: userError } = await supabaseClient.auth.getUser(authHeader.replace('Bearer ', ''))
+    
+    if (userError || !user) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid auth token' }),
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 401
+        }
+      )
+    }
 
     // Get the current state of the ticket for audit logging
     const { data: currentTicket, error: fetchError } = await supabaseClient
@@ -129,19 +157,6 @@ serve(async (req) => {
       }
     })
 
-    // Get user ID from auth header if available
-    let userId: string | undefined
-    const authHeader = req.headers.get('authorization')
-    if (authHeader) {
-      try {
-        const token = authHeader.split(' ')[1]
-        const { data: { user } } = await supabaseClient.auth.getUser(token)
-        userId = user?.id
-      } catch (error) {
-        console.warn('Could not get user ID from token:', error)
-      }
-    }
-
     // Get organization ID from the ticket
     const { data: ticketOrg } = await supabaseClient
       .from('tickets')
@@ -149,38 +164,31 @@ serve(async (req) => {
       .eq('id', requestBody.ticket_id)
       .single()
 
-    const auditEntry: AuditLogEntry = {
+    // Get client IP address
+    const clientIp = req.headers.get('x-forwarded-for') || 
+                    req.headers.get('x-real-ip') || 
+                    req.headers.get('cf-connecting-ip')
+
+    console.log('Logging ticket modification to audit log...')
+    const { success: auditSuccess, error: auditError } = await logAuditEvent(supabaseClient, {
       organization_id: ticketOrg.organization_id,
-      actor_id: userId,
-      actor_type: userId ? 'employee' : 'system',
+      actor_id: user.id,
+      actor_type: 'employee',
       action_type: 'update',
-      action_description: `Modified ticket: ${Object.keys(changes).join(', ')}`,
       resource_type: 'ticket',
       resource_id: requestBody.ticket_id,
+      action_description: `Modified ticket: ${Object.keys(changes).join(', ')}`,
+      action_meta: changes,
       details_before: currentTicket,
-      details_after: updatedTicket
-    }
+      details_after: updatedTicket,
+      severity: 'info',
+      status: 'success',
+      client_ip: clientIp
+    })
 
-    console.log('Attempting to create audit log entry:', auditEntry)
-
-    const { error: auditError } = await supabaseClient
-      .rpc('log_audit_event', {
-        _organization_id: auditEntry.organization_id,
-        _actor_id: auditEntry.actor_id,
-        _actor_type: auditEntry.actor_type,
-        _action_type: auditEntry.action_type,
-        _action_description: auditEntry.action_description,
-        _resource_type: auditEntry.resource_type,
-        _resource_id: auditEntry.resource_id,
-        _details_before: auditEntry.details_before,
-        _details_after: auditEntry.details_after
-      })
-
-    if (auditError) {
-      console.error('Error creating audit log entry. Full error:', auditError)
-      console.error('Error code:', auditError.code)
-      console.error('Error message:', auditError.message)
-      console.error('Error details:', auditError.details)
+    if (!auditSuccess) {
+      console.error('Failed to log audit event:', auditError)
+      // Don't throw error here - we don't want to fail the ticket update if audit logging fails
     } else {
       console.log('Successfully created audit log entry')
     }

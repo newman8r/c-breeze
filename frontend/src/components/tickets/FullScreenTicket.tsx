@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@/utils/supabase'
 
 interface Ticket {
   id: string
@@ -69,14 +69,19 @@ async function modifyTicket(updates: {
 }) {
   try {
     console.log('Sending request with updates:', updates)
-    const session = await supabase.auth.getSession()
+    const supabase = createClient()
+    const { data: { session } } = await supabase.auth.getSession()
     console.log('Auth session:', session)
+
+    if (!session?.access_token) {
+      throw new Error('No access token available')
+    }
 
     const response = await fetch('http://localhost:54321/functions/v1/modify-ticket', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${session.data.session?.access_token}`
+        Authorization: `Bearer ${session.access_token}`
       },
       body: JSON.stringify(updates)
     })
