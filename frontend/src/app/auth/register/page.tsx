@@ -119,7 +119,8 @@ export default function RegisterPage() {
       console.log('Logging organization creation...')
       const { error: orgAuditError } = await serviceClient.rpc('log_audit_event', {
         _organization_id: orgData.id,
-        _actor_type: 'system',
+        _actor_id: authData.user.id,
+        _actor_type: 'employee',
         _action_type: 'create',
         _resource_type: 'organization',
         _resource_id: orgData.id,
@@ -168,7 +169,8 @@ export default function RegisterPage() {
       console.log('Logging employee creation...')
       const { error: empAuditError } = await serviceClient.rpc('log_audit_event', {
         _organization_id: orgData.id,
-        _actor_type: 'system',
+        _actor_id: authData.user.id,
+        _actor_type: 'employee',
         _action_type: 'create',
         _resource_type: 'employee',
         _resource_id: employeeCheck.id,
