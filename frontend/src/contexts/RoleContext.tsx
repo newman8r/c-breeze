@@ -61,6 +61,18 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
           .single()
 
         if (employeeError) {
+          // During registration, the employee record won't exist yet
+          // This is expected, so we'll handle it gracefully
+          if (employeeError.code === 'PGRST116') {
+            if (mounted) {
+              setRole(null)
+              setIsRootAdmin(false)
+              setOrganizationId(null)
+              setLoading(false)
+            }
+            return
+          }
+          // For other errors, log them as they might be actual issues
           console.error('Error fetching employee data:', employeeError)
           throw employeeError
         }

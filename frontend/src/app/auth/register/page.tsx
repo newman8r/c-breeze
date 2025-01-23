@@ -115,6 +115,28 @@ export default function RegisterPage() {
       if (orgError) throw orgError
       console.log('Organization created successfully')
 
+      // Log organization creation
+      console.log('Logging organization creation...')
+      const { error: orgAuditError } = await serviceClient.rpc('log_audit_event', {
+        _organization_id: orgData.id,
+        _actor_type: 'system',
+        _action_type: 'create',
+        _resource_type: 'organization',
+        _resource_id: orgData.id,
+        _action_description: 'New organization created during registration',
+        _action_meta: {
+          org_name: orgName,
+          created_by: authData.user.id
+        },
+        _severity: 'info',
+        _status: 'success'
+      })
+
+      if (orgAuditError) {
+        console.error('Failed to log organization creation:', orgAuditError)
+        // Don't throw, continue with registration
+      }
+
       // 3. Wait for trigger completion
       console.log('Waiting for database triggers to complete...')
       const triggerCompleted = await waitForTriggerCompletion(
@@ -141,6 +163,28 @@ export default function RegisterPage() {
         throw new Error('Failed to verify employee record')
       }
       console.log('Employee record verified successfully')
+
+      // Log employee creation
+      console.log('Logging employee creation...')
+      const { error: empAuditError } = await serviceClient.rpc('log_audit_event', {
+        _organization_id: orgData.id,
+        _actor_type: 'system',
+        _action_type: 'create',
+        _resource_type: 'employee',
+        _resource_id: employeeCheck.id,
+        _action_description: 'New root employee registered',
+        _action_meta: {
+          user_email: email,
+          is_root_user: true
+        },
+        _severity: 'info',
+        _status: 'success'
+      })
+
+      if (empAuditError) {
+        console.error('Failed to log employee creation:', empAuditError)
+        // Don't throw, continue with registration
+      }
 
       // 5. Only now sign in to get session
       console.log('Signing in user...')
