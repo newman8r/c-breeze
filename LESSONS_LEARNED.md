@@ -115,6 +115,8 @@
 - Always test migrations locally first with `supabase db reset`
 - Push to production using `supabase db push`
 - Verify changes in Supabase dashboard after pushing
+- If encountering unexpected database behavior, check if all migrations have been applied using `supabase migration list`
+- Pay attention to migrations that show up in LOCAL but not in REMOTE - these need to be applied
 
 ### Deployment Issues
 1. If changes aren't reflecting:
@@ -296,4 +298,57 @@ sudo npx supabase link --project-ref dryluaztyuofappqaqkp
    - Clear browser storage
    - Restart development server
 
-Remember: Auth state management is critical for security. Always err on the side of forcing a clean state rather than trying to recover from an inconsistent one. 
+Remember: Auth state management is critical for security. Always err on the side of forcing a clean state rather than trying to recover from an inconsistent one.
+
+### Registration Flow Best Practices
+
+#### Race Conditions with RLS and Auth State
+- **Problem**: Role/Employee data access fails immediately after registration
+- **Impact**: Users see errors or blank states when accessing RLS-protected data
+- **Root Cause**: Auth context tries to fetch role data before database triggers complete
+
+#### Solution Pattern
+1. **Correct Registration Order**:
+   ```typescript
+   // ❌ Problematic Pattern
+   1. Sign up and get session
+   2. Create organization
+   3. Try to access employee data (fails due to RLS)
+   
+   // ✅ Correct Pattern
+   1. Sign up (without session)
+   2. Create organization with service role
+   3. Wait for triggers to complete
+   4. Verify employee record exists
+   5. Only then sign in to get session
+   ```
+
+2. **Helper Function for Trigger Completion**:
+   ```typescript
+   async function waitForTriggerCompletion(
+     supabase: any,
+     userId: string,
+     orgId: string,
+     maxAttempts = 10,
+     delayMs = 1000
+   ): Promise<boolean> {
+     // Try multiple times with delay
+     // Use both direct access and RPC calls
+     // Refresh session periodically
+   }
+   ```
+
+3. **Strategic Console Logging**:
+   - Log each step of registration process
+   - Include timing information
+   - Log both success and failure states
+   - Helps diagnose issues in production
+
+#### Key Takeaways
+1. Never assume database triggers complete instantly
+2. Create all required records before setting auth session
+3. Use service role client for initial setup
+4. Verify record creation before proceeding
+5. Add comprehensive logging for debugging
+
+Remember: Auth state changes trigger context updates immediately. Ensure all required data exists before triggering these updates. 

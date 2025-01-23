@@ -139,6 +139,30 @@ export default function InvitationForm() {
 
       if (acceptError) throw acceptError;
 
+      // Log invitation acceptance
+      const { error: acceptAuditError } = await supabase.functions.invoke('audit-logger', {
+        body: {
+          organization_id: invitation?.organization_id,
+          actor_id: authData.user?.id,
+          actor_type: 'employee',
+          action_type: 'update',
+          resource_type: 'invitation',
+          resource_id: invitation?.id,
+          action_description: 'Accepted employee invitation',
+          action_meta: {
+            invitee_email: formData.email,
+            invitee_name: `${formData.firstName} ${formData.lastName}`
+          },
+          severity: 'info',
+          status: 'success'
+        }
+      });
+
+      if (acceptAuditError) {
+        console.error('Failed to log invitation acceptance:', acceptAuditError);
+        // Don't throw, continue with flow
+      }
+
       // Wait for a short time to ensure the employee record is created
       await new Promise(resolve => setTimeout(resolve, 1000));
 
@@ -160,6 +184,32 @@ export default function InvitationForm() {
           .single();
         
         if (retryError) throw new Error('Failed to verify employee setup');
+      }
+
+      // Log new employee account creation
+      const { error: employeeAuditError } = await supabase.functions.invoke('audit-logger', {
+        body: {
+          organization_id: invitation?.organization_id,
+          actor_id: authData.user?.id,
+          actor_type: 'employee',
+          action_type: 'create',
+          resource_type: 'employee',
+          resource_id: employee?.id,
+          action_description: 'New employee account created via invitation',
+          action_meta: {
+            email: formData.email,
+            first_name: formData.firstName,
+            last_name: formData.lastName,
+            invitation_id: invitation?.id
+          },
+          severity: 'info',
+          status: 'success'
+        }
+      });
+
+      if (employeeAuditError) {
+        console.error('Failed to log employee creation:', employeeAuditError);
+        // Don't throw, continue with flow
       }
 
       // Get a fresh session

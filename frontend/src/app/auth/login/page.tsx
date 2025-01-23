@@ -33,15 +33,38 @@ export default function LoginPage() {
     setError(null)
     
     const supabase = createClient()
+    const serviceClient = createClient()
     console.log('Starting login process...')
 
+    let signInError: Error | null = null
+
     try {
-      const { data, error: signInError } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
 
-      if (signInError) throw signInError
+      if (error) {
+        signInError = error
+        // Log failed login attempt
+        await serviceClient.functions.invoke('audit-logger', {
+          body: {
+            organization_id: 'system', // We don't know the org yet
+            actor_type: 'system',
+            action_type: 'execute',
+            resource_type: 'system',
+            action_description: 'Failed login attempt',
+            action_meta: {
+              email,
+              error: error.message
+            },
+            severity: 'warning',
+            status: 'failure',
+            error_message: error.message
+          }
+        })
+        throw error
+      }
 
       console.log('Sign in successful:', data?.session?.user?.id)
 
@@ -51,6 +74,32 @@ export default function LoginPage() {
         
         // Wait for session to be set
         await new Promise(resolve => setTimeout(resolve, 100))
+
+        // Get user's organization
+        const { data: employeeData } = await serviceClient
+          .from('employees')
+          .select('organization_id')
+          .eq('user_id', data.session.user.id)
+          .single()
+
+        // Log successful login
+        if (employeeData?.organization_id) {
+          await serviceClient.functions.invoke('audit-logger', {
+            body: {
+              organization_id: employeeData.organization_id,
+              actor_id: data.session.user.id,
+              actor_type: 'employee',
+              action_type: 'execute',
+              resource_type: 'system',
+              action_description: 'Successful login',
+              action_meta: {
+                email: data.session.user.email
+              },
+              severity: 'info',
+              status: 'success'
+            }
+          })
+        }
         
         // Force a router refresh to update navigation state
         router.refresh()
@@ -61,6 +110,26 @@ export default function LoginPage() {
     } catch (err) {
       console.error('Login error:', err)
       setError(err instanceof Error ? err.message : 'Invalid email or password')
+
+      // Log unexpected errors if it's not the same as the sign-in error we already logged
+      if (!(err === signInError)) {
+        await serviceClient.functions.invoke('audit-logger', {
+          body: {
+            organization_id: 'system', // We don't know the org yet
+            actor_type: 'system',
+            action_type: 'execute',
+            resource_type: 'system',
+            action_description: 'Unexpected error during login',
+            action_meta: {
+              email,
+              error: err instanceof Error ? err.message : 'Unknown error'
+            },
+            severity: 'error',
+            status: 'failure',
+            error_message: err instanceof Error ? err.message : 'Unknown error'
+          }
+        })
+      }
     } finally {
       setLoading(false)
     }
