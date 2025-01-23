@@ -75,7 +75,7 @@ serve(async (req: Request) => {
       .from('ticket_messages')
       .select('*')
       .eq('ticket_id', ticket_id)
-      .order('created_at', { ascending: true })
+      .order('created_at', { ascending: false })
 
     if (messagesError) {
       throw messagesError

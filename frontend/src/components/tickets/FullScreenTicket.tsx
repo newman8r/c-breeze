@@ -780,41 +780,6 @@ export const FullScreenTicket = ({ ticket, onClose }: FullScreenTicketProps) => 
                   <div className="bg-white/50 backdrop-blur-sm rounded-lg p-6">
                     <h3 className="text-lg font-medium text-[#2C5282] mb-4">Message History</h3>
                     <div className="space-y-6">
-                      {/* Initial Ticket Message */}
-                      <div className="flex gap-4">
-                        <div className="flex-shrink-0">
-                          <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
-                            {ticket.customer?.name?.[0] || '👤'}
-                          </div>
-                        </div>
-                        <div className="flex-1 space-y-2">
-                          <div className="flex items-baseline justify-between gap-2">
-                            <div>
-                              <span className="font-medium text-[#2C5282]">{ticket.customer?.name}</span>
-                              <span className="text-sm text-gray-500 ml-2">reported via web</span>
-                            </div>
-                            <span className="text-sm text-gray-500">
-                              {new Date(ticket.created_at).toLocaleString()}
-                            </span>
-                          </div>
-                          <div className="bg-white/70 rounded-lg p-4 space-y-3">
-                            <h4 className="font-medium text-[#2C5282]">{ticket.title}</h4>
-                            <div className="text-gray-700 whitespace-pre-wrap">
-                              {ticket.description}
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2 text-sm">
-                            <button className="text-gray-500 hover:text-[#2C5282] transition-colors">
-                              Reply
-                            </button>
-                            <span className="text-gray-300">•</span>
-                            <button className="text-gray-500 hover:text-[#2C5282] transition-colors">
-                              Copy Link
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-
                       {/* Loading State */}
                       {isLoadingMessages && (
                         <div className="flex items-center justify-center py-8">
@@ -892,6 +857,45 @@ export const FullScreenTicket = ({ ticket, onClose }: FullScreenTicketProps) => 
                           </div>
                         );
                       })}
+
+                      {/* Initial Ticket Message */}
+                      <div className="flex gap-4 relative">
+                        <div className="absolute -left-3 top-0 bottom-0 w-1 bg-gradient-to-b from-[#4A90E2] to-[#2C5282] rounded-full" />
+                        <div className="flex-shrink-0">
+                          <div className="w-10 h-10 rounded-full bg-[#4A90E2]/10 border-2 border-[#4A90E2] flex items-center justify-center">
+                            {ticket.customer?.name?.[0] || '👤'}
+                          </div>
+                        </div>
+                        <div className="flex-1 space-y-2">
+                          <div className="flex items-baseline justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-[#2C5282]">{ticket.customer?.name}</span>
+                              <span className="text-sm text-gray-500">reported via web</span>
+                              <span className="px-2 py-0.5 bg-[#4A90E2]/10 text-[#2C5282] rounded-full text-xs font-medium">
+                                Original Ticket 🎫
+                              </span>
+                            </div>
+                            <span className="text-sm text-gray-500">
+                              {new Date(ticket.created_at).toLocaleString()}
+                            </span>
+                          </div>
+                          <div className="bg-gradient-to-br from-white/80 to-[#4A90E2]/5 rounded-lg p-4 space-y-3 border border-[#4A90E2]/10">
+                            <h4 className="font-medium text-[#2C5282]">{ticket.title}</h4>
+                            <div className="text-gray-700 whitespace-pre-wrap">
+                              {ticket.description}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 text-sm">
+                            <button className="text-gray-500 hover:text-[#2C5282] transition-colors">
+                              Reply
+                            </button>
+                            <span className="text-gray-300">•</span>
+                            <button className="text-gray-500 hover:text-[#2C5282] transition-colors">
+                              Copy Link
+                            </button>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </motion.div>
