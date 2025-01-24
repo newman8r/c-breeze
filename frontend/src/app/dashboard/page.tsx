@@ -420,6 +420,41 @@ export default function DashboardPage() {
   // Add ticket fetching effect
   useEffect(() => {
     loadTickets()
+
+    // Set up realtime subscription
+    const supabase = createClient()
+    const channel = supabase.channel('tickets-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'tickets',
+          filter: `organization_id=eq.${organizationId}`
+        },
+        () => {
+          // Refresh tickets when a new one is added
+          loadTickets()
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'ticket_messages'
+        },
+        () => {
+          // Refresh tickets when a new message is added
+          loadTickets()
+        }
+      )
+      .subscribe()
+
+    // Cleanup subscription
+    return () => {
+      supabase.removeChannel(channel)
+    }
   }, [user, organizationId])
 
   const toggleTicketExpansion = (ticketId: string) => {
