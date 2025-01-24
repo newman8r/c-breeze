@@ -47,7 +47,7 @@ const getTicketColor = (priority: string, status: string, isHeatmap: boolean = f
   }
 }
 
-const isExpandedView = (zoom: 1 | 2 | 3) => zoom === 1 || zoom === 2
+const isExpandedView = (zoom: 1 | 2 | 3) => zoom === 1;
 
 const getZoomStyles = (zoom: 1 | 2 | 3) => {
   switch (zoom) {
@@ -205,7 +205,7 @@ export default function TicketFeed({
                   initial="exit"
                   animate={newTicketIds.current.has(ticket.id) ? ["enter", "highlight"] : "enter"}
                   exit="exit"
-                  whileHover={{ scale: zoomLevel === 3 ? 1.2 : 1.02 }}
+                  whileHover={zoomLevel === 3 ? { scale: 1.2 } : undefined}
                   variants={{
                     ...getZoomStyles(zoomLevel).variants.item,
                     exit: { opacity: 0, scale: 0.95 },
@@ -224,7 +224,7 @@ export default function TicketFeed({
                   }}
                   className={`${getZoomStyles(zoomLevel).padding} rounded-md cursor-pointer relative
                     ${zoomLevel === 3 ? getTicketColor(ticket.priority, ticket.status, true) : getTicketColor(ticket.priority, ticket.status, false, zoomLevel)}
-                    ${expandedTickets[ticket.id] && isExpandedView(zoomLevel) ? (zoomLevel === 1 ? 'col-span-full' : 'col-span-2 row-span-2') : ''}
+                    ${expandedTickets[ticket.id] && isExpandedView(zoomLevel) ? 'col-span-full' : ''}
                     ${zoomLevel === 1 ? 'w-full' : ''}
                     ${zoomLevel === 3 ? 'w-6 h-6 group hover:z-10 shrink-0' : ''}
                     min-h-[${zoomLevel === 1 ? '120px' : zoomLevel === 2 ? '80px' : '24px'}]
