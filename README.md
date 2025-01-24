@@ -6,7 +6,12 @@
 - Ticketing
 - Ticket feed heatmap
 - Admin and employee users
+- real time ticket updates
+- manage tickets, assignees, status, priority, tags, etc
+- customer portal with chat
 - Support for organizations
+- Audit logs
+- send email notifications via resend
 - User authentication (signup, login, logout)
 - Persistent sessions
 - Modern, responsive UI with ocean-inspired design
