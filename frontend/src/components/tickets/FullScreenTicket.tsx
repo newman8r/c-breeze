@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { createClient } from '@/utils/supabase'
 
@@ -325,7 +325,7 @@ export const FullScreenTicket = ({ ticket, onClose }: FullScreenTicketProps) => 
     setAttachments(attachments.filter((_, i) => i !== index));
   };
 
-  const fetchMessages = async () => {
+  const fetchMessages = useCallback(async () => {
     try {
       setIsLoadingMessages(true)
       const supabase = createClient()
@@ -353,10 +353,49 @@ export const FullScreenTicket = ({ ticket, onClose }: FullScreenTicketProps) => 
     } finally {
       setIsLoadingMessages(false)
     }
-  }
+  }, [ticket.id])
 
+  // Fetch messages
   useEffect(() => {
     fetchMessages()
+  }, [fetchMessages])
+
+  // Set up realtime subscription
+  useEffect(() => {
+    const supabase = createClient()
+    
+    const channel = supabase
+      .channel(`ticket-messages-${ticket.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'ticket_messages',
+          filter: `ticket_id=eq.${ticket.id}`,
+        },
+        async () => {
+          // Refresh messages
+          const { data: { session } } = await supabase.auth.getSession()
+          if (!session?.access_token) return
+
+          const response = await fetch(`http://localhost:54321/functions/v1/list_ticket_messages?ticket_id=${ticket.id}`, {
+            headers: {
+              Authorization: `Bearer ${session.access_token}`
+            }
+          })
+
+          if (response.ok) {
+            const data = await response.json()
+            setMessages(data.messages)
+          }
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
   }, [ticket.id])
 
   const handleSendMessage = async () => {

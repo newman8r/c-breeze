@@ -3,12 +3,12 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4'
 import { corsHeaders } from '../_shared/cors.ts'
 
 interface TicketMessage {
-  ticket_id: string
-  content: string
-  is_private: boolean
-  responding_to_id?: string
-  origin?: 'ticket' | 'email' | 'chat' | 'sms' | 'phone' | 'api' | 'other'
-  metadata?: Record<string, unknown>
+  ticket_id: string;
+  content: string;
+  is_private?: boolean;
+  responding_to_id?: string;
+  origin?: 'ticket' | 'email' | 'chat' | 'sms' | 'phone' | 'api' | 'other';
+  metadata?: Record<string, unknown>;
 }
 
 serve(async (req: Request) => {
@@ -47,53 +47,101 @@ serve(async (req: Request) => {
     }
 
     // Get request data
-    const { ticket_id, content, is_private, responding_to_id, origin = 'ticket', metadata = {} }: TicketMessage = await req.json()
+    const { ticket_id, content, is_private = false, responding_to_id, origin = 'ticket', metadata = {} }: TicketMessage = await req.json()
 
     // Validate required fields
     if (!ticket_id || !content) {
-      throw new Error('Missing required fields')
+      throw new Error('Missing required fields: ticket_id or content')
     }
 
-    // Get user's organization and role
+    // First try to get employee data
     const { data: employeeData, error: employeeError } = await supabase
       .from('employees')
-      .select('organization_id, role')
+      .select('id, organization_id')
       .eq('user_id', user.id)
       .single()
 
+    // If employee not found, try to get customer data
     if (employeeError || !employeeData) {
-      throw new Error('User not found in organization')
+      const { data: customerData, error: customerError } = await supabase
+        .from('customers')
+        .select('id, organization_id')
+        .eq('email', user.email)
+        .single()
+
+      if (customerError || !customerData) {
+        throw new Error('User not found as employee or customer')
+      }
+
+      // Verify the ticket belongs to this customer
+      const { data: ticketData, error: ticketError } = await supabase
+        .from('tickets')
+        .select('id')
+        .eq('id', ticket_id)
+        .eq('customer_id', customerData.id)
+        .eq('organization_id', customerData.organization_id)
+        .single()
+
+      if (ticketError || !ticketData) {
+        throw new Error('Ticket not found or access denied')
+      }
+
+      // Create the message as customer
+      const { data: message, error: messageError } = await supabase
+        .from('ticket_messages')
+        .insert([{
+          ticket_id,
+          organization_id: customerData.organization_id,
+          sender_id: user.id,
+          content,
+          sender_type: 'customer',
+          is_private,
+          responding_to_id,
+          origin,
+          metadata
+        }])
+        .select()
+        .single()
+
+      if (messageError) {
+        throw messageError
+      }
+
+      return new Response(
+        JSON.stringify({ message }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200,
+        }
+      )
     }
 
-    // Verify ticket belongs to user's organization
+    // Employee flow - verify ticket belongs to organization
     const { data: ticketData, error: ticketError } = await supabase
       .from('tickets')
-      .select('organization_id')
+      .select('id')
       .eq('id', ticket_id)
+      .eq('organization_id', employeeData.organization_id)
       .single()
 
     if (ticketError || !ticketData) {
-      throw new Error('Ticket not found')
+      throw new Error('Ticket not found or access denied')
     }
 
-    if (ticketData.organization_id !== employeeData.organization_id) {
-      throw new Error('Ticket does not belong to user\'s organization')
-    }
-
-    // Create the message
+    // Create the message as employee
     const { data: message, error: messageError } = await supabase
       .from('ticket_messages')
-      .insert({
+      .insert([{
         ticket_id,
         organization_id: employeeData.organization_id,
         sender_id: user.id,
-        sender_type: 'employee',
         content,
+        sender_type: 'employee',
+        is_private,
         responding_to_id,
         origin,
-        is_private,
         metadata
-      })
+      }])
       .select()
       .single()
 
@@ -102,10 +150,7 @@ serve(async (req: Request) => {
     }
 
     return new Response(
-      JSON.stringify({
-        message: 'Message created successfully',
-        data: message
-      }),
+      JSON.stringify({ message }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200,
@@ -113,9 +158,11 @@ serve(async (req: Request) => {
     )
 
   } catch (error) {
+    console.error('Function error:', error)
     return new Response(
-      JSON.stringify({
-        error: error.message
+      JSON.stringify({ 
+        error: error.message,
+        details: error.toString()
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
