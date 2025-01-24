@@ -1,11 +1,13 @@
 'use client';
 
-import InvitationForm from './InvitationForm';
 import { useEffect } from 'react';
 
-export default function InvitationPage() {
+export default function InvitationLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   useEffect(() => {
-    // Set the title and description client-side
     document.title = 'Join Organization - Invitation';
     const metaDescription = document.querySelector('meta[name="description"]');
     if (metaDescription) {
@@ -18,5 +20,5 @@ export default function InvitationPage() {
     }
   }, []);
 
-  return <InvitationForm />;
+  return <>{children}</>;
 } 

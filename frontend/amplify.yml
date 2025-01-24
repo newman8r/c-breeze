@@ -4,13 +4,15 @@ applications:
       phases:
         preBuild:
           commands:
-            - rm -rf node_modules .next
             - npm ci
         build:
           commands:
             - echo "Building with Next.js static export"
             - env | grep -e NEXT_PUBLIC_ >> .env.production
             - npm run build
+            # Copy files needed for static hosting
+            - cp public/_redirects out/_redirects
+            - cp public/rewrite-rules.json out/rewrite-rules.json
       artifacts:
         baseDirectory: out
         files:
@@ -18,4 +20,18 @@ applications:
       cache:
         paths:
           - node_modules/**/*
+          - .next/cache/**/*
+      customHeaders:
+        - pattern: '**/*'
+          headers:
+            - key: 'Cache-Control'
+              value: 'public, max-age=0, must-revalidate'
+        - pattern: '_next/**/*'
+          headers:
+            - key: 'Cache-Control'
+              value: 'public, max-age=31536000, immutable'
+        - pattern: 'static/**/*'
+          headers:
+            - key: 'Cache-Control'
+              value: 'public, max-age=31536000, immutable'
     appRoot: frontend 
