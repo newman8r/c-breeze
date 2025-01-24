@@ -4,6 +4,7 @@ import { motion } from 'framer-motion'
 import Link from 'next/link'
 import { StatusIndicator } from '@/components/ui/StatusIndicator'
 import { Ticket, SelectedTicket } from '@/types/ticket'
+import { useEffect, useRef } from 'react'
 
 interface TicketFeedProps {
   tickets: Ticket[]
@@ -110,6 +111,27 @@ export default function TicketFeed({
   toggleTicketExpansion,
   setSelectedTicket
 }: TicketFeedProps) {
+  const previousTickets = useRef<string[]>([]);
+  const newTicketIds = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    const currentTicketIds = tickets.map(t => t.id);
+    const prevTicketIds = previousTickets.current;
+    
+    // Find new tickets by comparing with previous tickets
+    const newIds = currentTicketIds.filter(id => !prevTicketIds.includes(id));
+    newIds.forEach(id => newTicketIds.current.add(id));
+    
+    // Clear highlight after animation
+    if (newIds.length > 0) {
+      setTimeout(() => {
+        newTicketIds.current = new Set();
+      }, 2000); // Slightly longer than animation duration
+    }
+    
+    previousTickets.current = currentTicketIds;
+  }, [tickets]);
+
   return (
     <motion.div 
       initial={{ opacity: 0, y: 20 }}
@@ -180,17 +202,35 @@ export default function TicketFeed({
                 <motion.div
                   key={`ticket-${ticket.id}-zoom-${zoomLevel}`}
                   layout={false}
-                  variants={getZoomStyles(zoomLevel).variants.item}
                   initial="exit"
-                  animate="enter"
+                  animate={newTicketIds.current.has(ticket.id) ? ["enter", "highlight"] : "enter"}
                   exit="exit"
+                  whileHover={{ scale: zoomLevel === 3 ? 1.2 : 1.02 }}
+                  variants={{
+                    ...getZoomStyles(zoomLevel).variants.item,
+                    exit: { opacity: 0, scale: 0.95 },
+                    enter: { opacity: 1, scale: 1 },
+                    highlight: {
+                      boxShadow: [
+                        "0 0 0 4px rgba(255, 140, 66, 0.4)",
+                        "0 0 0 4px rgba(255, 140, 66, 0)",
+                      ],
+                      transition: {
+                        duration: 1.5,
+                        ease: "easeOut",
+                        delay: 0.2
+                      }
+                    }
+                  }}
                   className={`${getZoomStyles(zoomLevel).padding} rounded-md cursor-pointer relative
                     ${zoomLevel === 3 ? getTicketColor(ticket.priority, ticket.status, true) : getTicketColor(ticket.priority, ticket.status, false, zoomLevel)}
                     ${expandedTickets[ticket.id] && isExpandedView(zoomLevel) ? (zoomLevel === 1 ? 'col-span-full' : 'col-span-2 row-span-2') : ''}
                     ${zoomLevel === 1 ? 'w-full' : ''}
                     ${zoomLevel === 3 ? 'w-6 h-6 group hover:z-10 shrink-0' : ''}
                     min-h-[${zoomLevel === 1 ? '120px' : zoomLevel === 2 ? '80px' : '24px'}]
-                    flex flex-col`}
+                    flex flex-col
+                    transition-[transform,box-shadow]
+                    hover:shadow-lg`}
                   onClick={() => {
                     setSelectedTicket({ id: ticket.id, isOpen: true });
                     isExpandedView(zoomLevel) && toggleTicketExpansion(ticket.id);
