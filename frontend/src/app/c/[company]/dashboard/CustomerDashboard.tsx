@@ -114,6 +114,11 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
 
   const handleSendMessage = async (ticketId: string) => {
     try {
+      if (!newMessage[ticketId]?.trim()) {
+        setError('Message cannot be empty');
+        return;
+      }
+
       const supabase = createClient();
       const { data: { session } } = await supabase.auth.getSession();
       
@@ -121,6 +126,7 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
         throw new Error('Not authenticated');
       }
 
+      console.log('Sending message for ticket:', ticketId);
       const response = await fetch('http://127.0.0.1:54321/functions/v1/create_ticket_message', {
         method: 'POST',
         headers: {
@@ -131,14 +137,21 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
           ticket_id: ticketId,
           content: newMessage[ticketId],
           is_private: false,
+          origin: 'ticket'
         }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to send message');
+        const errorData = await response.json();
+        console.error('Error response:', errorData);
+        throw new Error(errorData.error || 'Failed to send message');
       }
 
+      const data = await response.json();
+      console.log('Message sent successfully:', data);
+
       // Refresh tickets to show new message
+      console.log('Refreshing tickets...');
       const ticketsResponse = await fetch('http://127.0.0.1:54321/functions/v1/get-customer-tickets', {
         headers: {
           Authorization: `Bearer ${session.access_token}`,
@@ -146,14 +159,19 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
       });
 
       if (!ticketsResponse.ok) {
+        const errorData = await ticketsResponse.json();
+        console.error('Error refreshing tickets:', errorData);
         throw new Error('Failed to refresh tickets');
       }
 
-      const data = await ticketsResponse.json();
-      setTickets(data.tickets);
+      const ticketsData = await ticketsResponse.json();
+      console.log('Tickets refreshed:', ticketsData);
+      setTickets(ticketsData.tickets);
       setNewMessage({ ...newMessage, [ticketId]: '' });
+      setError(null); // Clear any existing errors
       
     } catch (err) {
+      console.error('Error in handleSendMessage:', err);
       setError(err instanceof Error ? err.message : 'Failed to send message');
     }
   };

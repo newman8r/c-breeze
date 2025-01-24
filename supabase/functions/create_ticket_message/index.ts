@@ -3,12 +3,12 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4'
 import { corsHeaders } from '../_shared/cors.ts'
 
 interface TicketMessage {
-  ticket_id: string
-  content: string
-  is_private: boolean
-  responding_to_id?: string
-  origin?: 'ticket' | 'email' | 'chat' | 'sms' | 'phone' | 'api' | 'other'
-  metadata?: Record<string, unknown>
+  ticket_id: string;
+  content: string;
+  is_private?: boolean;
+  responding_to_id?: string;
+  origin?: string;
+  metadata?: Record<string, unknown>;
 }
 
 serve(async (req: Request) => {
@@ -47,53 +47,50 @@ serve(async (req: Request) => {
     }
 
     // Get request data
-    const { ticket_id, content, is_private, responding_to_id, origin = 'ticket', metadata = {} }: TicketMessage = await req.json()
+    const { ticket_id, content, is_private = false, responding_to_id, origin = 'customer_portal', metadata = {} }: TicketMessage = await req.json()
 
     // Validate required fields
     if (!ticket_id || !content) {
-      throw new Error('Missing required fields')
+      throw new Error('Missing required fields: ticket_id or content')
     }
 
-    // Get user's organization and role
-    const { data: employeeData, error: employeeError } = await supabase
-      .from('employees')
-      .select('organization_id, role')
-      .eq('user_id', user.id)
+    // Get customer data for this user
+    const { data: customerData, error: customerError } = await supabase
+      .from('customers')
+      .select('id, organization_id')
+      .eq('email', user.email)
       .single()
 
-    if (employeeError || !employeeData) {
-      throw new Error('User not found in organization')
+    if (customerError || !customerData) {
+      throw new Error('Customer not found')
     }
 
-    // Verify ticket belongs to user's organization
+    // Verify the ticket belongs to this customer
     const { data: ticketData, error: ticketError } = await supabase
       .from('tickets')
-      .select('organization_id')
+      .select('id')
       .eq('id', ticket_id)
+      .eq('customer_id', customerData.id)
+      .eq('organization_id', customerData.organization_id)
       .single()
 
     if (ticketError || !ticketData) {
-      throw new Error('Ticket not found')
-    }
-
-    if (ticketData.organization_id !== employeeData.organization_id) {
-      throw new Error('Ticket does not belong to user\'s organization')
+      throw new Error('Ticket not found or access denied')
     }
 
     // Create the message
     const { data: message, error: messageError } = await supabase
       .from('ticket_messages')
-      .insert({
+      .insert([{
         ticket_id,
-        organization_id: employeeData.organization_id,
-        sender_id: user.id,
-        sender_type: 'employee',
+        organization_id: customerData.organization_id,
         content,
+        sender_type: 'customer',
+        is_private,
         responding_to_id,
         origin,
-        is_private,
         metadata
-      })
+      }])
       .select()
       .single()
 
@@ -103,8 +100,7 @@ serve(async (req: Request) => {
 
     return new Response(
       JSON.stringify({
-        message: 'Message created successfully',
-        data: message
+        message
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -113,9 +109,11 @@ serve(async (req: Request) => {
     )
 
   } catch (error) {
+    console.error('Function error:', error)
     return new Response(
-      JSON.stringify({
-        error: error.message
+      JSON.stringify({ 
+        error: error.message,
+        details: error.toString()
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
