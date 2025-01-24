@@ -150,6 +150,11 @@
   transform: translateY(-2px);
 }
 
+.submitButton:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
 .knowledgeBaseSection {
   background: white;
   padding: 2rem;
@@ -228,6 +233,15 @@
 
 .readMoreButton:hover {
   color: #357ABD;
+}
+
+.error {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+  padding: 0.8rem 1rem;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
 }
 
 /* Responsive adjustments */

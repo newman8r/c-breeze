@@ -2,15 +2,6 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4'
 import { corsHeaders } from '../_shared/cors.ts'
 
-interface TicketMessage {
-  ticket_id: string;
-  content: string;
-  is_private?: boolean;
-  responding_to_id?: string;
-  origin?: string;
-  metadata?: Record<string, unknown>;
-}
-
 serve(async (req: Request) => {
   // Handle CORS
   if (req.method === 'OPTIONS') {
@@ -46,14 +37,6 @@ serve(async (req: Request) => {
       throw new Error('Invalid auth token')
     }
 
-    // Get request data
-    const { ticket_id, content, is_private = false, responding_to_id, origin = 'customer_portal', metadata = {} }: TicketMessage = await req.json()
-
-    // Validate required fields
-    if (!ticket_id || !content) {
-      throw new Error('Missing required fields: ticket_id or content')
-    }
-
     // Get customer data for this user
     const { data: customerData, error: customerError } = await supabase
       .from('customers')
@@ -65,42 +48,41 @@ serve(async (req: Request) => {
       throw new Error('Customer not found')
     }
 
-    // Verify the ticket belongs to this customer
-    const { data: ticketData, error: ticketError } = await supabase
+    // Get tickets for this customer
+    const { data: tickets, error: ticketsError } = await supabase
       .from('tickets')
-      .select('id')
-      .eq('id', ticket_id)
+      .select(`
+        *,
+        ticket_messages(
+          id,
+          content,
+          sender_type,
+          created_at,
+          is_private,
+          responding_to_id,
+          origin,
+          metadata
+        )
+      `)
       .eq('customer_id', customerData.id)
       .eq('organization_id', customerData.organization_id)
-      .single()
+      .order('created_at', { ascending: false })
 
-    if (ticketError || !ticketData) {
-      throw new Error('Ticket not found or access denied')
+    if (ticketsError) {
+      throw ticketsError
     }
 
-    // Create the message
-    const { data: message, error: messageError } = await supabase
-      .from('ticket_messages')
-      .insert([{
-        ticket_id,
-        organization_id: customerData.organization_id,
-        content,
-        sender_type: 'customer',
-        is_private,
-        responding_to_id,
-        origin,
-        metadata
-      }])
-      .select()
-      .single()
-
-    if (messageError) {
-      throw messageError
-    }
+    // Filter out private messages from the response
+    const ticketsWithPublicMessages = tickets.map(ticket => ({
+      ...ticket,
+      ticket_messages: ticket.ticket_messages
+        .filter(message => !message.is_private)
+        .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+    }))
 
     return new Response(
       JSON.stringify({
-        message
+        tickets: ticketsWithPublicMessages
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

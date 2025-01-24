@@ -91,7 +91,20 @@
 
 .headerControls {
   display: flex;
+  align-items: center;
   gap: 1rem;
+  position: relative;
+  z-index: 2;
+}
+
+.userEmail {
+  color: #4A5568;
+  font-size: 0.9rem;
+  padding: 0.5rem 1rem;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  display: inline-block;
+  margin-right: 0.5rem;
 }
 
 .newTicketButton {
@@ -103,6 +116,7 @@
   font-size: 1rem;
   cursor: pointer;
   transition: transform 0.2s;
+  white-space: nowrap;
 }
 
 .logoutButton {
@@ -114,6 +128,7 @@
   font-size: 1rem;
   cursor: pointer;
   transition: transform 0.2s;
+  white-space: nowrap;
 }
 
 .newTicketButton:hover,
@@ -353,31 +368,82 @@
   display: flex;
   flex-direction: column;
   gap: 1rem;
-  margin-bottom: 1.5rem;
+  padding: 1rem;
+  max-height: 400px;
+  overflow-y: auto;
 }
 
 .message {
-  padding: 1rem;
-  border-radius: 12px;
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  width: 100%;
+}
+
+.messageAvatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background-color: #e0e0e0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  color: #666;
+  flex-shrink: 0;
+}
+
+.messageContentWrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
   max-width: 80%;
 }
 
+.messageSender {
+  font-size: 0.85rem;
+  color: #666;
+  margin-left: 0.5rem;
+}
+
+.messageContent {
+  padding: 1rem;
+  border-radius: 1rem;
+  background-color: #f5f5f5;
+  font-size: 0.95rem;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.messageTime {
+  font-size: 0.75rem;
+  color: #999;
+  margin-left: 0.5rem;
+}
+
+/* Customer message specific styles */
 .customerMessage {
-  background: linear-gradient(135deg, #4A90E2, #357ABD);
+  flex-direction: row-reverse;
+}
+
+.customerMessage .messageContent {
+  background-color: #0084ff;
   color: white;
-  align-self: flex-end;
+}
+
+.customerMessage .messageSender {
+  text-align: right;
+}
+
+.customerMessage .messageTime {
+  text-align: right;
 }
 
 .agentMessage {
   background: #f1f5f9;
   color: #2c3e50;
   align-self: flex-start;
-}
-
-.messageTime {
-  font-size: 0.8rem;
-  margin-top: 0.5rem;
-  opacity: 0.8;
 }
 
 .replyBox {
@@ -406,12 +472,41 @@
 @media (max-width: 768px) {
   .header {
     flex-direction: column;
-    align-items: stretch;
-    text-align: center;
+    align-items: flex-start;
+    gap: 2rem;
+    margin-bottom: 2rem;
+    padding: 1rem;
+  }
+
+  .header h1 {
+    font-size: 2rem;
+    width: 100%;
+    text-align: left;
   }
 
   .headerControls {
+    width: 100%;
+    flex-direction: column;
+    gap: 1rem;
+    position: relative;
+    top: auto;
+    right: auto;
+  }
+
+  .userEmail {
+    width: 100%;
+    text-align: left;
+    padding: 0.75rem;
+    font-size: 0.85rem;
+  }
+
+  .newTicketButton,
+  .logoutButton {
+    width: 100%;
+    padding: 1rem;
     justify-content: center;
+    display: flex;
+    align-items: center;
   }
 
   .message {

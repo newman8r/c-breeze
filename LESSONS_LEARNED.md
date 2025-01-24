@@ -392,4 +392,62 @@ export const createClient = () => {
 - Edge functions returning 401 unauthorized errors
 - Inconsistent auth behavior between components
 
-Remember: Auth state management is critical for security. Always err on the side of forcing a clean state rather than trying to recover from an inconsistent one. 
+Remember: Auth state management is critical for security. Always err on the side of forcing a clean state rather than trying to recover from an inconsistent one.
+
+## Next.js Static Export Issues
+
+### Dynamic Routes with Static Export
+
+#### Problem
+When using `output: 'export'` in Next.js config, you may encounter this error:
+```
+Error: Page "/path/[param]/page" is missing param "value" in "generateStaticParams()", 
+which is required with "output: export" config.
+```
+
+This occurs because static exports need to know all possible route parameters at build time.
+
+#### Solution Pattern
+1. **Implement `generateStaticParams`**:
+```typescript
+// In your [param]/page.tsx file
+export async function generateStaticParams() {
+  const supabase = createClient()
+  
+  // Fetch ALL possible parameter values
+  const { data: items } = await supabase
+    .from('your_table')
+    .select('slug')
+  
+  // Return array of param objects
+  return (items ?? []).map((item) => ({
+    param: item.slug
+  }))
+}
+```
+
+2. **Key Requirements**:
+   - Function must be at root level of page file
+   - Must be named exactly `generateStaticParams`
+   - Must return array with at least one parameter set
+   - Parameter names must match route segments
+   - Must handle database fetch errors gracefully
+
+#### Common Pitfalls
+- Missing `generateStaticParams` function
+- Function returning empty array
+- Parameter names not matching route segments
+- Database query failing during build
+- Function placed inside component instead of at root
+
+#### Best Practices
+1. Always test static builds locally before deployment:
+   ```bash
+   npm run build
+   ```
+2. Add error handling to database queries
+3. Add console logs during build to verify params
+4. Consider caching mechanism for large parameter sets
+5. Keep route parameters list reasonable in size
+
+Remember: Static exports need ALL possible routes at build time. If your dynamic routes come from database content, ensure your `generateStaticParams` function can access and return all possible values. 
