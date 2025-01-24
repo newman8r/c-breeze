@@ -446,11 +446,11 @@ export default function DashboardPage() {
           filter: `organization_id=eq.${organizationId}`
         },
         (payload) => {
-          // Update ticket status in the UI without a full refresh
+          // Update ticket status and priority in the UI without a full refresh
           setTickets(currentTickets => 
             currentTickets.map(ticket => 
               ticket.id === payload.new.id 
-                ? { ...ticket, status: payload.new.status }
+                ? { ...ticket, status: payload.new.status, priority: payload.new.priority }
                 : ticket
             )
           )
