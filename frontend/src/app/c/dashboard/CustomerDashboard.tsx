@@ -298,6 +298,36 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
     }
   };
 
+  const handleReopenTicket = async (ticketId: string) => {
+    try {
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        throw new Error('Not authenticated');
+      }
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/modify-ticket`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          ticket_id: ticketId,
+          status: 'open',
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to reopen ticket');
+      }
+      
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to reopen ticket');
+    }
+  };
+
   const toggleTicket = (ticketId: string) => {
     setExpandedTickets(prev => ({
       ...prev,
@@ -463,6 +493,19 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
                       }}
                     >
                       Close Ticket
+                    </button>
+                  )}
+                  {ticket.status === 'closed' && (
+                    <button
+                      className={`${styles.reopenTicketButton} bg-white/50 hover:bg-white/80 text-[#4A90E2] px-4 py-2 rounded-lg 
+                        border border-[#4A90E2]/20 transition-all duration-200 ease-in-out flex items-center gap-2
+                        hover:shadow-md hover:translate-y-[-1px]`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleReopenTicket(ticket.id);
+                      }}
+                    >
+                      <span className="text-lg">🌊</span> Reopen Ticket
                     </button>
                   )}
                 </div>
