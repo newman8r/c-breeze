@@ -91,7 +91,21 @@
 
 .headerControls {
   display: flex;
+  align-items: center;
   gap: 1rem;
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+}
+
+.userEmail {
+  color: #4A5568;
+  font-size: 0.9rem;
+  padding: 0.5rem 1rem;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  display: inline-block;
+  margin-right: 0.5rem;
 }
 
 .newTicketButton {
@@ -103,6 +117,7 @@
   font-size: 1rem;
   cursor: pointer;
   transition: transform 0.2s;
+  white-space: nowrap;
 }
 
 .logoutButton {
@@ -114,6 +129,7 @@
   font-size: 1rem;
   cursor: pointer;
   transition: transform 0.2s;
+  white-space: nowrap;
 }
 
 .newTicketButton:hover,

@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { createClient } from '@/utils/supabase';
 import styles from './CustomerDashboard.module.css';
 
 // Demo data based on our database schema
@@ -107,6 +108,16 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
       [ticket.id]: ticket.status === 'open'
     }), {})
   );
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function getUserEmail() {
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      setUserEmail(session?.user?.email || null);
+    }
+    getUserEmail();
+  }, []);
 
   const handleSendMessage = (ticketId: string) => {
     // TODO: Implement sending message
@@ -150,6 +161,9 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
         <div className={styles.headerDecorative} />
         <h1>Your Support Dashboard</h1>
         <div className={styles.headerControls}>
+          <span className={styles.userEmail}>
+            {userEmail ? `Logged in as: ${userEmail}` : 'Not logged in'}
+          </span>
           <button 
             className={styles.newTicketButton}
             onClick={() => setShowNewTicketForm(true)}
