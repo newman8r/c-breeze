@@ -13,12 +13,10 @@ interface Organization {
 }
 
 interface CustomerPortalContainerProps {
-  params: {
-    company: string;
-  };
+  company: string;
 }
 
-export default function CustomerPortalContainer({ params }: CustomerPortalContainerProps) {
+export default function CustomerPortalContainer({ company }: CustomerPortalContainerProps) {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,7 +33,7 @@ export default function CustomerPortalContainer({ params }: CustomerPortalContai
             'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`,
           },
           body: JSON.stringify({
-            slug: params.company,
+            slug: company,
           }),
         });
 
@@ -58,7 +56,7 @@ export default function CustomerPortalContainer({ params }: CustomerPortalContai
     };
 
     loadOrganization();
-  }, [params.company, router]);
+  }, [company, router]);
 
   const handleSubmitTicket = async (email: string, password: string, description: string) => {
     if (!organization) return;
@@ -113,7 +111,7 @@ export default function CustomerPortalContainer({ params }: CustomerPortalContai
       if (!signInData.session) throw new Error('No session returned from sign in')
 
       // 4. Redirect to dashboard
-      router.push(`/c/${params.company}/dashboard`);
+      router.push(`/c/dashboard?company=${organization.slug}`);
     } catch (err: any) {
       console.error('Error creating ticket:', err);
       setError(err.message || 'Failed to create ticket. Please try again.');

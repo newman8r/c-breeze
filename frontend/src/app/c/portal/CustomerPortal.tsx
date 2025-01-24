@@ -12,7 +12,7 @@ const demoKnowledgeBase = [
 
 interface CustomerPortalProps {
   company: string;
-  onSubmit: (email: string, description: string) => Promise<void>;
+  onSubmit: (email: string, password: string, description: string) => Promise<void>;
   isSubmitting: boolean;
   error: string | null;
 }
