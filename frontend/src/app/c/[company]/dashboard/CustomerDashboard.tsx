@@ -404,11 +404,23 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
                           message.sender_type === 'customer' ? styles.customerMessage : styles.agentMessage
                         }`}
                       >
-                        <div className={styles.messageContent}>
-                          {message.content}
+                        <div className={styles.messageAvatar}>
+                          {message.sender_type === 'customer' ? '👤' : '💼'}
                         </div>
-                        <div className={styles.messageTime}>
-                          {new Date(message.created_at).toLocaleTimeString()}
+                        <div className={styles.messageContentWrapper}>
+                          <div className={styles.messageSender}>
+                            {message.sender_type === 'customer' ? 'You' : 'Support Agent'}
+                          </div>
+                          <div className={styles.messageContent}>
+                            {message.content}
+                          </div>
+                          <div className={styles.messageTime}>
+                            {new Date(message.created_at).toLocaleTimeString([], { 
+                              hour: '2-digit', 
+                              minute: '2-digit',
+                              hour12: true 
+                            })}
+                          </div>
                         </div>
                       </div>
                     ))}

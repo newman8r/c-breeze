@@ -77,7 +77,7 @@ serve(async (req: Request) => {
       ...ticket,
       ticket_messages: ticket.ticket_messages
         .filter(message => !message.is_private)
-        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
     }))
 
     return new Response(
