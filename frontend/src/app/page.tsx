@@ -160,22 +160,22 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#E0F2F7] via-[#4A90E2]/10 to-[#F7F3E3] relative overflow-hidden">
       {/* Decorative Bauhaus Circles */}
-      <div className="absolute -top-20 -left-20 transform rotate-12">
+      <div className="absolute -top-20 -left-20 transform rotate-12 -z-10">
         <BauhausShape shape="circle" color="#4A90E2" className="opacity-[0.15] scale-[3]" />
       </div>
-      <div className="absolute top-1/4 -right-16 transform -rotate-6">
+      <div className="absolute top-1/4 -right-16 transform -rotate-6 -z-10">
         <BauhausShape shape="circle" color="#FF7676" className="opacity-[0.12] scale-[2.5]" />
       </div>
-      <div className="absolute bottom-1/3 -left-24 transform rotate-45">
+      <div className="absolute bottom-1/3 -left-24 transform rotate-45 -z-10">
         <BauhausShape shape="circle" color="#50C878" className="opacity-[0.1] scale-[4]" />
       </div>
-      <div className="absolute -bottom-16 right-20 transform -rotate-12">
+      <div className="absolute -bottom-16 right-20 transform -rotate-12 -z-10">
         <BauhausShape shape="circle" color="#FFB347" className="opacity-[0.08] scale-[3.5]" />
       </div>
 
       {/* Login Button */}
       {!loading && !user && (
-        <div className="absolute top-4 right-6 z-10">
+        <div className="absolute top-4 right-6 z-50">
           <Link 
             href="/auth/login"
             className="text-sm px-4 py-1.5 text-[#4A90E2] hover:text-[#2C5282] border border-[#4A90E2]/20 
