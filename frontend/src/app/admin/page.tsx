@@ -388,7 +388,7 @@ export default function AdminPanel() {
                       execute: 'text-purple-600',
                       read: 'text-gray-600',
                       other: 'text-gray-600'
-                    }[log.action_type] || 'text-gray-600';
+                    }[log.action_type as 'create' | 'update' | 'delete' | 'execute' | 'read' | 'other'] || 'text-gray-600';
 
                     // Determine resource icon based on type
                     const resourceIcon = {
@@ -401,7 +401,7 @@ export default function AdminPanel() {
                       profile: '📝',
                       user_settings: '⚙️',
                       system: '🔧'
-                    }[log.resource_type] || '📄';
+                    }[log.resource_type as 'organization' | 'employee' | 'customer' | 'ticket' | 'tag' | 'invitation' | 'profile' | 'user_settings' | 'system'] || '📄';
 
                     const logKey = log.id || `${log.created_at}-${index}`;
                     const isExpanded = expandedLogs[logKey] || false;
@@ -567,15 +567,70 @@ export default function AdminPanel() {
               >
                 <div className="flex justify-between items-center">
                   <h2 className="text-xl font-bold text-[#2C5282]">User Management</h2>
+                </div>
+
+                <div className="bg-white/50 rounded-lg p-4">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="text-left text-[#4A5568]">
+                        <th className="py-2">Name</th>
+                        <th>Email</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr className="border-t border-[#4A90E2]/10">
+                        <td className="py-3">John Doe</td>
+                        <td>john@example.com</td>
+                        <td>
+                          <span className="px-2 py-1 bg-[#50C878]/10 text-[#50C878] rounded-full text-sm">
+                            Active
+                          </span>
+                        </td>
+                        <td>
+                          <button className="text-[#4A90E2] hover:text-[#2C5282]">Edit</button>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </motion.div>
+            )}
+
+            {activeTab === 'employees' && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="space-y-6"
+              >
+                <div className="flex justify-between items-center mb-6">
+                  <div>
+                    <h2 className="text-xl font-bold text-[#2C5282] mb-2">Organization Members</h2>
+                    <p className="text-[#4A5568] text-sm">Manage your team members and their roles 🏖️</p>
+                  </div>
                   <button 
                     className="wave-button px-4 py-2"
                     onClick={() => setShowInviteCard(true)}
                   >
-                    Add User
+                    Invite Employee ✨
                   </button>
                 </div>
 
-                {/* Invite User Card */}
+                {userError && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-red-50 border border-red-200 text-red-600 px-6 py-4 rounded-lg shadow-sm"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">⚠️</span>
+                      <p>{userError}</p>
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* Invite Employee Modal */}
                 {showInviteCard && (
                   <motion.div
                     key="invite-user-form"
@@ -584,7 +639,7 @@ export default function AdminPanel() {
                     className="ocean-card bg-white/50"
                   >
                     <div className="flex justify-between items-start mb-4">
-                      <h3 className="text-lg font-medium text-[#2C5282]">Invite New User</h3>
+                      <h3 className="text-lg font-medium text-[#2C5282]">Invite New Employee</h3>
                       <button 
                         onClick={() => setShowInviteCard(false)}
                         className="text-[#4A5568] hover:text-[#2C5282]"
@@ -653,61 +708,6 @@ export default function AdminPanel() {
                         </button>
                       </div>
                     </form>
-                  </motion.div>
-                )}
-
-                <div className="bg-white/50 rounded-lg p-4">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="text-left text-[#4A5568]">
-                        <th className="py-2">Name</th>
-                        <th>Email</th>
-                        <th>Status</th>
-                        <th>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr className="border-t border-[#4A90E2]/10">
-                        <td className="py-3">John Doe</td>
-                        <td>john@example.com</td>
-                        <td>
-                          <span className="px-2 py-1 bg-[#50C878]/10 text-[#50C878] rounded-full text-sm">
-                            Active
-                          </span>
-                        </td>
-                        <td>
-                          <button className="text-[#4A90E2] hover:text-[#2C5282]">Edit</button>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </motion.div>
-            )}
-
-            {activeTab === 'employees' && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="space-y-6"
-              >
-                <div className="flex justify-between items-center mb-6">
-                  <div>
-                    <h2 className="text-xl font-bold text-[#2C5282] mb-2">Organization Members</h2>
-                    <p className="text-[#4A5568] text-sm">Manage your team members and their roles 🏖️</p>
-                  </div>
-                </div>
-
-                {userError && (
-                  <motion.div 
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="bg-red-50 border border-red-200 text-red-600 px-6 py-4 rounded-lg shadow-sm"
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="text-xl">⚠️</span>
-                      <p>{userError}</p>
-                    </div>
                   </motion.div>
                 )}
 
