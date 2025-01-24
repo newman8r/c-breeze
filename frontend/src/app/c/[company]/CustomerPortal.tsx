@@ -23,14 +23,13 @@ export default function CustomerPortal({
   isSubmitting,
   error 
 }: CustomerPortalProps) {
-  const [ticketQuery, setTicketQuery] = useState('');
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [description, setDescription] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (ticketQuery.trim() && email.trim()) {
-      await onSubmit(email.trim(), ticketQuery.trim());
-    }
+    await onSubmit(email, password, description);
   };
 
   return (
@@ -52,8 +51,8 @@ export default function CustomerPortal({
             <textarea
               className={styles.ticketTextarea}
               placeholder="Type your question here... We'll help you right away! ✨"
-              value={ticketQuery}
-              onChange={(e) => setTicketQuery(e.target.value)}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
               required
             />
             <input
@@ -62,6 +61,14 @@ export default function CustomerPortal({
               placeholder="Enter your email to receive updates ✉️"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+            <input
+              type="password"
+              className={styles.emailInput}
+              placeholder="Choose a password for your account 🔒"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
               required
             />
             {error && <div className={styles.error}>{error}</div>}

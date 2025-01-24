@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import CustomerPortal from './CustomerPortal';
+import { createClient } from '@/utils/supabase';
 
 interface Organization {
   id: string;
@@ -59,14 +60,30 @@ export default function CustomerPortalContainer({ params }: CustomerPortalContai
     loadOrganization();
   }, [params.company, router]);
 
-  const handleSubmitTicket = async (email: string, description: string) => {
+  const handleSubmitTicket = async (email: string, password: string, description: string) => {
     if (!organization) return;
     
     setIsSubmitting(true);
     setError(null);
 
     try {
-      // Call our edge function to create customer and ticket
+      const supabase = createClient()
+      
+      // 1. Sign up without setting session
+      const { data: authData, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            organization_id: organization.id
+          }
+        }
+      })
+
+      if (signUpError) throw signUpError
+      if (!authData.user) throw new Error('No user data returned')
+
+      // 2. Create customer and ticket
       const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/create-customer-ticket`, {
         method: 'POST',
         headers: {
@@ -77,6 +94,7 @@ export default function CustomerPortalContainer({ params }: CustomerPortalContai
           email,
           description,
           organization_id: organization.id,
+          user_id: authData.user.id
         }),
       });
 
@@ -85,9 +103,16 @@ export default function CustomerPortalContainer({ params }: CustomerPortalContai
         throw new Error(error.message || 'Failed to create ticket');
       }
 
-      const result = await response.json();
+      // 3. Sign in to get session
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      })
 
-      // Redirect to the dashboard
+      if (signInError) throw signInError
+      if (!signInData.session) throw new Error('No session returned from sign in')
+
+      // 4. Redirect to dashboard
       router.push(`/c/${params.company}/dashboard`);
     } catch (err: any) {
       console.error('Error creating ticket:', err);
