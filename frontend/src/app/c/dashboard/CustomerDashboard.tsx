@@ -328,6 +328,18 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
     }
   };
 
+  const handleSignOut = async () => {
+    try {
+      const supabase = createClient();
+      await supabase.auth.signOut();
+      
+      // Redirect to the customer portal page with the company slug
+      window.location.href = `/c?company=${company}`;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to sign out');
+    }
+  };
+
   const toggleTicket = (ticketId: string) => {
     setExpandedTickets(prev => ({
       ...prev,
@@ -422,7 +434,10 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
           >
             New Ticket ✨
           </button>
-          <button className={styles.logoutButton}>
+          <button 
+            className={styles.logoutButton}
+            onClick={handleSignOut}
+          >
             Sign Out 👋
           </button>
         </div>
