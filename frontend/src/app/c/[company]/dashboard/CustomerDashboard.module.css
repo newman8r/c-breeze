@@ -93,9 +93,8 @@
   display: flex;
   align-items: center;
   gap: 1rem;
-  position: absolute;
-  top: 1rem;
-  right: 1rem;
+  position: relative;
+  z-index: 2;
 }
 
 .userEmail {
@@ -473,12 +472,41 @@
 @media (max-width: 768px) {
   .header {
     flex-direction: column;
-    align-items: stretch;
-    text-align: center;
+    align-items: flex-start;
+    gap: 2rem;
+    margin-bottom: 2rem;
+    padding: 1rem;
+  }
+
+  .header h1 {
+    font-size: 2rem;
+    width: 100%;
+    text-align: left;
   }
 
   .headerControls {
+    width: 100%;
+    flex-direction: column;
+    gap: 1rem;
+    position: relative;
+    top: auto;
+    right: auto;
+  }
+
+  .userEmail {
+    width: 100%;
+    text-align: left;
+    padding: 0.75rem;
+    font-size: 0.85rem;
+  }
+
+  .newTicketButton,
+  .logoutButton {
+    width: 100%;
+    padding: 1rem;
     justify-content: center;
+    display: flex;
+    align-items: center;
   }
 
   .message {
