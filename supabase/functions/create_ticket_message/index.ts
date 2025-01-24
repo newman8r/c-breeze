@@ -7,7 +7,7 @@ interface TicketMessage {
   content: string;
   is_private?: boolean;
   responding_to_id?: string;
-  origin?: string;
+  origin?: 'ticket' | 'email' | 'chat' | 'sms' | 'phone' | 'api' | 'other';
   metadata?: Record<string, unknown>;
 }
 
@@ -47,45 +47,96 @@ serve(async (req: Request) => {
     }
 
     // Get request data
-    const { ticket_id, content, is_private = false, responding_to_id, origin = 'customer_portal', metadata = {} }: TicketMessage = await req.json()
+    const { ticket_id, content, is_private = false, responding_to_id, origin = 'ticket', metadata = {} }: TicketMessage = await req.json()
 
     // Validate required fields
     if (!ticket_id || !content) {
       throw new Error('Missing required fields: ticket_id or content')
     }
 
-    // Get customer data for this user
-    const { data: customerData, error: customerError } = await supabase
-      .from('customers')
+    // First try to get employee data
+    const { data: employeeData, error: employeeError } = await supabase
+      .from('employees')
       .select('id, organization_id')
-      .eq('email', user.email)
+      .eq('user_id', user.id)
       .single()
 
-    if (customerError || !customerData) {
-      throw new Error('Customer not found')
+    // If employee not found, try to get customer data
+    if (employeeError || !employeeData) {
+      const { data: customerData, error: customerError } = await supabase
+        .from('customers')
+        .select('id, organization_id')
+        .eq('email', user.email)
+        .single()
+
+      if (customerError || !customerData) {
+        throw new Error('User not found as employee or customer')
+      }
+
+      // Verify the ticket belongs to this customer
+      const { data: ticketData, error: ticketError } = await supabase
+        .from('tickets')
+        .select('id')
+        .eq('id', ticket_id)
+        .eq('customer_id', customerData.id)
+        .eq('organization_id', customerData.organization_id)
+        .single()
+
+      if (ticketError || !ticketData) {
+        throw new Error('Ticket not found or access denied')
+      }
+
+      // Create the message as customer
+      const { data: message, error: messageError } = await supabase
+        .from('ticket_messages')
+        .insert([{
+          ticket_id,
+          organization_id: customerData.organization_id,
+          sender_id: user.id,
+          content,
+          sender_type: 'customer',
+          is_private,
+          responding_to_id,
+          origin,
+          metadata
+        }])
+        .select()
+        .single()
+
+      if (messageError) {
+        throw messageError
+      }
+
+      return new Response(
+        JSON.stringify({ message }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200,
+        }
+      )
     }
 
-    // Verify the ticket belongs to this customer
+    // Employee flow - verify ticket belongs to organization
     const { data: ticketData, error: ticketError } = await supabase
       .from('tickets')
       .select('id')
       .eq('id', ticket_id)
-      .eq('customer_id', customerData.id)
-      .eq('organization_id', customerData.organization_id)
+      .eq('organization_id', employeeData.organization_id)
       .single()
 
     if (ticketError || !ticketData) {
       throw new Error('Ticket not found or access denied')
     }
 
-    // Create the message
+    // Create the message as employee
     const { data: message, error: messageError } = await supabase
       .from('ticket_messages')
       .insert([{
         ticket_id,
-        organization_id: customerData.organization_id,
+        organization_id: employeeData.organization_id,
+        sender_id: user.id,
         content,
-        sender_type: 'customer',
+        sender_type: 'employee',
         is_private,
         responding_to_id,
         origin,
@@ -99,9 +150,7 @@ serve(async (req: Request) => {
     }
 
     return new Response(
-      JSON.stringify({
-        message
-      }),
+      JSON.stringify({ message }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200,

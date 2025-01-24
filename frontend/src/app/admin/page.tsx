@@ -10,7 +10,7 @@ import type { Database } from '@/lib/database.types'
 import { useUser } from '@/contexts/UserContext'
 
 // Tab type definition
-type Tab = 'users' | 'employees' | 'ticketing' | 'automation' | 'billing' | 'audit-logs'
+type Tab = 'customers' | 'employees' | 'ticketing' | 'automation' | 'billing' | 'audit-logs'
 
 interface ApiError {
   error: string
@@ -49,6 +49,9 @@ export default function AdminPanel() {
   const [orgUsers, setOrgUsers] = useState<OrgUser[]>([])
   const [loadingUsers, setLoadingUsers] = useState(false)
   const [userError, setUserError] = useState<string | null>(null)
+  const [customers, setCustomers] = useState<any[]>([])
+  const [loadingCustomers, setLoadingCustomers] = useState(false)
+  const [customerError, setCustomerError] = useState<string | null>(null)
   const [auditLogs, setAuditLogs] = useState<any[]>([])
   const [loadingAuditLogs, setLoadingAuditLogs] = useState(false)
   const [auditLogsError, setAuditLogsError] = useState<string | null>(null)
@@ -252,6 +255,44 @@ export default function AdminPanel() {
     }
   }
 
+  // Add effect to fetch customers
+  useEffect(() => {
+    const fetchCustomers = async () => {
+      if (activeTab === 'customers') {
+        setLoadingCustomers(true)
+        setCustomerError(null)
+        try {
+          const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+          if (sessionError || !session) {
+            throw new Error('No active session')
+          }
+
+          const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/list-customers`, {
+            headers: {
+              'Authorization': `Bearer ${session.access_token}`,
+              'Content-Type': 'application/json',
+            },
+          })
+
+          if (!response.ok) {
+            const errorData = await response.json()
+            throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
+          }
+
+          const data = await response.json()
+          setCustomers(data.customers)
+        } catch (err) {
+          console.error('Error fetching customers:', err)
+          setCustomerError(err instanceof Error ? err.message : 'Failed to load customers')
+        } finally {
+          setLoadingCustomers(false)
+        }
+      }
+    }
+
+    fetchCustomers()
+  }, [activeTab, supabase])
+
   if (roleLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-[#E0F2F7] via-[#4A90E2]/10 to-[#F7F3E3] p-6">
@@ -266,7 +307,7 @@ export default function AdminPanel() {
 
   // Define tabs
   const tabs: { id: Tab; label: string }[] = [
-    { id: 'users', label: 'Users' },
+    { id: 'customers', label: 'Customers' },
     { id: 'employees', label: 'Employees' },
     { id: 'ticketing', label: 'Ticketing' },
     { id: 'automation', label: 'Automation' },
@@ -388,7 +429,7 @@ export default function AdminPanel() {
                       execute: 'text-purple-600',
                       read: 'text-gray-600',
                       other: 'text-gray-600'
-                    }[log.action_type] || 'text-gray-600';
+                    }[log.action_type as 'create' | 'update' | 'delete' | 'execute' | 'read' | 'other'] || 'text-gray-600';
 
                     // Determine resource icon based on type
                     const resourceIcon = {
@@ -401,7 +442,7 @@ export default function AdminPanel() {
                       profile: '📝',
                       user_settings: '⚙️',
                       system: '🔧'
-                    }[log.resource_type] || '📄';
+                    }[log.resource_type as 'organization' | 'employee' | 'customer' | 'ticket' | 'tag' | 'invitation' | 'profile' | 'user_settings' | 'system'] || '📄';
 
                     const logKey = log.id || `${log.created_at}-${index}`;
                     const isExpanded = expandedLogs[logKey] || false;
@@ -558,24 +599,165 @@ export default function AdminPanel() {
 
           {/* Tab Content */}
           <div className="p-6">
-            {activeTab === 'users' && (
+            {activeTab === 'customers' && (
               <motion.div
-                key="users-tab-panel"
+                key="customers-tab-panel"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 className="space-y-6"
               >
                 <div className="flex justify-between items-center">
-                  <h2 className="text-xl font-bold text-[#2C5282]">User Management</h2>
+                  <div>
+                    <h2 className="text-xl font-bold text-[#2C5282] mb-2">Customer Management</h2>
+                    <p className="text-[#4A5568] text-sm">View and manage your organization's customers 🤝</p>
+                  </div>
+                </div>
+
+                {customerError && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-red-50 border border-red-200 text-red-600 px-6 py-4 rounded-lg shadow-sm"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">⚠️</span>
+                      <p>{customerError}</p>
+                    </div>
+                  </motion.div>
+                )}
+
+                {loadingCustomers ? (
+                  <div className="ocean-card bg-white/40 backdrop-blur-sm">
+                    <div className="flex flex-col items-center justify-center py-12">
+                      <motion.div
+                        animate={{ rotate: 360 }}
+                        transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+                        className="w-12 h-12 border-4 border-[#4A90E2]/20 border-t-[#4A90E2] rounded-full"
+                      />
+                      <p className="text-[#4A5568] mt-4">Loading customers... 🌊</p>
+                    </div>
+                  </div>
+                ) : customers.length === 0 ? (
+                  <div className="ocean-card bg-white/40 backdrop-blur-sm">
+                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                      <span className="text-4xl mb-4">🏝️</span>
+                      <h3 className="text-lg font-medium text-[#2C5282] mb-2">No Customers Found</h3>
+                      <p className="text-[#4A5568] max-w-md">
+                        Your organization doesn't have any customers yet.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="ocean-card overflow-hidden p-0 bg-white/40 backdrop-blur-sm">
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full divide-y divide-[#4A90E2]/10">
+                        <thead className="bg-[#4A90E2]/5">
+                          <tr>
+                            <th scope="col" className="px-6 py-4 text-left text-xs font-medium text-[#2C5282] uppercase tracking-wider">
+                              Customer
+                            </th>
+                            <th scope="col" className="px-6 py-4 text-left text-xs font-medium text-[#2C5282] uppercase tracking-wider">
+                              Status
+                            </th>
+                            <th scope="col" className="px-6 py-4 text-left text-xs font-medium text-[#2C5282] uppercase tracking-wider">
+                              Joined
+                            </th>
+                            <th scope="col" className="px-6 py-4 text-left text-xs font-medium text-[#2C5282] uppercase tracking-wider">
+                              Actions
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-[#4A90E2]/10">
+                          {customers.map((customer, index) => (
+                            <motion.tr 
+                              key={`customer-${customer.id}`}
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ delay: index * 0.1 }}
+                              className="group hover:bg-[#4A90E2]/5 transition-colors duration-200"
+                            >
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <div className="flex items-center">
+                                  <div className="flex-shrink-0 h-10 w-10 bg-gradient-to-br from-[#4A90E2]/20 to-[#50C878]/20 rounded-full flex items-center justify-center">
+                                    <span className="text-[#2C5282] font-medium text-sm">
+                                      {(customer.name?.[0] || customer.email[0]).toUpperCase()}
+                                    </span>
+                                  </div>
+                                  <div className="ml-4">
+                                    <div className="text-sm font-medium text-[#2C5282] group-hover:text-[#4A90E2] transition-colors">
+                                      {customer.name || 'Unnamed Customer'}
+                                    </div>
+                                    <div className="text-sm text-[#4A5568]">
+                                      {customer.email}
+                                    </div>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <span className={`
+                                  px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full
+                                  ${customer.status === 'active' 
+                                    ? 'bg-green-100 text-green-800' 
+                                    : customer.status === 'pending_verification'
+                                    ? 'bg-yellow-100 text-yellow-800'
+                                    : 'bg-gray-100 text-gray-800'}
+                                `}>
+                                  {customer.status === 'active' ? '✅ Active' 
+                                    : customer.status === 'pending_verification' ? '⏳ Pending'
+                                    : '❓ Unknown'}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-[#4A5568]">
+                                {new Date(customer.created_at).toLocaleDateString()}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-[#4A5568]">
+                                <button className="text-[#4A90E2] hover:text-[#2C5282] transition-colors">
+                                  View Details
+                                </button>
+                              </td>
+                            </motion.tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </motion.div>
+            )}
+
+            {activeTab === 'employees' && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="space-y-6"
+              >
+                <div className="flex justify-between items-center mb-6">
+                  <div>
+                    <h2 className="text-xl font-bold text-[#2C5282] mb-2">Organization Members</h2>
+                    <p className="text-[#4A5568] text-sm">Manage your team members and their roles 🏖️</p>
+                  </div>
                   <button 
                     className="wave-button px-4 py-2"
                     onClick={() => setShowInviteCard(true)}
                   >
-                    Add User
+                    Invite Employee ✨
                   </button>
                 </div>
 
-                {/* Invite User Card */}
+                {userError && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-red-50 border border-red-200 text-red-600 px-6 py-4 rounded-lg shadow-sm"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">⚠️</span>
+                      <p>{userError}</p>
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* Invite Employee Modal */}
                 {showInviteCard && (
                   <motion.div
                     key="invite-user-form"
@@ -584,7 +766,7 @@ export default function AdminPanel() {
                     className="ocean-card bg-white/50"
                   >
                     <div className="flex justify-between items-start mb-4">
-                      <h3 className="text-lg font-medium text-[#2C5282]">Invite New User</h3>
+                      <h3 className="text-lg font-medium text-[#2C5282]">Invite New Employee</h3>
                       <button 
                         onClick={() => setShowInviteCard(false)}
                         className="text-[#4A5568] hover:text-[#2C5282]"
@@ -653,61 +835,6 @@ export default function AdminPanel() {
                         </button>
                       </div>
                     </form>
-                  </motion.div>
-                )}
-
-                <div className="bg-white/50 rounded-lg p-4">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="text-left text-[#4A5568]">
-                        <th className="py-2">Name</th>
-                        <th>Email</th>
-                        <th>Status</th>
-                        <th>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr className="border-t border-[#4A90E2]/10">
-                        <td className="py-3">John Doe</td>
-                        <td>john@example.com</td>
-                        <td>
-                          <span className="px-2 py-1 bg-[#50C878]/10 text-[#50C878] rounded-full text-sm">
-                            Active
-                          </span>
-                        </td>
-                        <td>
-                          <button className="text-[#4A90E2] hover:text-[#2C5282]">Edit</button>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </motion.div>
-            )}
-
-            {activeTab === 'employees' && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="space-y-6"
-              >
-                <div className="flex justify-between items-center mb-6">
-                  <div>
-                    <h2 className="text-xl font-bold text-[#2C5282] mb-2">Organization Members</h2>
-                    <p className="text-[#4A5568] text-sm">Manage your team members and their roles 🏖️</p>
-                  </div>
-                </div>
-
-                {userError && (
-                  <motion.div 
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="bg-red-50 border border-red-200 text-red-600 px-6 py-4 rounded-lg shadow-sm"
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="text-xl">⚠️</span>
-                      <p>{userError}</p>
-                    </div>
                   </motion.div>
                 )}
 

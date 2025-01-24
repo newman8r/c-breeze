@@ -68,6 +68,37 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
           [ticket.id]: ticket.status === 'open'
         }), {});
         setExpandedTickets(initialExpandedState);
+
+        // Set up realtime subscription for ticket messages
+        const channel = supabase
+          .channel('ticket-messages')
+          .on(
+            'postgres_changes',
+            {
+              event: 'INSERT',
+              schema: 'public',
+              table: 'ticket_messages',
+            },
+            async (payload) => {
+              console.log('New message received:', payload);
+              // Refresh tickets to get the latest messages
+              const refreshResponse = await fetch('http://127.0.0.1:54321/functions/v1/get-customer-tickets', {
+                headers: {
+                  Authorization: `Bearer ${session.access_token}`,
+                },
+              });
+              if (refreshResponse.ok) {
+                const refreshData = await refreshResponse.json();
+                setTickets(refreshData.tickets);
+              }
+            }
+          )
+          .subscribe();
+
+        // Cleanup subscription on unmount
+        return () => {
+          supabase.removeChannel(channel);
+        };
         
       } catch (err) {
         setError(err instanceof Error ? err.message : 'An error occurred');
@@ -267,6 +298,48 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
     }
   };
 
+  const handleReopenTicket = async (ticketId: string) => {
+    try {
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        throw new Error('Not authenticated');
+      }
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/modify-ticket`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          ticket_id: ticketId,
+          status: 'open',
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to reopen ticket');
+      }
+      
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to reopen ticket');
+    }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      const supabase = createClient();
+      await supabase.auth.signOut();
+      
+      // Redirect to the customer portal page with the company slug
+      window.location.href = `/c?company=${company}`;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to sign out');
+    }
+  };
+
   const toggleTicket = (ticketId: string) => {
     setExpandedTickets(prev => ({
       ...prev,
@@ -281,6 +354,49 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
       console.log('Files selected:', files);
     }
   };
+
+  // Add polling for open tickets
+  useEffect(() => {
+    const pollMessages = async () => {
+      try {
+        const supabase = createClient();
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (!session) {
+          console.error('No session available');
+          return;
+        }
+
+        // Only refresh if there are expanded tickets
+        const expandedTicketIds = Object.entries(expandedTickets)
+          .filter(([_, isExpanded]) => isExpanded)
+          .map(([id]) => id);
+
+        if (expandedTicketIds.length === 0) return;
+
+        const response = await fetch('http://127.0.0.1:54321/functions/v1/get-customer-tickets', {
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to refresh tickets');
+        }
+
+        const data = await response.json();
+        setTickets(data.tickets);
+      } catch (error) {
+        console.error('Error polling messages:', error);
+      }
+    };
+
+    // Set up polling interval
+    const interval = setInterval(pollMessages, 500);
+
+    // Cleanup on unmount
+    return () => clearInterval(interval);
+  }, [expandedTickets]); // Depend on expandedTickets to restart polling when tickets are expanded/collapsed
 
   if (loading) {
     return (
@@ -318,7 +434,10 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
           >
             New Ticket ✨
           </button>
-          <button className={styles.logoutButton}>
+          <button 
+            className={styles.logoutButton}
+            onClick={handleSignOut}
+          >
             Sign Out 👋
           </button>
         </div>
@@ -389,6 +508,19 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
                       }}
                     >
                       Close Ticket
+                    </button>
+                  )}
+                  {ticket.status === 'closed' && (
+                    <button
+                      className={`${styles.reopenTicketButton} bg-white/50 hover:bg-white/80 text-[#4A90E2] px-4 py-2 rounded-lg 
+                        border border-[#4A90E2]/20 transition-all duration-200 ease-in-out flex items-center gap-2
+                        hover:shadow-md hover:translate-y-[-1px]`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleReopenTicket(ticket.id);
+                      }}
+                    >
+                      <span className="text-lg">🌊</span> Reopen Ticket
                     </button>
                   )}
                 </div>
