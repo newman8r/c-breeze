@@ -1,0 +1,49 @@
+{
+  "rewrites": [
+    {
+      "source": "^/$",
+      "target": "/index.html",
+      "status": "200"
+    },
+    {
+      "source": "^/auth/(login|register|reset-password)$",
+      "target": "/index.html",
+      "status": "200"
+    },
+    {
+      "source": "^/c(/portal|/dashboard)?$",
+      "target": "/index.html",
+      "status": "200"
+    },
+    {
+      "source": "^/invitation$",
+      "target": "/index.html",
+      "status": "200"
+    },
+    {
+      "source": "^/admin$",
+      "target": "/index.html",
+      "status": "200"
+    },
+    {
+      "source": "^/profile$",
+      "target": "/index.html",
+      "status": "200"
+    },
+    {
+      "source": "/static/<*>",
+      "target": "/static/<*>",
+      "status": "200"
+    },
+    {
+      "source": "/_next/<*>",
+      "target": "/_next/<*>",
+      "status": "200"
+    },
+    {
+      "source": ".*",
+      "target": "/index.html",
+      "status": "404"
+    }
+  ]
+} 

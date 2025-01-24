@@ -34,7 +34,8 @@ interface Invitation {
 
 export default function InvitationForm() {
   const router = useRouter();
-  const searchParams = useSearchParams();
+  const [token, setToken] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const supabase = createClientComponentClient<Database>();
   
   const [status, setStatus] = useState<InvitationStatus>('pending');
@@ -51,7 +52,13 @@ export default function InvitationForm() {
   });
 
   useEffect(() => {
-    const token = searchParams.get('token');
+    const params = new URLSearchParams(window.location.search);
+    const tokenParam = params.get('token');
+    setToken(tokenParam);
+    setIsLoading(false);
+  }, []);
+
+  useEffect(() => {
     if (!token) {
       setStatus('invalid');
       return;
@@ -105,7 +112,7 @@ export default function InvitationForm() {
     };
 
     fetchInvitation();
-  }, [searchParams]);
+  }, [token]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
