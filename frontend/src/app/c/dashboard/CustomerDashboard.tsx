@@ -68,6 +68,37 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
           [ticket.id]: ticket.status === 'open'
         }), {});
         setExpandedTickets(initialExpandedState);
+
+        // Set up realtime subscription for ticket messages
+        const channel = supabase
+          .channel('ticket-messages')
+          .on(
+            'postgres_changes',
+            {
+              event: 'INSERT',
+              schema: 'public',
+              table: 'ticket_messages',
+            },
+            async (payload) => {
+              console.log('New message received:', payload);
+              // Refresh tickets to get the latest messages
+              const refreshResponse = await fetch('http://127.0.0.1:54321/functions/v1/get-customer-tickets', {
+                headers: {
+                  Authorization: `Bearer ${session.access_token}`,
+                },
+              });
+              if (refreshResponse.ok) {
+                const refreshData = await refreshResponse.json();
+                setTickets(refreshData.tickets);
+              }
+            }
+          )
+          .subscribe();
+
+        // Cleanup subscription on unmount
+        return () => {
+          supabase.removeChannel(channel);
+        };
         
       } catch (err) {
         setError(err instanceof Error ? err.message : 'An error occurred');
@@ -281,6 +312,49 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
       console.log('Files selected:', files);
     }
   };
+
+  // Add polling for open tickets
+  useEffect(() => {
+    const pollMessages = async () => {
+      try {
+        const supabase = createClient();
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (!session) {
+          console.error('No session available');
+          return;
+        }
+
+        // Only refresh if there are expanded tickets
+        const expandedTicketIds = Object.entries(expandedTickets)
+          .filter(([_, isExpanded]) => isExpanded)
+          .map(([id]) => id);
+
+        if (expandedTicketIds.length === 0) return;
+
+        const response = await fetch('http://127.0.0.1:54321/functions/v1/get-customer-tickets', {
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to refresh tickets');
+        }
+
+        const data = await response.json();
+        setTickets(data.tickets);
+      } catch (error) {
+        console.error('Error polling messages:', error);
+      }
+    };
+
+    // Set up polling interval
+    const interval = setInterval(pollMessages, 500);
+
+    // Cleanup on unmount
+    return () => clearInterval(interval);
+  }, [expandedTickets]); // Depend on expandedTickets to restart polling when tickets are expanded/collapsed
 
   if (loading) {
     return (
