@@ -440,6 +440,25 @@ export default function DashboardPage() {
       .on(
         'postgres_changes',
         {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'tickets',
+          filter: `organization_id=eq.${organizationId}`
+        },
+        (payload) => {
+          // Update ticket status in the UI without a full refresh
+          setTickets(currentTickets => 
+            currentTickets.map(ticket => 
+              ticket.id === payload.new.id 
+                ? { ...ticket, status: payload.new.status }
+                : ticket
+            )
+          )
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
           event: 'INSERT',
           schema: 'public',
           table: 'ticket_messages'
