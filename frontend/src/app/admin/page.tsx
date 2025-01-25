@@ -1497,6 +1497,207 @@ export default function AdminPanel() {
                     </div>
                   </div>
                 )}
+                
+                {/* API Guide Section */}
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 }}
+                  className="mt-8"
+                >
+                  <div className={`${styles['ocean-card']} overflow-hidden`}>
+                    <h3 className="text-xl font-semibold mb-4 text-[#2D3748] flex items-center gap-2">
+                      <span>🌊</span> Quick API Guide
+                    </h3>
+                    
+                    <div className="space-y-6">
+                      {/* Base URL Section */}
+                      <div className="space-y-2">
+                        <h4 className="text-[#4A90E2] font-medium flex items-center gap-2">
+                          <span>🔗</span> Base URL
+                        </h4>
+                        <div className="bg-white/50 rounded-lg p-4">
+                          <p className="text-sm text-[#4A5568] mb-2">All API endpoints are prefixed with:</p>
+                          <code className="block text-sm bg-white/80 p-3 rounded-md overflow-x-auto">
+                            {process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1
+                          </code>
+                        </div>
+                      </div>
+
+                      {/* Create Ticket Example */}
+                      <div className="space-y-2">
+                        <h4 className="text-[#4A90E2] font-medium flex items-center gap-2">
+                          <span>📝</span> Create a Ticket
+                        </h4>
+                        <div className="bg-white/50 rounded-lg p-4 space-y-2">
+                          <code className="block text-sm bg-white/80 p-3 rounded-md overflow-x-auto">
+                            POST ${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/api-create-ticket
+                          </code>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <p className="text-sm text-[#4A5568] mb-2">Request:</p>
+                              <pre className="bg-white/80 p-3 rounded-md text-sm overflow-x-auto">
+{`{
+  "email": "customer@example.com",
+  "subject": "Need help with...",
+  "description": "Issue details...",
+  "priority": "medium"
+}`}
+                              </pre>
+                            </div>
+                            <div>
+                              <p className="text-sm text-[#4A5568] mb-2">Response:</p>
+                              <pre className="bg-white/80 p-3 rounded-md text-sm overflow-x-auto">
+{`{
+  "success": true,
+  "ticket_id": "uuid",
+  "status": "open"
+}`}
+                              </pre>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Add Message Example */}
+                      <div className="space-y-2">
+                        <h4 className="text-[#4A90E2] font-medium flex items-center gap-2">
+                          <span>💭</span> Add Message to Ticket
+                        </h4>
+                        <div className="bg-white/50 rounded-lg p-4 space-y-2">
+                          <code className="block text-sm bg-white/80 p-3 rounded-md overflow-x-auto">
+                            POST ${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/api-add-ticket-message
+                          </code>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <p className="text-sm text-[#4A5568] mb-2">Request:</p>
+                              <pre className="bg-white/80 p-3 rounded-md text-sm overflow-x-auto">
+{`{
+  "ticket_id": "uuid",
+  "message": "Update on the issue..."
+}`}
+                              </pre>
+                            </div>
+                            <div>
+                              <p className="text-sm text-[#4A5568] mb-2">Response:</p>
+                              <pre className="bg-white/80 p-3 rounded-md text-sm overflow-x-auto">
+{`{
+  "success": true,
+  "message_id": "uuid"
+}`}
+                              </pre>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Get Ticket Example */}
+                      <div className="space-y-2">
+                        <h4 className="text-[#4A90E2] font-medium flex items-center gap-2">
+                          <span>🎫</span> Get Ticket Details
+                        </h4>
+                        <div className="bg-white/50 rounded-lg p-4">
+                          <code className="block text-sm bg-white/80 p-3 rounded-md overflow-x-auto">
+                            GET ${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/api-get-ticket?ticket_id=uuid
+                          </code>
+                        </div>
+                      </div>
+
+                      {/* List Customer Tickets Example */}
+                      <div className="space-y-2">
+                        <h4 className="text-[#4A90E2] font-medium flex items-center gap-2">
+                          <span>📋</span> List Customer Tickets
+                        </h4>
+                        <div className="bg-white/50 rounded-lg p-4">
+                          <code className="block text-sm bg-white/80 p-3 rounded-md overflow-x-auto">
+                            GET ${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/api-get-customer-tickets?email=customer@example.com
+                          </code>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+                            <div>
+                              <p className="text-sm text-[#4A5568] mb-2">Response:</p>
+                              <pre className="bg-white/80 p-3 rounded-md text-sm overflow-x-auto">
+{`{
+  "success": true,
+  "customer": {
+    "id": "uuid",
+    "name": "Customer Name"
+  },
+  "tickets": [{
+    "id": "uuid",
+    "title": "Issue Title",
+    "status": "open",
+    "created_at": "timestamp",
+    "messages": [...]
+  }]
+}`}
+                              </pre>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Update Ticket Status Example */}
+                      <div className="space-y-2">
+                        <h4 className="text-[#4A90E2] font-medium flex items-center gap-2">
+                          <span>🔄</span> Update Ticket Status
+                        </h4>
+                        <div className="bg-white/50 rounded-lg p-4 space-y-2">
+                          <code className="block text-sm bg-white/80 p-3 rounded-md overflow-x-auto">
+                            POST ${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/api-update-ticket-status
+                          </code>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <p className="text-sm text-[#4A5568] mb-2">Request:</p>
+                              <pre className="bg-white/80 p-3 rounded-md text-sm overflow-x-auto">
+{`{
+  "ticket_id": "uuid",
+  "status": "resolved"  // open, resolved, closed
+}`}
+                              </pre>
+                            </div>
+                            <div>
+                              <p className="text-sm text-[#4A5568] mb-2">Response:</p>
+                              <pre className="bg-white/80 p-3 rounded-md text-sm overflow-x-auto">
+{`{
+  "success": true,
+  "ticket": {
+    "id": "uuid",
+    "status": "resolved",
+    "updated_at": "timestamp"
+  }
+}`}
+                              </pre>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Authentication Note */}
+                      <div className="mt-6 bg-[#4A90E2]/10 p-4 rounded-lg">
+                        <p className="text-sm text-[#2D3748] flex items-center gap-2">
+                          <span>💡</span> Remember to include your API key in the headers:
+                        </p>
+                        <pre className="bg-white/80 mt-2 p-3 rounded-md text-sm overflow-x-auto">
+{`{
+  "Content-Type": "application/json",
+  "apikey": "your-api-key"
+}`}
+                        </pre>
+                      </div>
+
+                      {/* Documentation Link */}
+                      <div className="text-center pt-4">
+                        <a
+                          href="/docs/api"
+                          className="inline-flex items-center gap-2 text-[#4A90E2] hover:text-[#2C5282] transition-colors"
+                        >
+                          <span>📚</span> View Full API Documentation
+                          <span className="text-xl">→</span>
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
               </motion.div>
             )}
           </div>
