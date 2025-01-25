@@ -450,4 +450,87 @@ export async function generateStaticParams() {
 4. Consider caching mechanism for large parameter sets
 5. Keep route parameters list reasonable in size
 
-Remember: Static exports need ALL possible routes at build time. If your dynamic routes come from database content, ensure your `generateStaticParams` function can access and return all possible values. 
+Remember: Static exports need ALL possible routes at build time. If your dynamic routes come from database content, ensure your `generateStaticParams` function can access and return all possible values.
+
+## Real-time Subscription Debugging
+
+### Problem Context
+When implementing real-time updates for ticket messages in the customer dashboard, we encountered several issues:
+1. WebSocket updates weren't being received on the customer side
+2. Employee dashboard subscriptions worked while customer subscriptions failed
+3. Complex subscription filters caused errors with the WebSocket stream
+
+### Investigation Process
+1. First attempted to use direct `user_id` linking between customers and `auth.users`
+2. Added RLS policies to simplify access control
+3. Compared working employee dashboard subscription with customer dashboard
+4. Discovered that complex subscription filters were causing issues:
+   ```typescript
+   // ❌ Problematic approach - complex filters
+   .on('postgres_changes', {
+     event: 'INSERT',
+     schema: 'public',
+     table: 'tickets',
+     filter: `customer_email=eq.${session.user.email}`  // Invalid column error
+   })
+
+   // ✅ Working approach - rely on RLS
+   .on('postgres_changes', {
+     event: 'INSERT',
+     schema: 'public',
+     table: 'tickets'
+   })
+   ```
+
+### Solution Pattern
+1. **Remove Complex Filters**:
+   - Don't try to filter in the subscription
+   - Let Row Level Security (RLS) handle access control
+   - Keep subscription setup simple and consistent
+
+2. **RLS-First Approach**:
+   ```sql
+   -- Enable RLS on tables
+   ALTER TABLE public.ticket_messages ENABLE ROW LEVEL SECURITY;
+   
+   -- Create permissive policy for testing
+   CREATE POLICY "Always allow" ON public.ticket_messages
+   FOR ALL USING (true);
+   ```
+
+3. **Consistent Subscription Pattern**:
+   ```typescript
+   const channel = supabase
+     .channel('customer-tickets')
+     .on('postgres_changes', {
+       event: 'INSERT',
+       schema: 'public',
+       table: 'ticket_messages'
+     })
+     .subscribe()
+   ```
+
+### Key Takeaways
+1. Supabase real-time filters should be simple
+   - Complex filters with subqueries aren't supported
+   - Use RLS for complex access control
+   - Keep subscription parameters minimal
+
+2. Debug real-time issues systematically:
+   - Start with permissive RLS policies
+   - Compare working vs non-working implementations
+   - Check WebSocket stream for detailed error messages
+   - Monitor browser console for subscription status
+
+3. RLS and Real-time Work Together:
+   - RLS policies automatically apply to real-time events
+   - No need to duplicate access control in subscriptions
+   - Subscriptions receive only the events RLS allows
+
+4. Testing Strategy:
+   - Test with permissive policies first
+   - Gradually add restrictions
+   - Monitor WebSocket messages in browser dev tools
+   - Compare behavior across different user roles
+
+Remember: When debugging real-time issues, start with the simplest possible configuration and gradually add complexity. Let RLS handle access control rather than trying to implement it in the subscription filters. 
