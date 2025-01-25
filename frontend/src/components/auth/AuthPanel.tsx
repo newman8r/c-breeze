@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@/lib/supabase'
 
 interface AuthError {
   message: string
@@ -20,6 +20,7 @@ export default function AuthPanel() {
     setError(null)
 
     try {
+      const supabase = createClient()
       if (isLogin) {
         const { error } = await supabase.auth.signInWithPassword({
           email,

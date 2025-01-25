@@ -1,9 +1,15 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 
-export const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+export const createClient = () => {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseKey) {
+    throw new Error('Missing Supabase environment variables');
+  }
+
+  return createSupabaseClient(supabaseUrl, supabaseKey);
+};
 
 // Helper function to get the correct API URL
 export const getApiUrl = (path: string) => {
@@ -12,6 +18,12 @@ export const getApiUrl = (path: string) => {
     throw new Error('NEXT_PUBLIC_SUPABASE_URL is not defined');
   }
   return `${baseUrl}/functions/v1/${path}`;
+};
+
+export const getFunctionUrl = (functionName: string) => {
+  const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!baseUrl) throw new Error('NEXT_PUBLIC_SUPABASE_URL is not defined');
+  return `${baseUrl}/functions/v1/${functionName}`;
 };
 
 // Example usage in your API calls:

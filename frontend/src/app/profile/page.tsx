@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@/lib/supabase'
 import { useUser } from '@/contexts/UserContext'
 import Link from 'next/link'
 
@@ -38,6 +38,7 @@ export default function ProfilePage() {
       try {
         if (!user) return
 
+        const supabase = createClient()
         const { data, error } = await supabase
           .from('profiles')
           .select('*')
@@ -69,6 +70,7 @@ export default function ProfilePage() {
     try {
       if (!user) throw new Error('Not authenticated')
 
+      const supabase = createClient()
       const updates = {
         user_id: user.id,
         display_name: displayName,
