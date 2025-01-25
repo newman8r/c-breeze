@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4'
 import { corsHeaders } from '../_shared/cors.ts'
+import { logAuditEvent } from '../_shared/audit.ts'
 
 interface CreateApiKeyRequest {
   description: string;
@@ -148,21 +149,31 @@ serve(async (req) => {
       throw new Error('Failed to create API key')
     }
 
-    // Log the creation in audit logs
-    await supabaseClient.rpc('log_audit_event', {
-      p_organization_id: employeeData.organization_id,
-      p_actor_id: employeeData.id,
-      p_actor_type: 'employee',
-      p_action_type: 'create',
-      p_resource_type: 'api_key',
-      p_resource_id: apiKey.id,
-      p_action_description: 'Created new API key',
-      p_action_meta: {
+    // Log the creation in audit logs using the shared function
+    const { success: auditSuccess, error: auditError } = await logAuditEvent(supabaseClient, {
+      organization_id: employeeData.organization_id,
+      actor_id: user.id,
+      actor_type: 'employee',
+      action_type: 'create',
+      resource_type: 'api_key',
+      resource_id: apiKey.id,
+      action_description: 'Created new API key',
+      action_meta: {
         description: apiKey.description,
         key_last_four: apiKey.key_last_four,
+        created_by_user_id: user.id,
+        employee_id: employeeData.id,
+        created_from_ip: req.headers.get('x-forwarded-for') || 'unknown'
       },
-      p_severity: 'info',
+      severity: 'info',
+      status: 'success',
+      client_ip: req.headers.get('x-forwarded-for') || undefined
     })
+
+    if (!auditSuccess) {
+      console.error('Failed to create audit log:', auditError)
+      // Don't throw error here - we don't want to fail the API key creation if audit logging fails
+    }
 
     // Return the API key details
     // Note: This is the only time the full API key will be shown
@@ -183,6 +194,29 @@ serve(async (req) => {
       }
     )
   } catch (error) {
+    // Log error in audit logs if we have the necessary context
+    if (employeeData?.organization_id && user?.id) {
+      await logAuditEvent(supabaseClient, {
+        organization_id: employeeData.organization_id,
+        actor_id: user.id,
+        actor_type: 'employee',
+        action_type: 'create',
+        resource_type: 'api_key',
+        action_description: 'Failed to create API key',
+        action_meta: {
+          description: description,
+          error: error.message,
+          employee_id: employeeData.id
+        },
+        severity: 'error',
+        status: 'failure',
+        error_message: error.message,
+        client_ip: req.headers.get('x-forwarded-for') || undefined
+      }).catch(logError => {
+        console.error('Failed to log audit event:', logError)
+      })
+    }
+
     return new Response(
       JSON.stringify({
         error: error.message,
