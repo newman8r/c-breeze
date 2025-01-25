@@ -1,11 +1,12 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useRole } from '@/contexts/RoleContext'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser'
+import { getFunctionUrl } from '@/lib/supabase'
 import type { Database } from '@/lib/database.types'
 import { useUser } from '@/contexts/UserContext'
 import styles from './ApiKeys.module.css'
@@ -38,6 +39,15 @@ interface ApiKey {
   created_at: string
   last_used_at: string | null
   status: 'active' | 'revoked'
+}
+
+interface NewApiKey {
+  id: string;
+  description: string;
+  key: string;
+  key_last_four: string;
+  created_at: string;
+  status: 'active' | 'revoked';
 }
 
 const maskApiKey = (key: string) => {
@@ -77,6 +87,9 @@ export default function AdminPanel() {
   const [apiKeyError, setApiKeyError] = useState<string | null>(null)
   const [showNewKeyForm, setShowNewKeyForm] = useState(false)
   const [newKeyDescription, setNewKeyDescription] = useState('')
+  const [newKeyData, setNewKeyData] = useState<NewApiKey | null>(null)
+  const [isCreatingKey, setIsCreatingKey] = useState(false)
+  const [createKeyError, setCreateKeyError] = useState<string | null>(null)
 
   // Protect route
   useEffect(() => {
@@ -313,6 +326,56 @@ export default function AdminPanel() {
 
     fetchCustomers()
   }, [activeTab, supabase])
+
+  // Add copy to clipboard function
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+    } catch (err) {
+      console.error('Failed to copy:', err)
+    }
+  }
+
+  // Add key creation function
+  const handleCreateKey = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsCreatingKey(true)
+    setCreateKeyError(null)
+    
+    try {
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      if (sessionError || !session) {
+        throw new Error('No active session')
+      }
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/create-api-key`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+          'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+        },
+        body: JSON.stringify({
+          description: newKeyDescription,
+        }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || `HTTP error! status: ${response.status}`)
+      }
+
+      const data = await response.json()
+      setNewKeyData(data.api_key)
+      setShowNewKeyForm(false)
+      setNewKeyDescription('')
+    } catch (err) {
+      console.error('Create key error:', err)
+      setCreateKeyError(err instanceof Error ? err.message : 'Failed to create API key')
+    } finally {
+      setIsCreatingKey(false)
+    }
+  }
 
   if (roleLoading) {
     return (
@@ -1107,10 +1170,7 @@ export default function AdminPanel() {
                       </button>
                     </div>
 
-                    <form onSubmit={(e) => {
-                      e.preventDefault()
-                      // Handle form submission
-                    }} className="space-y-4">
+                    <form onSubmit={handleCreateKey} className="space-y-4">
                       <div>
                         <label className="block text-sm text-[#4A5568] mb-1">Description</label>
                         <input
@@ -1123,24 +1183,117 @@ export default function AdminPanel() {
                         />
                       </div>
 
+                      {createKeyError && (
+                        <div className="text-red-600 text-sm bg-red-50 p-2 rounded">
+                          {createKeyError}
+                        </div>
+                      )}
+
                       <div className="flex justify-end gap-2">
                         <button
                           type="button"
                           onClick={() => setShowNewKeyForm(false)}
                           className="px-4 py-2 text-[#4A5568] hover:text-[#2C5282]"
+                          disabled={isCreatingKey}
                         >
                           Cancel
                         </button>
                         <button
                           type="submit"
                           className={styles['wave-button']}
+                          disabled={isCreatingKey}
                         >
-                          <span className="mr-2">��</span> Create Key
+                          {isCreatingKey ? (
+                            <span className="flex items-center">
+                              <motion.span
+                                animate={{ rotate: 360 }}
+                                transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                                className="mr-2"
+                              >
+                                🌀
+                              </motion.span>
+                              Creating...
+                            </span>
+                          ) : (
+                            <>
+                              <span className="mr-2">✨</span> Create Key
+                            </>
+                          )}
                         </button>
                       </div>
                     </form>
                   </motion.div>
                 )}
+
+                {/* New Key Display */}
+                <AnimatePresence>
+                  {newKeyData && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -20 }}
+                      className={`${styles['ocean-card']} border-2 border-[#4A90E2]/20 bg-[#4A90E2]/5`}
+                    >
+                      <div className="flex items-start justify-between mb-4">
+                        <div>
+                          <h3 className="text-lg font-medium text-[#2C5282] flex items-center">
+                            <span className="mr-2">✨</span> New API Key Created
+                          </h3>
+                          <p className="text-sm text-[#4A5568] mt-1">
+                            Make sure to copy your API key now. You won't be able to see it again!
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => setNewKeyData(null)}
+                          className="text-[#4A5568] hover:text-[#2C5282]"
+                        >
+                          ✕
+                        </button>
+                      </div>
+
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm text-[#4A5568] mb-1">API Key</label>
+                          <div className="flex items-center gap-2">
+                            <code className="flex-1 font-mono text-sm bg-white/50 p-3 rounded border border-[#4A90E2]/20">
+                              {newKeyData.key}
+                            </code>
+                            <button
+                              onClick={() => copyToClipboard(newKeyData.key)}
+                              className={`${styles['wave-button']} px-4 py-3`}
+                            >
+                              📋 Copy
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg">
+                          <div className="flex items-center gap-2 text-amber-800">
+                            <span className="text-xl">⚠️</span>
+                            <div>
+                              <p className="font-medium">Important Security Notice</p>
+                              <p className="text-sm mt-1">
+                                This API key will only be shown once. Please store it securely.
+                                You can always create a new key if you lose this one.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="text-sm text-[#4A5568]">
+                          <div className="flex items-center gap-2">
+                            <span>Description:</span>
+                            <span className="font-medium text-[#2C5282]">{newKeyData.description}</span>
+                          </div>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span>Created:</span>
+                            <span>{new Date(newKeyData.created_at).toLocaleString()}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
                 {loadingApiKeys ? (
                   <div className={styles['ocean-card']}>
