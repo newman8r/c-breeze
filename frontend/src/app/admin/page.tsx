@@ -1226,7 +1226,7 @@ export default function AdminPanel() {
                 <div className="flex justify-between items-center">
                   <h2 className="text-xl font-bold text-[#2C5282]">🔑 API Keys</h2>
                   <button 
-                    className={styles['wave-button']}
+                    className={`${styles['wave-button']} px-4 py-2`}
                     onClick={() => setShowNewKeyForm(true)}
                   >
                     <span className="mr-2">✨</span> Create New Key
@@ -1411,7 +1411,6 @@ export default function AdminPanel() {
                             <th>Description</th>
                             <th>Key</th>
                             <th>Created</th>
-                            <th>Last Used</th>
                             <th>Status</th>
                             <th>Actions</th>
                           </tr>
@@ -1445,13 +1444,6 @@ export default function AdminPanel() {
                               <td className="px-6 py-4">
                                 <span className="text-sm text-[#4A5568]">
                                   {new Date(key.created_at).toLocaleDateString()}
-                                </span>
-                              </td>
-                              <td className="px-6 py-4">
-                                <span className="text-sm text-[#4A5568]">
-                                  {key.last_used_at 
-                                    ? new Date(key.last_used_at).toLocaleDateString()
-                                    : 'Never used'}
                                 </span>
                               </td>
                               <td className="px-6 py-4">
