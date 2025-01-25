@@ -8,9 +8,10 @@ import Link from 'next/link'
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser'
 import type { Database } from '@/lib/database.types'
 import { useUser } from '@/contexts/UserContext'
+import styles from './ApiKeys.module.css'
 
 // Tab type definition
-type Tab = 'customers' | 'employees' | 'ticketing' | 'automation' | 'billing' | 'audit-logs'
+type Tab = 'customers' | 'employees' | 'ticketing' | 'automation' | 'billing' | 'audit-logs' | 'api-keys'
 
 interface ApiError {
   error: string
@@ -29,6 +30,21 @@ interface OrgUser {
     }
   }
 }
+
+interface ApiKey {
+  id: string
+  description: string
+  key: string
+  created_at: string
+  last_used_at: string | null
+  status: 'active' | 'revoked'
+}
+
+const maskApiKey = (key: string) => {
+  if (!key) return '';
+  const lastFour = key.slice(-4);
+  return `••••••••${lastFour}`;
+};
 
 export default function AdminPanel() {
   const router = useRouter()
@@ -56,6 +72,11 @@ export default function AdminPanel() {
   const [loadingAuditLogs, setLoadingAuditLogs] = useState(false)
   const [auditLogsError, setAuditLogsError] = useState<string | null>(null)
   const [expandedLogs, setExpandedLogs] = useState<Record<string, boolean>>({})
+  const [apiKeys, setApiKeys] = useState<ApiKey[]>([])
+  const [loadingApiKeys, setLoadingApiKeys] = useState(false)
+  const [apiKeyError, setApiKeyError] = useState<string | null>(null)
+  const [showNewKeyForm, setShowNewKeyForm] = useState(false)
+  const [newKeyDescription, setNewKeyDescription] = useState('')
 
   // Protect route
   useEffect(() => {
@@ -312,7 +333,8 @@ export default function AdminPanel() {
     { id: 'ticketing', label: 'Ticketing' },
     { id: 'automation', label: 'Automation' },
     { id: 'billing', label: 'Billing' },
-    { id: 'audit-logs', label: '🔍 Audit Logs' }
+    { id: 'audit-logs', label: '🔍 Audit Logs' },
+    { id: 'api-keys', label: 'API Keys' }
   ]
 
   return (
@@ -766,7 +788,7 @@ export default function AdminPanel() {
                     className="ocean-card bg-white/50"
                   >
                     <div className="flex justify-between items-start mb-4">
-                      <h3 className="text-lg font-medium text-[#2C5282]">Invite New Employee</h3>
+                      <h3 className="text-lg font-bold text-[#2C5282]">Invite New Employee</h3>
                       <button 
                         onClick={() => setShowInviteCard(false)}
                         className="text-[#4A5568] hover:text-[#2C5282]"
@@ -1049,6 +1071,182 @@ export default function AdminPanel() {
                     </div>
                   </div>
                 </div>
+              </motion.div>
+            )}
+
+            {activeTab === 'api-keys' && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="space-y-6"
+              >
+                <div className="flex justify-between items-center">
+                  <h2 className="text-xl font-bold text-[#2C5282]">🔑 API Keys</h2>
+                  <button 
+                    className={styles['wave-button']}
+                    onClick={() => setShowNewKeyForm(true)}
+                  >
+                    <span className="mr-2">✨</span> Create New Key
+                  </button>
+                </div>
+
+                {showNewKeyForm && (
+                  <motion.div
+                    key="new-key-form"
+                    initial={{ opacity: 0, y: -20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={styles['ocean-card']}
+                  >
+                    <div className="flex justify-between items-start mb-4">
+                      <h3 className="text-lg font-medium text-[#2C5282]">Create New API Key</h3>
+                      <button 
+                        onClick={() => setShowNewKeyForm(false)}
+                        className="text-[#4A5568] hover:text-[#2C5282]"
+                      >
+                        ✕
+                      </button>
+                    </div>
+
+                    <form onSubmit={(e) => {
+                      e.preventDefault()
+                      // Handle form submission
+                    }} className="space-y-4">
+                      <div>
+                        <label className="block text-sm text-[#4A5568] mb-1">Description</label>
+                        <input
+                          type="text"
+                          value={newKeyDescription}
+                          onChange={(e) => setNewKeyDescription(e.target.value)}
+                          className="w-full px-3 py-2 rounded border border-[#4A90E2]/20 focus:ring-2 focus:ring-[#4A90E2]/40 focus:border-transparent"
+                          placeholder="e.g., Production API Key"
+                          required
+                        />
+                      </div>
+
+                      <div className="flex justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowNewKeyForm(false)}
+                          className="px-4 py-2 text-[#4A5568] hover:text-[#2C5282]"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          className={styles['wave-button']}
+                        >
+                          <span className="mr-2">��</span> Create Key
+                        </button>
+                      </div>
+                    </form>
+                  </motion.div>
+                )}
+
+                {loadingApiKeys ? (
+                  <div className={styles['ocean-card']}>
+                    <div className="flex flex-col items-center justify-center py-12">
+                      <div className={styles['loading-wave']} />
+                      <p className="text-[#4A5568] mt-4">Loading API keys...</p>
+                    </div>
+                  </div>
+                ) : apiKeyError ? (
+                  <div className={styles['ocean-card']}>
+                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                      <span className="text-4xl mb-4">🌊</span>
+                      <h3 className="text-lg font-medium text-[#2C5282] mb-2">Oops! Something went wrong</h3>
+                      <p className="text-[#4A5568] max-w-md">
+                        {apiKeyError}
+                      </p>
+                    </div>
+                  </div>
+                ) : apiKeys.length === 0 ? (
+                  <div className={styles['ocean-card']}>
+                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                      <span className="text-4xl mb-4">🏝️</span>
+                      <h3 className="text-lg font-medium text-[#2C5282] mb-2">No API keys yet</h3>
+                      <p className="text-[#4A5568] max-w-md">
+                        Create your first API key to get started with our API.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className={styles['ocean-card']}>
+                    <div className="overflow-x-auto">
+                      <table className={styles['key-table']}>
+                        <thead>
+                          <tr>
+                            <th>Description</th>
+                            <th>Key</th>
+                            <th>Created</th>
+                            <th>Last Used</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {apiKeys.map((key, index) => (
+                            <motion.tr 
+                              key={key.id}
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ delay: index * 0.1 }}
+                            >
+                              <td className="px-6 py-4">
+                                <div className="flex items-center">
+                                  <span className="text-sm text-[#2D3748]">{key.description}</span>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4">
+                                <div className="flex items-center space-x-2">
+                                  <code className={`${styles['key-value']} ${styles['key-value-masked']}`}>
+                                    {maskApiKey(key.key)}
+                                  </code>
+                                  <button
+                                    className="text-[#4A90E2] hover:text-[#2C5282] text-sm"
+                                    onClick={() => {/* Copy to clipboard */}}
+                                  >
+                                    📋
+                                  </button>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4">
+                                <span className="text-sm text-[#4A5568]">
+                                  {new Date(key.created_at).toLocaleDateString()}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4">
+                                <span className="text-sm text-[#4A5568]">
+                                  {key.last_used_at 
+                                    ? new Date(key.last_used_at).toLocaleDateString()
+                                    : 'Never used'}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4">
+                                <span className={styles[`key-status-${key.status}`]}>
+                                  {key.status === 'active' ? '🟢 Active' : '⚫ Revoked'}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4">
+                                <div className="flex items-center space-x-2">
+                                  {key.status === 'active' ? (
+                                    <button
+                                      className="text-red-600 hover:text-red-800 text-sm font-medium"
+                                      onClick={() => {/* Handle revoke */}}
+                                    >
+                                      Revoke
+                                    </button>
+                                  ) : (
+                                    <span className="text-sm text-[#4A5568]">Revoked</span>
+                                  )}
+                                </div>
+                              </td>
+                            </motion.tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
               </motion.div>
             )}
           </div>
