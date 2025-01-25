@@ -73,11 +73,55 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
 
         // Set up realtime subscription for ticket messages
         const channel = supabase
-          .channel('tickets')
+          .channel('customer-tickets')
           .on(
             'postgres_changes',
-            { event: 'INSERT', schema: 'public', table: 'ticket_messages' },
-            async (payload: { new: { ticket_id: string } }) => {
+            {
+              event: 'INSERT',
+              schema: 'public',
+              table: 'tickets'
+            },
+            async () => {
+              console.log('New ticket received');
+              // Refresh tickets to get the latest data
+              const refreshResponse = await fetch(getFunctionUrl('get-customer-tickets'), {
+                headers: {
+                  Authorization: `Bearer ${session.access_token}`,
+                },
+              });
+              if (refreshResponse.ok) {
+                const refreshData = await refreshResponse.json();
+                setTickets(refreshData.tickets);
+              }
+            }
+          )
+          .on(
+            'postgres_changes',
+            {
+              event: 'UPDATE',
+              schema: 'public',
+              table: 'tickets'
+            },
+            async (payload) => {
+              console.log('Ticket update received:', payload);
+              // Update ticket in the UI without a full refresh
+              setTickets(currentTickets => 
+                currentTickets.map(ticket => 
+                  ticket.id === payload.new.id 
+                    ? { ...ticket, status: payload.new.status, priority: payload.new.priority }
+                    : ticket
+                )
+              );
+            }
+          )
+          .on(
+            'postgres_changes',
+            {
+              event: 'INSERT',
+              schema: 'public',
+              table: 'ticket_messages'
+            },
+            async (payload) => {
               console.log('New message received:', payload);
               // Refresh tickets to get the latest messages
               const refreshResponse = await fetch(getFunctionUrl('get-customer-tickets'), {
