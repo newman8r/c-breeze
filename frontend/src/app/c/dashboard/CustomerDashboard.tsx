@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { createClient } from '@/utils/supabase';
+import { createClient, getFunctionUrl } from '@/lib/supabase';
 import styles from './CustomerDashboard.module.css';
 
 interface Ticket {
@@ -49,7 +49,7 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
         setUserEmail(session.user.email || null);
 
         // Call our edge function to get tickets
-        const response = await fetch('http://127.0.0.1:54321/functions/v1/get-customer-tickets', {
+        const response = await fetch(getFunctionUrl('get-customer-tickets'), {
           headers: {
             Authorization: `Bearer ${session.access_token}`,
           },
@@ -71,18 +71,14 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
 
         // Set up realtime subscription for ticket messages
         const channel = supabase
-          .channel('ticket-messages')
+          .channel('tickets')
           .on(
             'postgres_changes',
-            {
-              event: 'INSERT',
-              schema: 'public',
-              table: 'ticket_messages',
-            },
-            async (payload) => {
+            { event: 'INSERT', schema: 'public', table: 'ticket_messages' },
+            async (payload: { new: { ticket_id: string } }) => {
               console.log('New message received:', payload);
               // Refresh tickets to get the latest messages
-              const refreshResponse = await fetch('http://127.0.0.1:54321/functions/v1/get-customer-tickets', {
+              const refreshResponse = await fetch(getFunctionUrl('get-customer-tickets'), {
                 headers: {
                   Authorization: `Bearer ${session.access_token}`,
                 },
@@ -122,7 +118,7 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
         }
 
         console.log('Fetching customer tickets...');
-        const response = await fetch('http://127.0.0.1:54321/functions/v1/get-customer-tickets', {
+        const response = await fetch(getFunctionUrl('get-customer-tickets'), {
           headers: {
             Authorization: `Bearer ${session.access_token}`,
           },
@@ -158,7 +154,7 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
       }
 
       console.log('Sending message for ticket:', ticketId);
-      const response = await fetch('http://127.0.0.1:54321/functions/v1/create_ticket_message', {
+      const response = await fetch(getFunctionUrl('create_ticket_message'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -183,7 +179,7 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
 
       // Refresh tickets to show new message
       console.log('Refreshing tickets...');
-      const ticketsResponse = await fetch('http://127.0.0.1:54321/functions/v1/get-customer-tickets', {
+      const ticketsResponse = await fetch(getFunctionUrl('get-customer-tickets'), {
         headers: {
           Authorization: `Bearer ${session.access_token}`,
         },
@@ -216,7 +212,7 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
         throw new Error('Not authenticated');
       }
 
-      const response = await fetch('http://127.0.0.1:54321/functions/v1/create-customer-ticket', {
+      const response = await fetch(getFunctionUrl('create-customer-ticket'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -233,7 +229,7 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
       }
 
       // Refresh tickets
-      const ticketsResponse = await fetch('http://127.0.0.1:54321/functions/v1/get-customer-tickets', {
+      const ticketsResponse = await fetch(getFunctionUrl('get-customer-tickets'), {
         headers: {
           Authorization: `Bearer ${session.access_token}`,
         },
@@ -263,7 +259,7 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
         throw new Error('Not authenticated');
       }
 
-      const response = await fetch('http://127.0.0.1:54321/functions/v1/modify-ticket', {
+      const response = await fetch(getFunctionUrl('modify-ticket'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -280,7 +276,7 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
       }
 
       // Refresh tickets
-      const ticketsResponse = await fetch('http://127.0.0.1:54321/functions/v1/get-customer-tickets', {
+      const ticketsResponse = await fetch(getFunctionUrl('get-customer-tickets'), {
         headers: {
           Authorization: `Bearer ${session.access_token}`,
         },
@@ -307,7 +303,7 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
         throw new Error('Not authenticated');
       }
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/modify-ticket`, {
+      const response = await fetch(getFunctionUrl('modify-ticket'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -374,7 +370,7 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
 
         if (expandedTicketIds.length === 0) return;
 
-        const response = await fetch('http://127.0.0.1:54321/functions/v1/get-customer-tickets', {
+        const response = await fetch(getFunctionUrl('get-customer-tickets'), {
           headers: {
             Authorization: `Bearer ${session.access_token}`,
           },
@@ -416,29 +412,24 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
 
   return (
     <div className={styles.container}>
-      {/* Bauhaus-inspired decorative elements */}
       <div className={styles.decorativeWave} />
       <div className={styles.decorativeCircle} />
       <div className={styles.decorativeDots} />
       
       <header className={styles.header}>
-        <div className={styles.headerDecorative} />
-        <h1>Your Support Dashboard</h1>
+        <div className={styles.headerContent}>
+          <div className={styles.headerDecorative} />
+          <h1>Welcome to {company} Support 🌊</h1>
+          <p className={styles.welcomeText}>How can we help you today?</p>
+        </div>
+        
         <div className={styles.headerControls}>
-          <span className={styles.userEmail}>
-            {userEmail ? `Logged in as: ${userEmail}` : 'Not logged in'}
-          </span>
+          {userEmail && <span className={styles.userEmail}>{userEmail}</span>}
           <button 
             className={styles.newTicketButton}
             onClick={() => setShowNewTicketForm(true)}
           >
-            New Ticket ✨
-          </button>
-          <button 
-            className={styles.logoutButton}
-            onClick={handleSignOut}
-          >
-            Sign Out 👋
+            New Support Ticket ✨
           </button>
         </div>
       </header>
