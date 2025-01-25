@@ -90,6 +90,8 @@ export default function AdminPanel() {
   const [newKeyData, setNewKeyData] = useState<NewApiKey | null>(null)
   const [isCreatingKey, setIsCreatingKey] = useState(false)
   const [createKeyError, setCreateKeyError] = useState<string | null>(null)
+  const [isRevokingKey, setIsRevokingKey] = useState<string | null>(null)
+  const [revokeKeyError, setRevokeKeyError] = useState<string | null>(null)
 
   // Protect route
   useEffect(() => {
@@ -418,6 +420,42 @@ export default function AdminPanel() {
       fetchApiKeys()
     }
   }, [activeTab])
+
+  // Handle key revocation
+  const handleRevokeKey = async (keyId: string) => {
+    setIsRevokingKey(keyId)
+    setRevokeKeyError(null)
+    try {
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      if (sessionError || !session) {
+        throw new Error('No active session')
+      }
+
+      const response = await fetch(getFunctionUrl('revoke-api-key'), {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          key_id: keyId
+        })
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to revoke API key')
+      }
+
+      // Refresh the API keys list
+      await fetchApiKeys()
+    } catch (error: any) {
+      setRevokeKeyError(error.message)
+      console.error('Failed to revoke API key:', error)
+    } finally {
+      setIsRevokingKey(null)
+    }
+  }
 
   if (roleLoading) {
     return (
@@ -1425,13 +1463,30 @@ export default function AdminPanel() {
                                 <div className="flex items-center space-x-2">
                                   {key.status === 'active' ? (
                                     <button
-                                      className="text-red-600 hover:text-red-800 text-sm font-medium"
-                                      onClick={() => {/* Handle revoke */}}
+                                      className="text-red-600 hover:text-red-800 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                                      onClick={() => handleRevokeKey(key.id)}
+                                      disabled={isRevokingKey === key.id}
                                     >
-                                      Revoke
+                                      {isRevokingKey === key.id ? (
+                                        <span className="flex items-center">
+                                          <motion.span
+                                            animate={{ rotate: 360 }}
+                                            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                                            className="mr-2"
+                                          >
+                                            🌀
+                                          </motion.span>
+                                          Revoking...
+                                        </span>
+                                      ) : (
+                                        'Revoke'
+                                      )}
                                     </button>
                                   ) : (
                                     <span className="text-sm text-[#4A5568]">Revoked</span>
+                                  )}
+                                  {revokeKeyError && isRevokingKey === key.id && (
+                                    <span className="text-sm text-red-600">{revokeKeyError}</span>
                                   )}
                                 </div>
                               </td>
