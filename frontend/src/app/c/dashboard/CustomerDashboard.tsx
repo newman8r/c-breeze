@@ -558,7 +558,15 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
 
               {expandedTickets[ticket.id] && (
                 <>
-                  <div className={styles.messagesList}>
+                  <div 
+                    className={styles.messagesList}
+                    ref={(el) => {
+                      // Auto scroll to bottom when messages update
+                      if (el) {
+                        el.scrollTop = el.scrollHeight;
+                      }
+                    }}
+                  >
                     {ticket.ticket_messages.map((message) => (
                       <div
                         key={message.id}
