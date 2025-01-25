@@ -1,16 +1,18 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useRole } from '@/contexts/RoleContext'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser'
+import { getFunctionUrl } from '@/lib/supabase'
 import type { Database } from '@/lib/database.types'
 import { useUser } from '@/contexts/UserContext'
+import styles from './ApiKeys.module.css'
 
 // Tab type definition
-type Tab = 'customers' | 'employees' | 'ticketing' | 'automation' | 'billing' | 'audit-logs'
+type Tab = 'customers' | 'employees' | 'ticketing' | 'automation' | 'billing' | 'audit-logs' | 'api-keys'
 
 interface ApiError {
   error: string
@@ -29,6 +31,30 @@ interface OrgUser {
     }
   }
 }
+
+interface ApiKey {
+  id: string
+  description: string
+  key: string
+  created_at: string
+  last_used_at: string | null
+  status: 'active' | 'revoked'
+}
+
+interface NewApiKey {
+  id: string;
+  description: string;
+  key: string;
+  key_last_four: string;
+  created_at: string;
+  status: 'active' | 'revoked';
+}
+
+const maskApiKey = (key: string) => {
+  if (!key) return '';
+  const lastFour = key.slice(-4);
+  return `••••••••${lastFour}`;
+};
 
 export default function AdminPanel() {
   const router = useRouter()
@@ -56,6 +82,16 @@ export default function AdminPanel() {
   const [loadingAuditLogs, setLoadingAuditLogs] = useState(false)
   const [auditLogsError, setAuditLogsError] = useState<string | null>(null)
   const [expandedLogs, setExpandedLogs] = useState<Record<string, boolean>>({})
+  const [apiKeys, setApiKeys] = useState<ApiKey[]>([])
+  const [loadingApiKeys, setLoadingApiKeys] = useState(false)
+  const [apiKeyError, setApiKeyError] = useState<string | null>(null)
+  const [showNewKeyForm, setShowNewKeyForm] = useState(false)
+  const [newKeyDescription, setNewKeyDescription] = useState('')
+  const [newKeyData, setNewKeyData] = useState<NewApiKey | null>(null)
+  const [isCreatingKey, setIsCreatingKey] = useState(false)
+  const [createKeyError, setCreateKeyError] = useState<string | null>(null)
+  const [isRevokingKey, setIsRevokingKey] = useState<string | null>(null)
+  const [revokeKeyError, setRevokeKeyError] = useState<string | null>(null)
 
   // Protect route
   useEffect(() => {
@@ -293,6 +329,134 @@ export default function AdminPanel() {
     fetchCustomers()
   }, [activeTab, supabase])
 
+  // Add copy to clipboard function
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+    } catch (err) {
+      console.error('Failed to copy:', err)
+    }
+  }
+
+  // Add key creation function
+  const handleCreateKey = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsCreatingKey(true)
+    setCreateKeyError(null)
+    
+    try {
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      if (sessionError || !session) {
+        throw new Error('No active session')
+      }
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/create-api-key`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+          'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+        },
+        body: JSON.stringify({
+          description: newKeyDescription,
+        }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || `HTTP error! status: ${response.status}`)
+      }
+
+      const data = await response.json()
+      setNewKeyData(data.api_key)
+      setShowNewKeyForm(false)
+      setNewKeyDescription('')
+    } catch (err) {
+      console.error('Create key error:', err)
+      setCreateKeyError(err instanceof Error ? err.message : 'Failed to create API key')
+    } finally {
+      setIsCreatingKey(false)
+    }
+  }
+
+  // Fetch API keys
+  const fetchApiKeys = async () => {
+    setLoadingApiKeys(true)
+    setApiKeyError(null)
+    try {
+      const session = await supabase.auth.getSession()
+      if (!session.data.session) {
+        throw new Error('No session')
+      }
+
+      const response = await fetch(getFunctionUrl('list-api-keys'), {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${session.data.session.access_token}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to fetch API keys')
+      }
+
+      const data = await response.json()
+      setApiKeys(data.api_keys.map((key: any) => ({
+        ...key,
+        key: key.key_last_four // We only get the last 4 digits from the server
+      })))
+    } catch (error: any) {
+      setApiKeyError(error.message)
+    } finally {
+      setLoadingApiKeys(false)
+    }
+  }
+
+  // Load API keys when tab is active
+  useEffect(() => {
+    if (activeTab === 'api-keys') {
+      fetchApiKeys()
+    }
+  }, [activeTab])
+
+  // Handle key revocation
+  const handleRevokeKey = async (keyId: string) => {
+    setIsRevokingKey(keyId)
+    setRevokeKeyError(null)
+    try {
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      if (sessionError || !session) {
+        throw new Error('No active session')
+      }
+
+      const response = await fetch(getFunctionUrl('revoke-api-key'), {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          key_id: keyId
+        })
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to revoke API key')
+      }
+
+      // Refresh the API keys list
+      await fetchApiKeys()
+    } catch (error: any) {
+      setRevokeKeyError(error.message)
+      console.error('Failed to revoke API key:', error)
+    } finally {
+      setIsRevokingKey(null)
+    }
+  }
+
   if (roleLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-[#E0F2F7] via-[#4A90E2]/10 to-[#F7F3E3] p-6">
@@ -312,7 +476,8 @@ export default function AdminPanel() {
     { id: 'ticketing', label: 'Ticketing' },
     { id: 'automation', label: 'Automation' },
     { id: 'billing', label: 'Billing' },
-    { id: 'audit-logs', label: '🔍 Audit Logs' }
+    { id: 'audit-logs', label: '🔍 Audit Logs' },
+    { id: 'api-keys', label: 'API Keys' }
   ]
 
   return (
@@ -766,7 +931,7 @@ export default function AdminPanel() {
                     className="ocean-card bg-white/50"
                   >
                     <div className="flex justify-between items-start mb-4">
-                      <h3 className="text-lg font-medium text-[#2C5282]">Invite New Employee</h3>
+                      <h3 className="text-lg font-bold text-[#2C5282]">Invite New Employee</h3>
                       <button 
                         onClick={() => setShowInviteCard(false)}
                         className="text-[#4A5568] hover:text-[#2C5282]"
@@ -1049,6 +1214,482 @@ export default function AdminPanel() {
                     </div>
                   </div>
                 </div>
+              </motion.div>
+            )}
+
+            {activeTab === 'api-keys' && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="space-y-6"
+              >
+                <div className="flex justify-between items-center">
+                  <h2 className="text-xl font-bold text-[#2C5282]">🔑 API Keys</h2>
+                  <button 
+                    className={`${styles['wave-button']} px-4 py-2`}
+                    onClick={() => setShowNewKeyForm(true)}
+                  >
+                    <span className="mr-2">✨</span> Create New Key
+                  </button>
+                </div>
+
+                {showNewKeyForm && (
+                  <motion.div
+                    key="new-key-form"
+                    initial={{ opacity: 0, y: -20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={styles['ocean-card']}
+                  >
+                    <div className="flex justify-between items-start mb-4">
+                      <h3 className="text-lg font-medium text-[#2C5282]">Create New API Key</h3>
+                      <button 
+                        onClick={() => setShowNewKeyForm(false)}
+                        className="text-[#4A5568] hover:text-[#2C5282]"
+                      >
+                        ✕
+                      </button>
+                    </div>
+
+                    <form onSubmit={handleCreateKey} className="space-y-4">
+                      <div>
+                        <label className="block text-sm text-[#4A5568] mb-1">Description</label>
+                        <input
+                          type="text"
+                          value={newKeyDescription}
+                          onChange={(e) => setNewKeyDescription(e.target.value)}
+                          className="w-full px-3 py-2 rounded border border-[#4A90E2]/20 focus:ring-2 focus:ring-[#4A90E2]/40 focus:border-transparent"
+                          placeholder="e.g., Production API Key"
+                          required
+                        />
+                      </div>
+
+                      {createKeyError && (
+                        <div className="text-red-600 text-sm bg-red-50 p-2 rounded">
+                          {createKeyError}
+                        </div>
+                      )}
+
+                      <div className="flex justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowNewKeyForm(false)}
+                          className="px-4 py-2 text-[#4A5568] hover:text-[#2C5282]"
+                          disabled={isCreatingKey}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          className={styles['wave-button']}
+                          disabled={isCreatingKey}
+                        >
+                          {isCreatingKey ? (
+                            <span className="flex items-center">
+                              <motion.span
+                                animate={{ rotate: 360 }}
+                                transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                                className="mr-2"
+                              >
+                                🌀
+                              </motion.span>
+                              Creating...
+                            </span>
+                          ) : (
+                            <>
+                              <span className="mr-2">✨</span> Create Key
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </form>
+                  </motion.div>
+                )}
+
+                {/* New Key Display */}
+                <AnimatePresence>
+                  {newKeyData && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -20 }}
+                      className={`${styles['ocean-card']} border-2 border-[#4A90E2]/20 bg-[#4A90E2]/5`}
+                    >
+                      <div className="flex items-start justify-between mb-4">
+                        <div>
+                          <h3 className="text-lg font-medium text-[#2C5282] flex items-center">
+                            <span className="mr-2">✨</span> New API Key Created
+                          </h3>
+                          <p className="text-sm text-[#4A5568] mt-1">
+                            Make sure to copy your API key now. You won't be able to see it again!
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => setNewKeyData(null)}
+                          className="text-[#4A5568] hover:text-[#2C5282]"
+                        >
+                          ✕
+                        </button>
+                      </div>
+
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm text-[#4A5568] mb-1">API Key</label>
+                          <div className="flex items-center gap-2">
+                            <code className="flex-1 font-mono text-sm bg-white/50 p-3 rounded border border-[#4A90E2]/20">
+                              {newKeyData.key}
+                            </code>
+                            <button
+                              onClick={() => copyToClipboard(newKeyData.key)}
+                              className={`${styles['wave-button']} px-4 py-3`}
+                            >
+                              📋 Copy
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg">
+                          <div className="flex items-center gap-2 text-amber-800">
+                            <span className="text-xl">⚠️</span>
+                            <div>
+                              <p className="font-medium">Important Security Notice</p>
+                              <p className="text-sm mt-1">
+                                This API key will only be shown once. Please store it securely.
+                                You can always create a new key if you lose this one.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="text-sm text-[#4A5568]">
+                          <div className="flex items-center gap-2">
+                            <span>Description:</span>
+                            <span className="font-medium text-[#2C5282]">{newKeyData.description}</span>
+                          </div>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span>Created:</span>
+                            <span>{new Date(newKeyData.created_at).toLocaleString()}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {loadingApiKeys ? (
+                  <div className={styles['ocean-card']}>
+                    <div className="flex flex-col items-center justify-center py-12">
+                      <div className={styles['loading-wave']} />
+                      <p className="text-[#4A5568] mt-4">Loading API keys...</p>
+                    </div>
+                  </div>
+                ) : apiKeyError ? (
+                  <div className={styles['ocean-card']}>
+                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                      <span className="text-4xl mb-4">🌊</span>
+                      <h3 className="text-lg font-medium text-[#2C5282] mb-2">Oops! Something went wrong</h3>
+                      <p className="text-[#4A5568] max-w-md">
+                        {apiKeyError}
+                      </p>
+                    </div>
+                  </div>
+                ) : apiKeys.length === 0 ? (
+                  <div className={styles['ocean-card']}>
+                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                      <span className="text-4xl mb-4">🏝️</span>
+                      <h3 className="text-lg font-medium text-[#2C5282] mb-2">No API keys yet</h3>
+                      <p className="text-[#4A5568] max-w-md">
+                        Create your first API key to get started with our API.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className={styles['ocean-card']}>
+                    <div className="overflow-x-auto">
+                      <table className={styles['key-table']}>
+                        <thead>
+                          <tr>
+                            <th>Description</th>
+                            <th>Key</th>
+                            <th>Created</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {apiKeys.map((key, index) => (
+                            <motion.tr 
+                              key={key.id}
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ delay: index * 0.1 }}
+                            >
+                              <td className="px-6 py-4">
+                                <div className="flex items-center">
+                                  <span className="text-sm text-[#2D3748]">{key.description}</span>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4">
+                                <div className="flex items-center space-x-2">
+                                  <code className={`${styles['key-value']} ${styles['key-value-masked']}`}>
+                                    {maskApiKey(key.key)}
+                                  </code>
+                                  <button
+                                    className="text-[#4A90E2] hover:text-[#2C5282] text-sm"
+                                    onClick={() => {/* Copy to clipboard */}}
+                                  >
+                                    📋
+                                  </button>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4">
+                                <span className="text-sm text-[#4A5568]">
+                                  {new Date(key.created_at).toLocaleDateString()}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4">
+                                <span className={styles[`key-status-${key.status}`]}>
+                                  {key.status === 'active' ? '🟢 Active' : '⚫ Revoked'}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4">
+                                <div className="flex items-center space-x-2">
+                                  {key.status === 'active' ? (
+                                    <button
+                                      className="text-red-600 hover:text-red-800 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                                      onClick={() => handleRevokeKey(key.id)}
+                                      disabled={isRevokingKey === key.id}
+                                    >
+                                      {isRevokingKey === key.id ? (
+                                        <span className="flex items-center">
+                                          <motion.span
+                                            animate={{ rotate: 360 }}
+                                            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                                            className="mr-2"
+                                          >
+                                            🌀
+                                          </motion.span>
+                                          Revoking...
+                                        </span>
+                                      ) : (
+                                        'Revoke'
+                                      )}
+                                    </button>
+                                  ) : (
+                                    <span className="text-sm text-[#4A5568]">Revoked</span>
+                                  )}
+                                  {revokeKeyError && isRevokingKey === key.id && (
+                                    <span className="text-sm text-red-600">{revokeKeyError}</span>
+                                  )}
+                                </div>
+                              </td>
+                            </motion.tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+                
+                {/* API Guide Section */}
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 }}
+                  className="mt-8"
+                >
+                  <div className={`${styles['ocean-card']} overflow-hidden`}>
+                    <h3 className="text-xl font-semibold mb-4 text-[#2D3748] flex items-center gap-2">
+                      <span>🌊</span> Quick API Guide
+                    </h3>
+                    
+                    <div className="space-y-6">
+                      {/* Base URL Section */}
+                      <div className="space-y-2">
+                        <h4 className="text-[#4A90E2] font-medium flex items-center gap-2">
+                          <span>🔗</span> Base URL
+                        </h4>
+                        <div className="bg-white/50 rounded-lg p-4">
+                          <p className="text-sm text-[#4A5568] mb-2">All API endpoints are prefixed with:</p>
+                          <code className="block text-sm bg-white/80 p-3 rounded-md overflow-x-auto">
+                            {process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1
+                          </code>
+                        </div>
+                      </div>
+
+                      {/* Create Ticket Example */}
+                      <div className="space-y-2">
+                        <h4 className="text-[#4A90E2] font-medium flex items-center gap-2">
+                          <span>📝</span> Create a Ticket
+                        </h4>
+                        <div className="bg-white/50 rounded-lg p-4 space-y-2">
+                          <code className="block text-sm bg-white/80 p-3 rounded-md overflow-x-auto">
+                            POST ${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/api-create-ticket
+                          </code>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <p className="text-sm text-[#4A5568] mb-2">Request:</p>
+                              <pre className="bg-white/80 p-3 rounded-md text-sm overflow-x-auto">
+{`{
+  "email": "customer@example.com",
+  "subject": "Need help with...",
+  "description": "Issue details...",
+  "priority": "medium"
+}`}
+                              </pre>
+                            </div>
+                            <div>
+                              <p className="text-sm text-[#4A5568] mb-2">Response:</p>
+                              <pre className="bg-white/80 p-3 rounded-md text-sm overflow-x-auto">
+{`{
+  "success": true,
+  "ticket_id": "uuid",
+  "status": "open"
+}`}
+                              </pre>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Add Message Example */}
+                      <div className="space-y-2">
+                        <h4 className="text-[#4A90E2] font-medium flex items-center gap-2">
+                          <span>💭</span> Add Message to Ticket
+                        </h4>
+                        <div className="bg-white/50 rounded-lg p-4 space-y-2">
+                          <code className="block text-sm bg-white/80 p-3 rounded-md overflow-x-auto">
+                            POST ${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/api-add-ticket-message
+                          </code>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <p className="text-sm text-[#4A5568] mb-2">Request:</p>
+                              <pre className="bg-white/80 p-3 rounded-md text-sm overflow-x-auto">
+{`{
+  "ticket_id": "uuid",
+  "message": "Update on the issue..."
+}`}
+                              </pre>
+                            </div>
+                            <div>
+                              <p className="text-sm text-[#4A5568] mb-2">Response:</p>
+                              <pre className="bg-white/80 p-3 rounded-md text-sm overflow-x-auto">
+{`{
+  "success": true,
+  "message_id": "uuid"
+}`}
+                              </pre>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Get Ticket Example */}
+                      <div className="space-y-2">
+                        <h4 className="text-[#4A90E2] font-medium flex items-center gap-2">
+                          <span>🎫</span> Get Ticket Details
+                        </h4>
+                        <div className="bg-white/50 rounded-lg p-4">
+                          <code className="block text-sm bg-white/80 p-3 rounded-md overflow-x-auto">
+                            GET ${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/api-get-ticket?ticket_id=uuid
+                          </code>
+                        </div>
+                      </div>
+
+                      {/* List Customer Tickets Example */}
+                      <div className="space-y-2">
+                        <h4 className="text-[#4A90E2] font-medium flex items-center gap-2">
+                          <span>📋</span> List Customer Tickets
+                        </h4>
+                        <div className="bg-white/50 rounded-lg p-4">
+                          <code className="block text-sm bg-white/80 p-3 rounded-md overflow-x-auto">
+                            GET ${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/api-get-customer-tickets?email=customer@example.com
+                          </code>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+                            <div>
+                              <p className="text-sm text-[#4A5568] mb-2">Response:</p>
+                              <pre className="bg-white/80 p-3 rounded-md text-sm overflow-x-auto">
+{`{
+  "success": true,
+  "customer": {
+    "id": "uuid",
+    "name": "Customer Name"
+  },
+  "tickets": [{
+    "id": "uuid",
+    "title": "Issue Title",
+    "status": "open",
+    "created_at": "timestamp",
+    "messages": [...]
+  }]
+}`}
+                              </pre>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Update Ticket Status Example */}
+                      <div className="space-y-2">
+                        <h4 className="text-[#4A90E2] font-medium flex items-center gap-2">
+                          <span>🔄</span> Update Ticket Status
+                        </h4>
+                        <div className="bg-white/50 rounded-lg p-4 space-y-2">
+                          <code className="block text-sm bg-white/80 p-3 rounded-md overflow-x-auto">
+                            POST ${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/api-update-ticket-status
+                          </code>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <p className="text-sm text-[#4A5568] mb-2">Request:</p>
+                              <pre className="bg-white/80 p-3 rounded-md text-sm overflow-x-auto">
+{`{
+  "ticket_id": "uuid",
+  "status": "resolved"  // open, resolved, closed
+}`}
+                              </pre>
+                            </div>
+                            <div>
+                              <p className="text-sm text-[#4A5568] mb-2">Response:</p>
+                              <pre className="bg-white/80 p-3 rounded-md text-sm overflow-x-auto">
+{`{
+  "success": true,
+  "ticket": {
+    "id": "uuid",
+    "status": "resolved",
+    "updated_at": "timestamp"
+  }
+}`}
+                              </pre>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Authentication Note */}
+                      <div className="mt-6 bg-[#4A90E2]/10 p-4 rounded-lg">
+                        <p className="text-sm text-[#2D3748] flex items-center gap-2">
+                          <span>💡</span> Remember to include your API key in the headers:
+                        </p>
+                        <pre className="bg-white/80 mt-2 p-3 rounded-md text-sm overflow-x-auto">
+{`{
+  "Content-Type": "application/json",
+  "apikey": "your-api-key"
+}`}
+                        </pre>
+                      </div>
+
+                      {/* Documentation Link */}
+                      <div className="text-center pt-4">
+                        <a
+                          href="/docs/api"
+                          className="inline-flex items-center gap-2 text-[#4A90E2] hover:text-[#2C5282] transition-colors"
+                        >
+                          <span>📚</span> View Full API Documentation
+                          <span className="text-xl">→</span>
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
               </motion.div>
             )}
           </div>

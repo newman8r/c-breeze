@@ -1,0 +1,124 @@
+.ocean-card {
+  @apply rounded-xl shadow-lg p-6 mb-6 relative overflow-hidden;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0.3));
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(74, 144, 226, 0.1);
+}
+
+.ocean-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, #4A90E2, #63B3ED, #4A90E2);
+  opacity: 0.5;
+}
+
+.wave-button {
+  @apply rounded-lg font-medium transition-all duration-200 relative overflow-hidden;
+  background: linear-gradient(135deg, #4A90E2, #63B3ED);
+  color: white;
+  border: none;
+}
+
+.wave-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(74, 144, 226, 0.2);
+}
+
+.wave-button:active {
+  transform: translateY(0);
+}
+
+.wave-button::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, 
+    transparent, 
+    rgba(255, 255, 255, 0.2), 
+    transparent
+  );
+  transform: translateX(-100%);
+}
+
+.wave-button:hover::after {
+  transform: translateX(100%);
+  transition: transform 0.6s ease-in-out;
+}
+
+.key-status-active {
+  @apply px-3 py-1 rounded-full text-xs font-medium;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(16, 185, 129, 0.2));
+  color: #047857;
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.key-status-revoked {
+  @apply px-3 py-1 rounded-full text-xs font-medium;
+  background: linear-gradient(135deg, rgba(107, 114, 128, 0.1), rgba(107, 114, 128, 0.2));
+  color: #4B5563;
+  border: 1px solid rgba(107, 114, 128, 0.2);
+}
+
+.key-table {
+  @apply min-w-full divide-y divide-[#4A90E2]/10;
+}
+
+.key-table th {
+  @apply px-6 py-4 text-left text-xs font-medium text-[#2C5282] uppercase tracking-wider;
+  background: linear-gradient(135deg, rgba(74, 144, 226, 0.05), rgba(74, 144, 226, 0.1));
+}
+
+.key-table tr {
+  @apply transition-all duration-200;
+}
+
+.key-table tr:hover {
+  background: linear-gradient(135deg, rgba(74, 144, 226, 0.05), rgba(74, 144, 226, 0.1));
+}
+
+.key-value {
+  @apply font-mono text-sm;
+  color: #2D3748;
+}
+
+.key-value-masked {
+  letter-spacing: 0.2em;
+}
+
+.loading-wave {
+  @apply w-12 h-12 relative;
+}
+
+.loading-wave::before,
+.loading-wave::after {
+  content: '';
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: #4A90E2;
+  opacity: 0.6;
+  animation: pulse 2s ease-out infinite;
+}
+
+.loading-wave::after {
+  animation-delay: 1s;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(0);
+    opacity: 0.6;
+  }
+  100% {
+    transform: scale(2);
+    opacity: 0;
+  }
+} 
