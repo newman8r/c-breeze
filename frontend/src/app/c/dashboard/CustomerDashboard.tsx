@@ -391,48 +391,6 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
     }
   };
 
-  // Add polling for open tickets
-  useEffect(() => {
-    const pollMessages = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        if (!session) {
-          console.error('No session available');
-          return;
-        }
-
-        // Only refresh if there are expanded tickets
-        const expandedTicketIds = Object.entries(expandedTickets)
-          .filter(([_, isExpanded]) => isExpanded)
-          .map(([id]) => id);
-
-        if (expandedTicketIds.length === 0) return;
-
-        const response = await fetch(getFunctionUrl('get-customer-tickets'), {
-          headers: {
-            Authorization: `Bearer ${session.access_token}`,
-          },
-        });
-
-        if (!response.ok) {
-          throw new Error('Failed to refresh tickets');
-        }
-
-        const data = await response.json();
-        setTickets(data.tickets);
-      } catch (error) {
-        console.error('Error polling messages:', error);
-      }
-    };
-
-    // Set up polling interval
-    const interval = setInterval(pollMessages, 15000);
-
-    // Cleanup on unmount
-    return () => clearInterval(interval);
-  }, [expandedTickets]); // Depend on expandedTickets to restart polling when tickets are expanded/collapsed
-
   if (loading) {
     return (
       <div className={styles.container}>
