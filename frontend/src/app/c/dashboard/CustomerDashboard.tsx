@@ -383,7 +383,7 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
     };
 
     // Set up polling interval
-    const interval = setInterval(pollMessages, 1000);
+    const interval = setInterval(pollMessages, 15000);
 
     // Cleanup on unmount
     return () => clearInterval(interval);
