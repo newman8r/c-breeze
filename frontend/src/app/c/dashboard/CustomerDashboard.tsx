@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { createClient, getFunctionUrl } from '@/lib/supabase';
+import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
+import { getFunctionUrl } from '@/lib/supabase';
 import styles from './CustomerDashboard.module.css';
 
 interface Ticket {
@@ -32,12 +33,13 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
   const [newTicketMessage, setNewTicketMessage] = useState('');
   const [expandedTickets, setExpandedTickets] = useState<Record<string, boolean>>({});
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  
+  // Create a single Supabase client instance using the browser client
+  const supabase = getSupabaseBrowserClient();
 
   useEffect(() => {
     async function fetchTickets() {
       try {
-        const supabase = createClient();
-        
         // Get current session
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) {
@@ -109,7 +111,6 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
   useEffect(() => {
     const fetchCustomerTickets = async () => {
       try {
-        const supabase = createClient();
         const { data: { session } } = await supabase.auth.getSession();
         
         if (!session) {
@@ -146,7 +147,6 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
         return;
       }
 
-      const supabase = createClient();
       const { data: { session } } = await supabase.auth.getSession();
       
       if (!session) {
@@ -205,7 +205,6 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
 
   const handleCreateTicket = async () => {
     try {
-      const supabase = createClient();
       const { data: { session } } = await supabase.auth.getSession();
       
       if (!session) {
@@ -252,7 +251,6 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
 
   const handleCloseTicket = async (ticketId: string) => {
     try {
-      const supabase = createClient();
       const { data: { session } } = await supabase.auth.getSession();
       
       if (!session) {
@@ -296,7 +294,6 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
 
   const handleReopenTicket = async (ticketId: string) => {
     try {
-      const supabase = createClient();
       const { data: { session } } = await supabase.auth.getSession();
       
       if (!session) {
@@ -326,7 +323,6 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
 
   const handleSignOut = async () => {
     try {
-      const supabase = createClient();
       await supabase.auth.signOut();
       
       // Redirect to the customer portal page with the company slug
@@ -355,7 +351,6 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
   useEffect(() => {
     const pollMessages = async () => {
       try {
-        const supabase = createClient();
         const { data: { session } } = await supabase.auth.getSession();
         
         if (!session) {
@@ -388,7 +383,7 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
     };
 
     // Set up polling interval
-    const interval = setInterval(pollMessages, 500);
+    const interval = setInterval(pollMessages, 15000);
 
     // Cleanup on unmount
     return () => clearInterval(interval);
