@@ -377,6 +377,48 @@ export default function AdminPanel() {
     }
   }
 
+  // Fetch API keys
+  const fetchApiKeys = async () => {
+    setLoadingApiKeys(true)
+    setApiKeyError(null)
+    try {
+      const session = await supabase.auth.getSession()
+      if (!session.data.session) {
+        throw new Error('No session')
+      }
+
+      const response = await fetch(getFunctionUrl('list-api-keys'), {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${session.data.session.access_token}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to fetch API keys')
+      }
+
+      const data = await response.json()
+      setApiKeys(data.api_keys.map((key: any) => ({
+        ...key,
+        key: key.key_last_four // We only get the last 4 digits from the server
+      })))
+    } catch (error: any) {
+      setApiKeyError(error.message)
+    } finally {
+      setLoadingApiKeys(false)
+    }
+  }
+
+  // Load API keys when tab is active
+  useEffect(() => {
+    if (activeTab === 'api-keys') {
+      fetchApiKeys()
+    }
+  }, [activeTab])
+
   if (roleLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-[#E0F2F7] via-[#4A90E2]/10 to-[#F7F3E3] p-6">
