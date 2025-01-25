@@ -73,11 +73,55 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
 
         // Set up realtime subscription for ticket messages
         const channel = supabase
-          .channel('tickets')
+          .channel('customer-tickets')
           .on(
             'postgres_changes',
-            { event: 'INSERT', schema: 'public', table: 'ticket_messages' },
-            async (payload: { new: { ticket_id: string } }) => {
+            {
+              event: 'INSERT',
+              schema: 'public',
+              table: 'tickets'
+            },
+            async () => {
+              console.log('New ticket received');
+              // Refresh tickets to get the latest data
+              const refreshResponse = await fetch(getFunctionUrl('get-customer-tickets'), {
+                headers: {
+                  Authorization: `Bearer ${session.access_token}`,
+                },
+              });
+              if (refreshResponse.ok) {
+                const refreshData = await refreshResponse.json();
+                setTickets(refreshData.tickets);
+              }
+            }
+          )
+          .on(
+            'postgres_changes',
+            {
+              event: 'UPDATE',
+              schema: 'public',
+              table: 'tickets'
+            },
+            async (payload) => {
+              console.log('Ticket update received:', payload);
+              // Update ticket in the UI without a full refresh
+              setTickets(currentTickets => 
+                currentTickets.map(ticket => 
+                  ticket.id === payload.new.id 
+                    ? { ...ticket, status: payload.new.status, priority: payload.new.priority }
+                    : ticket
+                )
+              );
+            }
+          )
+          .on(
+            'postgres_changes',
+            {
+              event: 'INSERT',
+              schema: 'public',
+              table: 'ticket_messages'
+            },
+            async (payload) => {
               console.log('New message received:', payload);
               // Refresh tickets to get the latest messages
               const refreshResponse = await fetch(getFunctionUrl('get-customer-tickets'), {
@@ -347,48 +391,6 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
     }
   };
 
-  // Add polling for open tickets
-  useEffect(() => {
-    const pollMessages = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        if (!session) {
-          console.error('No session available');
-          return;
-        }
-
-        // Only refresh if there are expanded tickets
-        const expandedTicketIds = Object.entries(expandedTickets)
-          .filter(([_, isExpanded]) => isExpanded)
-          .map(([id]) => id);
-
-        if (expandedTicketIds.length === 0) return;
-
-        const response = await fetch(getFunctionUrl('get-customer-tickets'), {
-          headers: {
-            Authorization: `Bearer ${session.access_token}`,
-          },
-        });
-
-        if (!response.ok) {
-          throw new Error('Failed to refresh tickets');
-        }
-
-        const data = await response.json();
-        setTickets(data.tickets);
-      } catch (error) {
-        console.error('Error polling messages:', error);
-      }
-    };
-
-    // Set up polling interval
-    const interval = setInterval(pollMessages, 15000);
-
-    // Cleanup on unmount
-    return () => clearInterval(interval);
-  }, [expandedTickets]); // Depend on expandedTickets to restart polling when tickets are expanded/collapsed
-
   if (loading) {
     return (
       <div className={styles.container}>
@@ -514,7 +516,15 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
 
               {expandedTickets[ticket.id] && (
                 <>
-                  <div className={styles.messagesList}>
+                  <div 
+                    className={styles.messagesList}
+                    ref={(el) => {
+                      // Auto scroll to bottom when messages update
+                      if (el) {
+                        el.scrollTop = el.scrollHeight;
+                      }
+                    }}
+                  >
                     {ticket.ticket_messages.map((message) => (
                       <div
                         key={message.id}
