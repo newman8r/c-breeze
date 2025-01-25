@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import styles from './CustomerPortal.module.css';
+import { fetchCustomerTickets } from '@/lib/supabase';
 
 const demoKnowledgeBase = [
   { id: 1, title: 'Getting Started Guide', category: 'Basics' },
@@ -30,6 +31,16 @@ export default function CustomerPortal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     await onSubmit(email, password, description);
+  };
+
+  const fetchTickets = async () => {
+    try {
+      const tickets = await fetchCustomerTickets();
+      // Handle the response
+    } catch (error) {
+      console.error('Error fetching customer tickets:', error);
+      // Handle the error
+    }
   };
 
   return (
