@@ -435,7 +435,45 @@ export default function DashboardPage() {
     }
   }
 
-  // Add ticket fetching effect
+  // Add function to load satisfaction stats as useCallback to avoid recreating it
+  const loadSatisfactionStats = useCallback(async () => {
+    if (!organizationId) return;
+
+    try {
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session?.access_token) {
+        throw new Error('No access token available');
+      }
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/get-satisfaction-stats`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({ organization_id: organizationId })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch satisfaction stats');
+      }
+
+      const stats = await response.json();
+      setSatisfactionStats(stats);
+    } catch (error) {
+      console.error('Error loading satisfaction stats:', error);
+    }
+  }, [organizationId]);
+
+  // Add effect to load satisfaction stats and refresh every 5 minutes
+  useEffect(() => {
+    loadSatisfactionStats();
+    const interval = setInterval(loadSatisfactionStats, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [loadSatisfactionStats]);
+
   useEffect(() => {
     loadTickets()
 
@@ -451,8 +489,9 @@ export default function DashboardPage() {
           filter: `organization_id=eq.${organizationId}`
         },
         () => {
-          // Refresh tickets when a new one is added
+          // Refresh tickets and stats when a new ticket is added
           loadTickets()
+          loadSatisfactionStats()
         }
       )
       .on(
@@ -482,6 +521,8 @@ export default function DashboardPage() {
                 : ticket
             )
           )
+          // Refresh stats when a ticket is updated
+          loadSatisfactionStats()
         }
       )
       .on(
@@ -502,46 +543,7 @@ export default function DashboardPage() {
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [user, organizationId])
-
-  // Add function to load satisfaction stats
-  const loadSatisfactionStats = async () => {
-    if (!organizationId) return;
-
-    try {
-      const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session?.access_token) {
-        throw new Error('No access token available');
-      }
-
-      const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/get-satisfaction-stats`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
-        },
-        body: JSON.stringify({ organization_id: organizationId })
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch satisfaction stats');
-      }
-
-      const stats = await response.json();
-      setSatisfactionStats(stats);
-    } catch (error) {
-      console.error('Error loading satisfaction stats:', error);
-    }
-  };
-
-  // Add effect to load satisfaction stats and refresh every 5 minutes
-  useEffect(() => {
-    loadSatisfactionStats();
-    const interval = setInterval(loadSatisfactionStats, 5 * 60 * 1000);
-    return () => clearInterval(interval);
-  }, [organizationId]);
+  }, [user, organizationId, loadSatisfactionStats])
 
   const toggleTicketExpansion = (ticketId: string) => {
     setExpandedTickets(prev => ({
