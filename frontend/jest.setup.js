@@ -20,4 +20,36 @@ jest.mock('next/navigation', () => ({
   useSearchParams() {
     return new URLSearchParams()
   },
-})) 
+}))
+
+// Mock jose module
+jest.mock('jose', () => ({
+  CompactEncrypt: jest.fn(),
+  compactDecrypt: jest.fn(),
+  SignJWT: jest.fn(),
+  jwtVerify: jest.fn(),
+}))
+
+// Mock Supabase client
+jest.mock('@supabase/auth-helpers-nextjs', () => ({
+  createClientComponentClient: () => ({
+    auth: {
+      getSession: jest.fn().mockResolvedValue({ data: { session: null }, error: null }),
+      signInWithPassword: jest.fn(),
+      signOut: jest.fn(),
+    },
+  }),
+}))
+
+// Mock window.crypto for jose
+Object.defineProperty(window, 'crypto', {
+  value: {
+    subtle: {
+      digest: jest.fn(),
+      importKey: jest.fn(),
+      encrypt: jest.fn(),
+      decrypt: jest.fn(),
+    },
+    getRandomValues: jest.fn(),
+  },
+}) 
