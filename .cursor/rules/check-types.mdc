@@ -1,0 +1,7 @@
+---
+description: always check our latest database types to make sure we are using the correct names. 
+globs: 
+---
+
+# Your rule content
+The database types are in [database.types.ts](mdc:types/database.types.ts) - this file is generated and my not be fully up to date but can generally be relied on for the correct types

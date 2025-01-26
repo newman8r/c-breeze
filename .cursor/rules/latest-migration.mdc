@@ -1,0 +1,7 @@
+---
+description: make sure new migration filenames are the latest in the folder
+globs: 
+---
+
+# Your rule content
+I know the agent doesn't have the exact date, so when creating migration files in the migrations folder, check the file with the most recent filename and increment from there so we maintain the order
