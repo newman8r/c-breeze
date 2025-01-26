@@ -13,6 +13,7 @@ import FullScreenTicket from '@/components/tickets/FullScreenTicket'
 import styles from './dashboard.module.css'
 import TicketFeed from '@/components/tickets/TicketFeed'
 import { Ticket, SelectedTicket, CreateTicketForm } from '@/types/ticket'
+import { FullScreenKnowledgeBase } from '@/components/knowledge/FullScreenKnowledgeBase'
 
 // Types for our data
 interface Profile {
@@ -348,6 +349,11 @@ const StatusIndicator = ({ status, isHeatmap = false }: { status: string, isHeat
   );
 };
 
+const cardVariants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: { opacity: 1, y: 0 }
+}
+
 /**
  * Dashboard Page Component
  * 
@@ -375,6 +381,7 @@ export default function DashboardPage() {
   const [selectedTicket, setSelectedTicket] = useState<SelectedTicket>({ id: '', isOpen: false });
   const [isStatusOpen, setIsStatusOpen] = useState(false);
   const [isPriorityOpen, setIsPriorityOpen] = useState(false);
+  const [showKnowledgeBase, setShowKnowledgeBase] = useState(false);
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -720,37 +727,73 @@ export default function DashboardPage() {
             </div>
           </motion.div>
 
-          {/* Knowledge Base */}
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5 }}
-            className="ocean-card"
+          {/* Knowledge Base Card */}
+          <motion.div
+            className="ocean-card col-span-2"
+            variants={cardVariants}
           >
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold text-[#2C5282]">Knowledge Base</h2>
-              <Link href="/kb" className="text-[#4A90E2] hover:text-[#2C5282] transition-colors">
-                View All →
-              </Link>
-            </div>
-            <div className="space-y-4">
-              <div className="p-4 bg-white/50 rounded-lg hover:bg-white/70 transition-colors">
-                <h3 className="font-medium text-[#2C5282]">Getting Started Guide</h3>
-                <p className="text-sm text-[#4A5568] mt-1">Basic setup and configuration steps</p>
-                <div className="flex items-center gap-2 mt-2 text-xs text-[#4A5568]">
-                  <span>Updated 2d ago</span>
-                  <span>•</span>
-                  <span>Views: 1.2k</span>
-                </div>
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <h3 className="text-xl font-bold text-[#2C5282] mb-2">Knowledge Base</h3>
+                <p className="text-[#4A5568]">AI-powered documentation and resources</p>
               </div>
-              <div className="p-4 bg-white/50 rounded-lg hover:bg-white/70 transition-colors">
-                <h3 className="font-medium text-[#2C5282]">API Documentation</h3>
-                <p className="text-sm text-[#4A5568] mt-1">Integration guides and endpoints</p>
-                <div className="flex items-center gap-2 mt-2 text-xs text-[#4A5568]">
-                  <span>Updated 1w ago</span>
-                  <span>•</span>
-                  <span>Views: 3.4k</span>
+              <button 
+                onClick={() => setShowKnowledgeBase(true)}
+                className={`${styles.waveButton} px-4 py-2`}
+              >
+                View All
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 mb-6">
+              <div className="bg-white/50 p-4 rounded-lg">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[#4A5568] font-medium">Total Documents</span>
+                  <span className="text-2xl">📄</span>
                 </div>
+                <p className="text-2xl font-bold text-[#2C5282]">24</p>
+                <p className="text-sm text-[#4A5568]">Across 5 categories</p>
+              </div>
+              <div className="bg-white/50 p-4 rounded-lg">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[#4A5568] font-medium">AI Usage</span>
+                  <span className="text-2xl">🤖</span>
+                </div>
+                <p className="text-2xl font-bold text-[#2C5282]">89%</p>
+                <p className="text-sm text-[#4A5568]">Response accuracy</p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between p-3 bg-white/30 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <span className="text-xl">📘</span>
+                  <div>
+                    <p className="font-medium text-[#2C5282]">Getting Started Guide</p>
+                    <p className="text-sm text-[#4A5568]">Used in 156 AI responses</p>
+                  </div>
+                </div>
+                <div className="text-sm text-[#4A5568]">Updated 2d ago</div>
+              </div>
+              <div className="flex items-center justify-between p-3 bg-white/30 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <span className="text-xl">📗</span>
+                  <div>
+                    <p className="font-medium text-[#2C5282]">API Documentation</p>
+                    <p className="text-sm text-[#4A5568]">Used in 89 AI responses</p>
+                  </div>
+                </div>
+                <div className="text-sm text-[#4A5568]">Updated 5d ago</div>
+              </div>
+              <div className="flex items-center justify-between p-3 bg-white/30 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <span className="text-xl">📙</span>
+                  <div>
+                    <p className="font-medium text-[#2C5282]">Troubleshooting Guide</p>
+                    <p className="text-sm text-[#4A5568]">Used in 234 AI responses</p>
+                  </div>
+                </div>
+                <div className="text-sm text-[#4A5568]">Updated 1w ago</div>
               </div>
             </div>
           </motion.div>
@@ -1122,6 +1165,13 @@ export default function DashboardPage() {
             />
           ) : null;
         })()}
+
+        {/* Knowledge Base Modal */}
+        <AnimatePresence>
+          {showKnowledgeBase && (
+            <FullScreenKnowledgeBase onClose={() => setShowKnowledgeBase(false)} />
+          )}
+        </AnimatePresence>
       </div>
     </div>
   )
