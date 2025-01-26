@@ -1449,11 +1449,6 @@ export default function AdminPanel() {
                                 </span>
                               </td>
                               <td className="px-6 py-4">
-                                <span className={styles[`key-status-${key.status}`]}>
-                                  {key.status === 'active' ? '🟢 Active' : '⚫ Revoked'}
-                                </span>
-                              </td>
-                              <td className="px-6 py-4">
                                 <div className="flex items-center space-x-2">
                                   {key.status === 'active' ? (
                                     <button
@@ -1696,14 +1691,9 @@ export default function AdminPanel() {
             )}
 
             {activeTab === 'rag-system' && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 20 }}
-                className="w-full"
-              >
+              <div className="space-y-8">
                 <RagPanel />
-              </motion.div>
+              </div>
             )}
           </div>
         </div>

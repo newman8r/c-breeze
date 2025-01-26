@@ -3,6 +3,7 @@ import { FiUpload, FiTrash2, FiSearch, FiSettings, FiRefreshCw, FiFile, FiCheckC
 import { useDropzone } from 'react-dropzone';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import styles from './RagPanel.module.css';
+import RagSettings from './RagSettings';
 
 interface RagFile {
   id: string;
@@ -273,46 +274,7 @@ export default function RagPanel() {
       </div>
 
       <div className={styles.settingsSection}>
-        <h3 className="text-lg font-semibold mb-4">Configuration ⚙️</h3>
-        <div className={styles.configSection}>
-          <div className={styles.configCard}>
-            <label className="block mb-2">Chunk Size (tokens)</label>
-            <input
-              type="range"
-              min="100"
-              max="2000"
-              value={chunkSize}
-              onChange={(e) => setChunkSize(Number(e.target.value))}
-              className={styles.slider}
-            />
-            <span className={styles.helpText}>Current: {chunkSize} tokens</span>
-          </div>
-          <div className={styles.configCard}>
-            <label className="block mb-2">Chunk Overlap</label>
-            <input
-              type="range"
-              min="0"
-              max="200"
-              value={overlapSize}
-              onChange={(e) => setOverlapSize(Number(e.target.value))}
-              className={styles.slider}
-            />
-            <span className={styles.helpText}>Current: {overlapSize} tokens</span>
-          </div>
-        </div>
-        <div className="mt-4">
-          <label className="block mb-2">Embedding Model</label>
-          <select
-            value={selectedModel}
-            onChange={(e) => setSelectedModel(e.target.value)}
-            className="w-full p-2 rounded-lg bg-white/50 border border-gray-200"
-          >
-            <option value="text-embedding-3-small">text-embedding-3-small (OpenAI)</option>
-            <option value="text-embedding-3-large">text-embedding-3-large (OpenAI)</option>
-            <option value="bge-small-en">bge-small-en (BAAI)</option>
-            <option value="bge-base-en">bge-base-en (BAAI)</option>
-          </select>
-        </div>
+        <RagSettings />
       </div>
 
       <div className={styles.settingsSection}>
