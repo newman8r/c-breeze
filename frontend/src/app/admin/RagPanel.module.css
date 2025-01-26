@@ -1,0 +1,140 @@
+.ragPanel {
+  @apply space-y-6 p-6 rounded-xl bg-gradient-to-br from-blue-50 to-blue-100/50 backdrop-blur-sm;
+  box-shadow: 0 8px 32px -4px rgba(0, 0, 0, 0.05);
+}
+
+.header {
+  @apply flex items-center justify-between mb-8;
+}
+
+.title {
+  @apply text-2xl font-semibold text-gray-800;
+}
+
+.statsCard {
+  @apply bg-gradient-to-br from-white/70 to-white/50 p-6 rounded-xl space-y-2 backdrop-blur-sm border border-gray-100
+         hover:shadow-lg hover:from-white/80 hover:to-white/60 transition-all duration-200;
+}
+
+.statGrid {
+  @apply grid grid-cols-1 md:grid-cols-4 gap-4 mb-8;
+}
+
+.statItem {
+  @apply flex flex-col;
+}
+
+.statLabel {
+  @apply text-sm text-gray-600 flex items-center gap-2;
+}
+
+.statValue {
+  @apply text-2xl font-bold bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent;
+}
+
+.statSubtext {
+  @apply text-xs text-gray-500 mt-1;
+}
+
+.fileList {
+  @apply space-y-4 mt-6;
+}
+
+.fileCard {
+  @apply bg-white/80 p-4 rounded-lg border border-gray-200 flex items-center justify-between;
+  transition: all 0.2s ease-in-out;
+}
+
+.fileCard:hover {
+  @apply bg-white/90 shadow-md;
+}
+
+.searchBox {
+  @apply w-full p-4 rounded-lg bg-white/50 border border-gray-200 mb-6;
+  transition: all 0.2s ease-in-out;
+}
+
+.searchBox:focus {
+  @apply bg-white/80 outline-none ring-2 ring-blue-300;
+}
+
+.settingsSection {
+  @apply bg-white/70 p-6 rounded-xl space-y-4 backdrop-blur-sm border border-gray-100 mt-6;
+}
+
+.uploadButton {
+  @apply px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg 
+         hover:from-blue-600 hover:to-blue-700 transition-all duration-200 flex items-center gap-2;
+}
+
+.deleteButton {
+  @apply p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors duration-200;
+}
+
+.statusIndicator {
+  @apply flex items-center gap-2;
+}
+
+.statusDot {
+  @apply w-2 h-2 rounded-full;
+}
+
+.statusDot.active {
+  @apply bg-emerald-500;
+}
+
+.statusDot.processing {
+  @apply bg-amber-500;
+}
+
+.statusDot.error {
+  @apply bg-red-500;
+}
+
+.configSection {
+  @apply grid grid-cols-1 md:grid-cols-2 gap-4;
+}
+
+.configCard {
+  @apply bg-white/70 p-4 rounded-lg border border-gray-200;
+}
+
+.slider {
+  @apply w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer;
+}
+
+.slider::-webkit-slider-thumb {
+  @apply appearance-none w-4 h-4 rounded-full bg-blue-500 cursor-pointer;
+}
+
+.helpText {
+  @apply text-sm text-gray-600 mt-1;
+}
+
+.testResults {
+  @apply mt-4 p-4 bg-gray-50/80 rounded-lg border border-gray-200 max-h-60 overflow-y-auto;
+}
+
+.dbStatusCard {
+  @apply relative overflow-hidden;
+}
+
+.dbStatusBadge {
+  @apply absolute top-2 right-2 px-3 py-1 rounded-full text-xs font-medium flex items-center gap-2;
+}
+
+.dbStatusBadge.upToDate {
+  @apply bg-emerald-100 text-emerald-800;
+}
+
+.dbStatusBadge.needsUpdate {
+  @apply bg-amber-100 text-amber-800;
+}
+
+.dbStatusBadge.notBuilt {
+  @apply bg-red-100 text-red-800;
+}
+
+.dbStatusIcon {
+  @apply text-2xl mb-2;
+} 

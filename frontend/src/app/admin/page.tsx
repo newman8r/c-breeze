@@ -10,9 +10,10 @@ import { getFunctionUrl } from '@/lib/supabase'
 import type { Database } from '@/lib/database.types'
 import { useUser } from '@/contexts/UserContext'
 import styles from './ApiKeys.module.css'
+import RagPanel from './RagPanel'
 
 // Tab type definition
-type Tab = 'customers' | 'employees' | 'ticketing' | 'automation' | 'billing' | 'audit-logs' | 'api-keys'
+type Tab = 'customers' | 'employees' | 'ticketing' | 'automation' | 'billing' | 'audit-logs' | 'api-keys' | 'rag-system'
 
 interface ApiError {
   error: string
@@ -477,7 +478,8 @@ export default function AdminPanel() {
     { id: 'automation', label: 'Automation' },
     { id: 'billing', label: 'Billing' },
     { id: 'audit-logs', label: '🔍 Audit Logs' },
-    { id: 'api-keys', label: 'API Keys' }
+    { id: 'api-keys', label: 'API Keys' },
+    { id: 'rag-system', label: 'RAG System' }
   ]
 
   return (
@@ -1690,6 +1692,17 @@ export default function AdminPanel() {
                     </div>
                   </div>
                 </motion.div>
+              </motion.div>
+            )}
+
+            {activeTab === 'rag-system' && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 20 }}
+                className="w-full"
+              >
+                <RagPanel />
               </motion.div>
             )}
           </div>
