@@ -53,6 +53,7 @@ serve(async (req: Request) => {
       .from('tickets')
       .select(`
         *,
+        satisfaction_rating,
         ticket_messages(
           id,
           content,

@@ -4,13 +4,17 @@ import { useState, useEffect } from 'react';
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 import { getFunctionUrl } from '@/lib/supabase';
 import styles from './CustomerDashboard.module.css';
+import TicketRating from '@/components/tickets/TicketRating'
 
 interface Ticket {
   id: string;
   title: string;
+  description: string;
   status: string;
   priority: string;
   created_at: string;
+  updated_at: string;
+  satisfaction_rating: number | null;
   ticket_messages: Array<{
     id: string;
     content: string;
@@ -108,7 +112,7 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
               setTickets(currentTickets => 
                 currentTickets.map(ticket => 
                   ticket.id === payload.new.id 
-                    ? { ...ticket, status: payload.new.status, priority: payload.new.priority }
+                    ? { ...ticket, ...payload.new }  // Preserve all fields from the update
                     : ticket
                 )
               );
@@ -391,6 +395,31 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
     }
   };
 
+  const refreshTickets = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      
+      if (!session) {
+        throw new Error('Not authenticated')
+      }
+
+      const ticketsResponse = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/get-customer-tickets`, {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      })
+
+      if (!ticketsResponse.ok) {
+        throw new Error('Failed to refresh tickets')
+      }
+
+      const data = await ticketsResponse.json()
+      setTickets(data.tickets)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to refresh tickets')
+    }
+  }
+
   if (loading) {
     return (
       <div className={styles.container}>
@@ -584,6 +613,19 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
                           </button>
                         </div>
                       </div>
+                    </div>
+                  )}
+
+                  {ticket.status === 'closed' && (
+                    <div className="mt-4 border-t pt-4">
+                      <TicketRating 
+                        ticketId={ticket.id} 
+                        currentRating={ticket.satisfaction_rating}
+                        onRatingSubmit={() => {
+                          // Optionally refresh the tickets list after rating
+                          refreshTickets()
+                        }}
+                      />
                     </div>
                   )}
                 </>

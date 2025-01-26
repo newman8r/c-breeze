@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { createClient } from '@/utils/supabase'
+import { StarIcon } from '@heroicons/react/24/solid'
 
 interface Employee {
   id: string
@@ -32,6 +33,7 @@ interface Ticket {
   created_at: string
   category?: string
   tags: Tag[]
+  satisfaction_rating: number | null
   customer?: {
     name: string
     email: string
@@ -71,6 +73,36 @@ interface TicketMessage {
     attachments?: Array<{ name: string, size: number }>
   }
   responding_to_id?: string
+}
+
+interface TicketResponse {
+  id: string
+  title: string
+  description: string
+  status: string
+  priority: string
+  created_at: string
+  updated_at: string
+  organization_id: string
+  customer_id: string
+  satisfaction_rating: number | null
+  customer: {
+    id: string
+    name: string
+    email: string
+  }
+  assigned_employee: {
+    id: string
+    first_name: string
+    last_name: string
+  } | null
+  ticket_tags: Array<{
+    tag: {
+      id: string
+      name: string
+      color: string
+    }
+  }>
 }
 
 interface FullScreenTicketProps {
@@ -391,6 +423,31 @@ export const FullScreenTicket = ({ ticket: initialTicket, onClose }: FullScreenT
   useEffect(() => {
     const supabase = createClient()
     
+    // Ticket updates subscription
+    const ticketChannel = supabase
+      .channel(`ticket-${ticket.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'tickets',
+          filter: `id=eq.${ticket.id}`,
+        },
+        (payload) => {
+          // Update ticket with all fields from the payload while preserving existing fields
+          setTicket(currentTicket => ({
+            ...currentTicket,
+            ...payload.new,
+            // Ensure these nested objects are preserved
+            customer: currentTicket.customer,
+            assigned_employee: currentTicket.assigned_employee,
+            ticket_tags: currentTicket.ticket_tags
+          }))
+        }
+      )
+      .subscribe()
+
     // Messages subscription
     const messagesChannel = supabase
       .channel(`ticket-messages-${ticket.id}`)
@@ -440,6 +497,7 @@ export const FullScreenTicket = ({ ticket: initialTicket, onClose }: FullScreenT
       .subscribe()
 
     return () => {
+      supabase.removeChannel(ticketChannel)
       supabase.removeChannel(messagesChannel)
       supabase.removeChannel(tagsChannel)
     }
@@ -499,30 +557,118 @@ export const FullScreenTicket = ({ ticket: initialTicket, onClose }: FullScreenT
   const refreshTicketData = async () => {
     try {
       const supabase = createClient()
-      const { data: { session } } = await supabase.auth.getSession()
+      const ticketId = ticket.id
+      
+      const { data: updatedTicket, error } = await supabase
+        .from('tickets')
+        .select(`
+          id,
+          title,
+          description,
+          status,
+          priority,
+          created_at,
+          updated_at,
+          organization_id,
+          customer_id,
+          satisfaction_rating,
+          customer:customers(
+            id,
+            name,
+            email
+          ),
+          assigned_employee:employees!tickets_assigned_to_fkey(
+            id,
+            first_name,
+            last_name
+          ),
+          ticket_tags(
+            tag:tags(
+              id,
+              name,
+              color
+            )
+          )
+        `)
+        .eq('id', ticketId)
+        .single()
 
-      if (!session?.access_token) {
-        throw new Error('No access token available')
+      if (error) {
+        throw error
       }
 
-      const response = await fetch(`http://localhost:54321/functions/v1/api-get-ticket?ticket_id=${ticket.id}`, {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`
+      if (updatedTicket) {
+        // Transform ticket_tags to match the Ticket interface
+        const transformedTicket: Ticket = {
+          ...updatedTicket,
+          tags: (updatedTicket.ticket_tags || []).map((tt: { tag: Tag }) => tt.tag)
         }
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch updated ticket data')
-      }
-
-      const data = await response.json()
-      if (data.success && data.ticket) {
-        setTicket(data.ticket)
+        setTicket(transformedTicket)
       }
     } catch (error) {
       console.error('Error refreshing ticket data:', error)
     }
   }
+
+  // Update effect to load initial ticket data
+  useEffect(() => {
+    const loadTicketData = async () => {
+      try {
+        const supabase = createClient()
+        
+        const { data: updatedTicket, error } = await supabase
+          .from('tickets')
+          .select(`
+            id,
+            title,
+            description,
+            status,
+            priority,
+            created_at,
+            updated_at,
+            organization_id,
+            customer_id,
+            satisfaction_rating,
+            customer:customers(
+              id,
+              name,
+              email
+            ),
+            assigned_employee:employees!tickets_assigned_to_fkey(
+              id,
+              first_name,
+              last_name
+            ),
+            ticket_tags(
+              tag:tags(
+                id,
+                name,
+                color
+              )
+            )
+          `)
+          .eq('id', initialTicket.id)
+          .single()
+
+        if (error) {
+          throw error
+        }
+
+        if (updatedTicket) {
+          // Transform ticket_tags to match the Ticket interface
+          const transformedTicket: Ticket = {
+            ...updatedTicket,
+            tags: (updatedTicket.ticket_tags || []).map((tt: { tag: Tag }) => tt.tag)
+          }
+          setTicket(transformedTicket)
+        }
+      } catch (error) {
+        console.error('Error loading ticket data:', error)
+      }
+    }
+
+    loadTicketData()
+  }, [initialTicket.id])
 
   const handleAddTag = async (tagName: string) => {
     try {
@@ -602,39 +748,6 @@ export const FullScreenTicket = ({ ticket: initialTicket, onClose }: FullScreenT
       setTagError(error.message || 'Failed to remove tag')
     }
   }
-
-  // Add effect to load initial ticket data
-  useEffect(() => {
-    const loadTicketData = async () => {
-      try {
-        const supabase = createClient()
-        const { data: { session } } = await supabase.auth.getSession()
-
-        if (!session?.access_token) {
-          throw new Error('No access token available')
-        }
-
-        const response = await fetch(`http://localhost:54321/functions/v1/api-get-ticket?ticket_id=${initialTicket.id}`, {
-          headers: {
-            Authorization: `Bearer ${session.access_token}`
-          }
-        })
-
-        if (!response.ok) {
-          throw new Error('Failed to fetch ticket data')
-        }
-
-        const data = await response.json()
-        if (data.success && data.ticket) {
-          setTicket(data.ticket)
-        }
-      } catch (error) {
-        console.error('Error loading ticket data:', error)
-      }
-    }
-
-    loadTicketData()
-  }, [initialTicket.id])
 
   return (
     <div className="fixed inset-0 z-[100] bg-gradient-to-br from-blue-50/95 to-white/95 backdrop-blur-sm overflow-y-auto">
@@ -838,6 +951,30 @@ export const FullScreenTicket = ({ ticket: initialTicket, onClose }: FullScreenT
                     <h3 className="text-lg font-medium text-[#2C5282] mb-4">Description</h3>
                     <p className="text-gray-700 whitespace-pre-wrap">{ticket.description}</p>
                   </div>
+
+                  {/* Satisfaction Rating - if ticket is closed and has a rating */}
+                  {ticket.status === 'closed' && ticket.satisfaction_rating !== null && (
+                    <div className="bg-white/50 rounded-lg p-6">
+                      <h3 className="text-lg font-medium text-[#2C5282] mb-4">Customer Feedback</h3>
+                      <div className="flex items-center gap-2">
+                        <div className="flex gap-1">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <StarIcon
+                              key={star}
+                              className={`w-6 h-6 ${
+                                star <= (ticket.satisfaction_rating || 0)
+                                  ? 'text-yellow-400'
+                                  : 'text-gray-200'
+                              }`}
+                            />
+                          ))}
+                        </div>
+                        <span className="text-sm text-gray-600 ml-2">
+                          {ticket.satisfaction_rating}/5 rating
+                        </span>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Timeline */}
                   <div className="bg-white/50 rounded-lg p-6">

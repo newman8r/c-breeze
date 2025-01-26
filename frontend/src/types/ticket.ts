@@ -5,11 +5,14 @@ export interface Ticket {
   status: string
   priority: string
   created_at: string
+  updated_at: string
+  organization_id: string
+  customer_id: string
+  satisfaction_rating: number | null
   customer: {
+    id: string
     name: string
     email: string
-    company?: string
-    phone?: string
   }
   assigned_employee?: {
     id: string
@@ -20,7 +23,9 @@ export interface Ticket {
   due_date?: string
   ticket_tags: Array<{
     tag: {
+      id: string
       name: string
+      color: string
     }
   }>
   status_changes?: Array<{

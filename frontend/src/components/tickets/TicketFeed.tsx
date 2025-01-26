@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { StatusIndicator } from '@/components/ui/StatusIndicator'
 import { Ticket, SelectedTicket } from '@/types/ticket'
 import { useEffect, useRef } from 'react'
+import { StarIcon } from '@heroicons/react/24/solid'
 
 interface TicketFeedProps {
   tickets: Ticket[]
@@ -286,10 +287,35 @@ export default function TicketFeed({
                         <h3 className="font-medium text-[#2C5282] text-xs leading-tight truncate flex-1">
                           {ticket.title}
                         </h3>
+                        {ticket.status === 'closed' && ticket.satisfaction_rating !== null && (
+                          <div className="flex items-center gap-0.5">
+                            <StarIcon className="w-3 h-3 text-yellow-400" />
+                            <span className="text-[10px] text-gray-600">{ticket.satisfaction_rating}</span>
+                          </div>
+                        )}
                       </div>
                       <p className="text-[10px] text-[#4A5568] line-clamp-2 flex-1">
                         {ticket.description}
                       </p>
+                      {zoomLevel === 1 && ticket.status === 'closed' && ticket.satisfaction_rating !== null && (
+                        <div className="flex items-center gap-1 mt-2">
+                          <div className="flex gap-0.5">
+                            {[1, 2, 3, 4, 5].map((star) => (
+                              <StarIcon
+                                key={star}
+                                className={`w-3 h-3 ${
+                                  star <= (ticket.satisfaction_rating || 0)
+                                    ? 'text-yellow-400'
+                                    : 'text-gray-200'
+                                }`}
+                              />
+                            ))}
+                          </div>
+                          <span className="text-[10px] text-gray-600 ml-1">
+                            rating
+                          </span>
+                        </div>
+                      )}
                     </motion.div>
                   )}
                 </motion.div>

@@ -62,12 +62,32 @@ export const getRecentOrganizationTickets = async (organizationId: string) => {
   const { data: tickets, error } = await supabase
     .from('tickets')
     .select(`
-      *,
-      customer:customers(id, name, email),
-      assigned_employee:employees!tickets_assigned_to_fkey(id, name),
-      resolved_employee:employees!tickets_resolved_by_fkey(id, name),
+      id,
+      title,
+      description,
+      status,
+      priority,
+      created_at,
+      updated_at,
+      organization_id,
+      customer_id,
+      satisfaction_rating,
+      customer:customers(
+        id,
+        name,
+        email
+      ),
+      assigned_employee:employees!tickets_assigned_to_fkey(
+        id,
+        first_name,
+        last_name
+      ),
       ticket_tags(
-        tag:tags(id, name, color)
+        tag:tags(
+          id,
+          name,
+          color
+        )
       )
     `)
     .eq('organization_id', organizationId)
@@ -79,8 +99,18 @@ export const getRecentOrganizationTickets = async (organizationId: string) => {
     throw error
   }
   
-  console.log('Fetched tickets:', tickets)
-  return tickets
+  // Transform the tickets to include tags array
+  const transformedTickets = tickets.map(ticket => ({
+    ...ticket,
+    tags: (ticket.ticket_tags || []).map((tt: { tag: any }) => ({
+      ...tt.tag,
+      description: '', // Add required fields from Tag interface
+      type: 'custom' as const // Add required fields from Tag interface
+    }))
+  }))
+  
+  console.log('Fetched and transformed tickets:', transformedTickets)
+  return transformedTickets
 }
 
 export const createTicket = async (ticketData: any) => {
