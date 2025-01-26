@@ -18,6 +18,10 @@ describe('Middleware', () => {
       auth: {
         getSession: jest.fn().mockResolvedValue({ data: { session: null } }),
       },
+      from: jest.fn().mockReturnThis(),
+      select: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockReturnThis(),
+      single: jest.fn().mockResolvedValue({ data: null }),
     }
 
     ;(createMiddlewareClient as jest.Mock).mockReturnValue(mockSupabase)
@@ -56,6 +60,39 @@ describe('Middleware', () => {
     expect(NextResponse.redirect).toHaveBeenCalledWith(
       expect.objectContaining({
         pathname: '/auth/signin',
+      })
+    )
+    expect(response).toBe(mockRedirectRes)
+  })
+
+  it('redirects to home for admin routes with non-admin user', async () => {
+    // Mock authenticated session but non-admin role
+    mockSupabase.auth.getSession.mockResolvedValue({
+      data: { 
+        session: { 
+          user: { id: 'test-user-id' } 
+        } 
+      }
+    })
+
+    const mockReq = {
+      nextUrl: { pathname: '/admin/dashboard' },
+      url: 'http://localhost:3000/admin/dashboard',
+    }
+
+    const mockRedirectRes = { headers: new Map() }
+    jest.spyOn(NextResponse, 'redirect').mockReturnValue(mockRedirectRes as any)
+    jest.spyOn(global, 'URL').mockImplementation((url) => {
+      return {
+        pathname: url,
+        href: `http://localhost:3000${url}`,
+      } as any
+    })
+
+    const response = await middleware(mockReq as any)
+    expect(NextResponse.redirect).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pathname: '/',
       })
     )
     expect(response).toBe(mockRedirectRes)
