@@ -112,7 +112,7 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
               setTickets(currentTickets => 
                 currentTickets.map(ticket => 
                   ticket.id === payload.new.id 
-                    ? { ...ticket, status: payload.new.status, priority: payload.new.priority }
+                    ? { ...ticket, ...payload.new }  // Preserve all fields from the update
                     : ticket
                 )
               );

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { createClient } from '@/utils/supabase'
+import { StarIcon } from '@heroicons/react/24/solid'
 
 interface Employee {
   id: string
@@ -32,6 +33,7 @@ interface Ticket {
   created_at: string
   category?: string
   tags: Tag[]
+  satisfaction_rating: number | null
   customer?: {
     name: string
     email: string
@@ -838,6 +840,30 @@ export const FullScreenTicket = ({ ticket: initialTicket, onClose }: FullScreenT
                     <h3 className="text-lg font-medium text-[#2C5282] mb-4">Description</h3>
                     <p className="text-gray-700 whitespace-pre-wrap">{ticket.description}</p>
                   </div>
+
+                  {/* Satisfaction Rating - if ticket is closed and has a rating */}
+                  {ticket.status === 'closed' && ticket.satisfaction_rating !== null && (
+                    <div className="bg-white/50 rounded-lg p-6">
+                      <h3 className="text-lg font-medium text-[#2C5282] mb-4">Customer Feedback</h3>
+                      <div className="flex items-center gap-2">
+                        <div className="flex gap-1">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <StarIcon
+                              key={star}
+                              className={`w-6 h-6 ${
+                                star <= (ticket.satisfaction_rating || 0)
+                                  ? 'text-yellow-400'
+                                  : 'text-gray-200'
+                              }`}
+                            />
+                          ))}
+                        </div>
+                        <span className="text-sm text-gray-600 ml-2">
+                          {ticket.satisfaction_rating}/5 rating
+                        </span>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Timeline */}
                   <div className="bg-white/50 rounded-lg p-6">
