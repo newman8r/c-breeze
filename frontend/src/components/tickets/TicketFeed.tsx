@@ -185,7 +185,7 @@ export default function TicketFeed({
         <div className={`${zoomLevel === 3 ? 'overflow-visible' : 'max-h-[600px] overflow-y-auto pr-2'}`}>
           {ticketsLoading ? (
             <div className="flex items-center justify-center p-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#4A90E2]"></div>
+              <div data-testid="loading-spinner" className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#4A90E2]"></div>
             </div>
           ) : (
             <motion.div 
