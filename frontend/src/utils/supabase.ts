@@ -62,12 +62,32 @@ export const getRecentOrganizationTickets = async (organizationId: string) => {
   const { data: tickets, error } = await supabase
     .from('tickets')
     .select(`
-      *,
-      customer:customers(id, name, email),
-      assigned_employee:employees!tickets_assigned_to_fkey(id, name),
-      resolved_employee:employees!tickets_resolved_by_fkey(id, name),
+      id,
+      title,
+      description,
+      status,
+      priority,
+      created_at,
+      updated_at,
+      organization_id,
+      customer_id,
+      satisfaction_rating,
+      customer:customers(
+        id,
+        name,
+        email
+      ),
+      assigned_employee:employees!tickets_assigned_to_fkey(
+        id,
+        first_name,
+        last_name
+      ),
       ticket_tags(
-        tag:tags(id, name, color)
+        tag:tags(
+          id,
+          name,
+          color
+        )
       )
     `)
     .eq('organization_id', organizationId)

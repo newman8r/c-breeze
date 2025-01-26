@@ -501,30 +501,107 @@ export const FullScreenTicket = ({ ticket: initialTicket, onClose }: FullScreenT
   const refreshTicketData = async () => {
     try {
       const supabase = createClient()
-      const { data: { session } } = await supabase.auth.getSession()
+      
+      const { data: ticket, error } = await supabase
+        .from('tickets')
+        .select(`
+          id,
+          title,
+          description,
+          status,
+          priority,
+          created_at,
+          updated_at,
+          organization_id,
+          customer_id,
+          satisfaction_rating,
+          customer:customers(
+            id,
+            name,
+            email
+          ),
+          assigned_employee:employees!tickets_assigned_to_fkey(
+            id,
+            first_name,
+            last_name
+          ),
+          ticket_tags(
+            tag:tags(
+              id,
+              name,
+              color
+            )
+          )
+        `)
+        .eq('id', ticket.id)
+        .single()
 
-      if (!session?.access_token) {
-        throw new Error('No access token available')
+      if (error) {
+        throw error
       }
 
-      const response = await fetch(`http://localhost:54321/functions/v1/api-get-ticket?ticket_id=${ticket.id}`, {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`
-        }
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch updated ticket data')
-      }
-
-      const data = await response.json()
-      if (data.success && data.ticket) {
-        setTicket(data.ticket)
+      if (ticket) {
+        setTicket(ticket)
       }
     } catch (error) {
       console.error('Error refreshing ticket data:', error)
     }
   }
+
+  // Update effect to load initial ticket data
+  useEffect(() => {
+    const loadTicketData = async () => {
+      try {
+        const supabase = createClient()
+        
+        const { data: ticket, error } = await supabase
+          .from('tickets')
+          .select(`
+            id,
+            title,
+            description,
+            status,
+            priority,
+            created_at,
+            updated_at,
+            organization_id,
+            customer_id,
+            satisfaction_rating,
+            customer:customers(
+              id,
+              name,
+              email
+            ),
+            assigned_employee:employees!tickets_assigned_to_fkey(
+              id,
+              first_name,
+              last_name
+            ),
+            ticket_tags(
+              tag:tags(
+                id,
+                name,
+                color
+              )
+            )
+          `)
+          .eq('id', initialTicket.id)
+          .single()
+
+        if (error) {
+          throw error
+        }
+
+        if (ticket) {
+          setTicket(ticket)
+        }
+      } catch (error) {
+        console.error('Error loading ticket data:', error)
+      }
+    }
+
+    loadTicketData()
+  }, [initialTicket.id])
 
   const handleAddTag = async (tagName: string) => {
     try {
@@ -604,39 +681,6 @@ export const FullScreenTicket = ({ ticket: initialTicket, onClose }: FullScreenT
       setTagError(error.message || 'Failed to remove tag')
     }
   }
-
-  // Add effect to load initial ticket data
-  useEffect(() => {
-    const loadTicketData = async () => {
-      try {
-        const supabase = createClient()
-        const { data: { session } } = await supabase.auth.getSession()
-
-        if (!session?.access_token) {
-          throw new Error('No access token available')
-        }
-
-        const response = await fetch(`http://localhost:54321/functions/v1/api-get-ticket?ticket_id=${initialTicket.id}`, {
-          headers: {
-            Authorization: `Bearer ${session.access_token}`
-          }
-        })
-
-        if (!response.ok) {
-          throw new Error('Failed to fetch ticket data')
-        }
-
-        const data = await response.json()
-        if (data.success && data.ticket) {
-          setTicket(data.ticket)
-        }
-      } catch (error) {
-        console.error('Error loading ticket data:', error)
-      }
-    }
-
-    loadTicketData()
-  }, [initialTicket.id])
 
   return (
     <div className="fixed inset-0 z-[100] bg-gradient-to-br from-blue-50/95 to-white/95 backdrop-blur-sm overflow-y-auto">

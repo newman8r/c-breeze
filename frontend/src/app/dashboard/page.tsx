@@ -453,11 +453,21 @@ export default function DashboardPage() {
           filter: `organization_id=eq.${organizationId}`
         },
         (payload) => {
-          // Update ticket status and priority in the UI without a full refresh
+          // Update ticket with all fields from the payload while preserving existing fields
           setTickets(currentTickets => 
             currentTickets.map(ticket => 
               ticket.id === payload.new.id 
-                ? { ...ticket, status: payload.new.status, priority: payload.new.priority }
+                ? { 
+                    ...ticket,
+                    ...payload.new,
+                    // Ensure these nested objects are preserved
+                    customer: ticket.customer,
+                    assigned_employee: ticket.assigned_employee,
+                    ticket_tags: ticket.ticket_tags,
+                    status_changes: ticket.status_changes,
+                    activities: ticket.activities,
+                    attachments: ticket.attachments
+                  }
                 : ticket
             )
           )
