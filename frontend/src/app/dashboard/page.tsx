@@ -86,6 +86,7 @@ interface MockStats {
 interface SatisfactionStats {
   last24Hours: number | null
   lastWeek: number | null
+  resolvedLastWeek: number
 }
 
 // Add new interface for expanded state tracking
@@ -389,7 +390,8 @@ export default function DashboardPage() {
   const [showKnowledgeBase, setShowKnowledgeBase] = useState(false);
   const [satisfactionStats, setSatisfactionStats] = useState<SatisfactionStats>({
     last24Hours: null,
-    lastWeek: null
+    lastWeek: null,
+    resolvedLastWeek: 0
   });
 
   // Redirect if not authenticated
@@ -690,9 +692,13 @@ export default function DashboardPage() {
           <div className="ocean-card relative overflow-hidden">
             <BauhausShape color="#50C878" type="rectangle" />
             <div className="relative z-10">
-              <h3 className="text-lg font-medium text-[#4A5568]">Resolved Today</h3>
-              <p className="text-3xl font-bold text-[#2C5282]">{mockStats.support.resolvedToday}</p>
-              <p className="text-sm text-[#50C878]">{mockStats.performance.automationRate}% automated</p>
+              <h3 className="text-lg font-medium text-[#4A5568]">Resolved This Week</h3>
+              <p className="text-3xl font-bold text-[#2C5282]">
+                {satisfactionStats.resolvedLastWeek || 0}
+              </p>
+              <p className="text-sm text-[#50C878]">
+                {satisfactionStats.resolvedLastWeek > 0 ? 'Last 7 days' : 'No tickets resolved'}
+              </p>
             </div>
           </div>
           

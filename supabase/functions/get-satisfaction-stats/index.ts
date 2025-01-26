@@ -4,6 +4,7 @@ import { corsHeaders } from '../_shared/cors.ts'
 interface SatisfactionStats {
   last24Hours: number | null
   lastWeek: number | null
+  resolvedLastWeek: number
 }
 
 // Helper function to convert rating to percentage
@@ -74,10 +75,21 @@ Deno.serve(async (req) => {
 
     if (lastWeekError) throw lastWeekError
 
-    // Calculate satisfaction percentages
+    // Fetch resolved tickets from last week
+    const { data: resolvedData, error: resolvedError } = await supabaseClient
+      .from('tickets')
+      .select('id')
+      .eq('organization_id', organization_id)
+      .gte('updated_at', lastWeek.toISOString())
+      .in('status', ['resolved', 'closed'])
+
+    if (resolvedError) throw resolvedError
+
+    // Calculate satisfaction percentages and resolved count
     const stats: SatisfactionStats = {
       last24Hours: calculateSatisfactionPercentage(last24HoursData.map(t => t.satisfaction_rating!)),
-      lastWeek: calculateSatisfactionPercentage(lastWeekData.map(t => t.satisfaction_rating!))
+      lastWeek: calculateSatisfactionPercentage(lastWeekData.map(t => t.satisfaction_rating!)),
+      resolvedLastWeek: resolvedData.length
     }
 
     return new Response(
