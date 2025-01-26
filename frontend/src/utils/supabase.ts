@@ -99,8 +99,18 @@ export const getRecentOrganizationTickets = async (organizationId: string) => {
     throw error
   }
   
-  console.log('Fetched tickets:', tickets)
-  return tickets
+  // Transform the tickets to include tags array
+  const transformedTickets = tickets.map(ticket => ({
+    ...ticket,
+    tags: (ticket.ticket_tags || []).map((tt: { tag: any }) => ({
+      ...tt.tag,
+      description: '', // Add required fields from Tag interface
+      type: 'custom' as const // Add required fields from Tag interface
+    }))
+  }))
+  
+  console.log('Fetched and transformed tickets:', transformedTickets)
+  return transformedTickets
 }
 
 export const createTicket = async (ticketData: any) => {

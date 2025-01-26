@@ -75,6 +75,36 @@ interface TicketMessage {
   responding_to_id?: string
 }
 
+interface TicketResponse {
+  id: string
+  title: string
+  description: string
+  status: string
+  priority: string
+  created_at: string
+  updated_at: string
+  organization_id: string
+  customer_id: string
+  satisfaction_rating: number | null
+  customer: {
+    id: string
+    name: string
+    email: string
+  }
+  assigned_employee: {
+    id: string
+    first_name: string
+    last_name: string
+  } | null
+  ticket_tags: Array<{
+    tag: {
+      id: string
+      name: string
+      color: string
+    }
+  }>
+}
+
 interface FullScreenTicketProps {
   ticket: Ticket
   onClose: () => void
@@ -393,6 +423,31 @@ export const FullScreenTicket = ({ ticket: initialTicket, onClose }: FullScreenT
   useEffect(() => {
     const supabase = createClient()
     
+    // Ticket updates subscription
+    const ticketChannel = supabase
+      .channel(`ticket-${ticket.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'tickets',
+          filter: `id=eq.${ticket.id}`,
+        },
+        (payload) => {
+          // Update ticket with all fields from the payload while preserving existing fields
+          setTicket(currentTicket => ({
+            ...currentTicket,
+            ...payload.new,
+            // Ensure these nested objects are preserved
+            customer: currentTicket.customer,
+            assigned_employee: currentTicket.assigned_employee,
+            ticket_tags: currentTicket.ticket_tags
+          }))
+        }
+      )
+      .subscribe()
+
     // Messages subscription
     const messagesChannel = supabase
       .channel(`ticket-messages-${ticket.id}`)
@@ -442,6 +497,7 @@ export const FullScreenTicket = ({ ticket: initialTicket, onClose }: FullScreenT
       .subscribe()
 
     return () => {
+      supabase.removeChannel(ticketChannel)
       supabase.removeChannel(messagesChannel)
       supabase.removeChannel(tagsChannel)
     }
@@ -501,8 +557,9 @@ export const FullScreenTicket = ({ ticket: initialTicket, onClose }: FullScreenT
   const refreshTicketData = async () => {
     try {
       const supabase = createClient()
+      const ticketId = ticket.id
       
-      const { data: ticket, error } = await supabase
+      const { data: updatedTicket, error } = await supabase
         .from('tickets')
         .select(`
           id,
@@ -533,15 +590,20 @@ export const FullScreenTicket = ({ ticket: initialTicket, onClose }: FullScreenT
             )
           )
         `)
-        .eq('id', ticket.id)
+        .eq('id', ticketId)
         .single()
 
       if (error) {
         throw error
       }
 
-      if (ticket) {
-        setTicket(ticket)
+      if (updatedTicket) {
+        // Transform ticket_tags to match the Ticket interface
+        const transformedTicket: Ticket = {
+          ...updatedTicket,
+          tags: (updatedTicket.ticket_tags || []).map((tt: { tag: Tag }) => tt.tag)
+        }
+        setTicket(transformedTicket)
       }
     } catch (error) {
       console.error('Error refreshing ticket data:', error)
@@ -554,7 +616,7 @@ export const FullScreenTicket = ({ ticket: initialTicket, onClose }: FullScreenT
       try {
         const supabase = createClient()
         
-        const { data: ticket, error } = await supabase
+        const { data: updatedTicket, error } = await supabase
           .from('tickets')
           .select(`
             id,
@@ -592,8 +654,13 @@ export const FullScreenTicket = ({ ticket: initialTicket, onClose }: FullScreenT
           throw error
         }
 
-        if (ticket) {
-          setTicket(ticket)
+        if (updatedTicket) {
+          // Transform ticket_tags to match the Ticket interface
+          const transformedTicket: Ticket = {
+            ...updatedTicket,
+            tags: (updatedTicket.ticket_tags || []).map((tt: { tag: Tag }) => tt.tag)
+          }
+          setTicket(transformedTicket)
         }
       } catch (error) {
         console.error('Error loading ticket data:', error)
