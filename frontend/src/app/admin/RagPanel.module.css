@@ -37,16 +37,148 @@
 }
 
 .fileList {
-  @apply space-y-4 mt-6;
+  @apply grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6;
 }
 
 .fileCard {
-  @apply bg-white/80 p-4 rounded-lg border border-gray-200 flex items-center justify-between;
-  transition: all 0.2s ease-in-out;
+  @apply relative overflow-hidden;
+  min-height: 180px;
+  transform-style: preserve-3d;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+.fileCard::before {
+  content: '';
+  @apply absolute inset-0 rounded-2xl;
+  background: linear-gradient(135deg, 
+    rgba(255, 255, 255, 0.8) 0%,
+    rgba(236, 254, 255, 0.7) 50%,
+    rgba(224, 242, 254, 0.6) 100%
+  );
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  transform: translateZ(-1px);
+}
+
+/* Bauhaus-inspired geometric decorations */
+.fileCard::after {
+  content: '';
+  @apply absolute -right-8 -bottom-8 w-32 h-32 rounded-full;
+  background: linear-gradient(45deg, #bae6fd 0%, #7dd3fc 100%);
+  opacity: 0.3;
+  z-index: -1;
+}
+
+.fileCardContent {
+  @apply relative p-6 flex flex-col h-full;
+}
+
+.fileHeader {
+  @apply flex items-start justify-between gap-4 mb-4;
+}
+
+.fileName {
+  @apply font-medium text-lg text-gray-800 line-clamp-2;
+}
+
+.fileDescription {
+  @apply text-sm text-gray-600 mt-1 line-clamp-2;
+}
+
+.fileStats {
+  @apply mt-auto flex flex-wrap gap-3;
+}
+
+.statBadge {
+  @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-sm;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.statusIndicator {
+  @apply flex items-center gap-2 mb-3;
+}
+
+.statusDot {
+  @apply w-2.5 h-2.5 rounded-full;
+  position: relative;
+}
+
+.statusDot::after {
+  content: '';
+  @apply absolute inset-0 rounded-full animate-ping;
+  animation-duration: 2s;
+}
+
+.statusDot.pending {
+  @apply bg-amber-500;
+}
+
+.statusDot.pending::after {
+  @apply bg-amber-500/40;
+}
+
+.statusDot.processing {
+  @apply bg-blue-500;
+}
+
+.statusDot.processing::after {
+  @apply bg-blue-500/40;
+}
+
+.statusDot.processed {
+  @apply bg-emerald-500;
+}
+
+.statusDot.processed::after {
+  @apply bg-emerald-500/40;
+}
+
+.statusDot.failed {
+  @apply bg-red-500;
+}
+
+.statusDot.failed::after {
+  @apply bg-red-500/40;
+}
+
+.deleteButton {
+  @apply p-2 rounded-full transition-all duration-200 hover:bg-red-50;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.deleteButton:hover {
+  @apply text-red-600 transform scale-110;
+}
+
+/* Bauhaus-inspired decorative elements */
+.triangleDecoration {
+  @apply absolute -left-4 -top-4 w-16 h-16;
+  background: linear-gradient(135deg, #93c5fd 0%, #60a5fa 100%);
+  clip-path: polygon(0 0, 100% 0, 0 100%);
+  opacity: 0.2;
+  z-index: -1;
+}
+
+.squareDecoration {
+  @apply absolute right-0 top-1/2 w-8 h-8 -translate-y-1/2;
+  background: linear-gradient(45deg, #c084fc 0%, #a855f7 100%);
+  opacity: 0.15;
+  z-index: -1;
+  transform: rotate(15deg);
+}
+
+/* Card hover effects */
 .fileCard:hover {
-  @apply bg-white/90 shadow-md;
+  @apply transform -translate-y-1;
+  box-shadow: 0 20px 40px -20px rgba(0, 0, 0, 0.1);
+}
+
+.fileCard:hover::before {
+  background: linear-gradient(135deg, 
+    rgba(255, 255, 255, 0.9) 0%,
+    rgba(236, 254, 255, 0.8) 50%,
+    rgba(224, 242, 254, 0.7) 100%
+  );
 }
 
 .searchBox {
@@ -66,141 +198,6 @@
   @apply px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg 
          hover:from-blue-600 hover:to-blue-700 transition-all duration-200 
          flex items-center gap-2 text-sm;
-}
-
-.deleteButton {
-  @apply p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors duration-200;
-}
-
-.statusIndicator {
-  @apply flex items-center gap-2;
-}
-
-.statusDot {
-  @apply w-2 h-2 rounded-full;
-}
-
-.statusDot.active {
-  @apply bg-emerald-500;
-}
-
-.statusDot.processing {
-  @apply bg-amber-500;
-}
-
-.statusDot.error {
-  @apply bg-red-500;
-}
-
-.configSection {
-  @apply grid grid-cols-1 md:grid-cols-2 gap-4;
-}
-
-.configCard {
-  @apply bg-white/70 p-4 rounded-lg border border-gray-200;
-}
-
-.slider {
-  @apply w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer;
-}
-
-.slider::-webkit-slider-thumb {
-  @apply appearance-none w-4 h-4 rounded-full bg-blue-500 cursor-pointer;
-}
-
-.helpText {
-  @apply text-sm text-gray-600 mt-1;
-}
-
-.testResults {
-  @apply mt-4 p-4 bg-gray-50/80 rounded-lg border border-gray-200 max-h-60 overflow-y-auto;
-}
-
-.dbStatusCard {
-  @apply relative overflow-hidden;
-}
-
-.dbStatusBadge {
-  @apply absolute top-2 right-2 px-3 py-1 rounded-full text-xs font-medium flex items-center gap-2;
-}
-
-.dbStatusBadge.upToDate {
-  @apply bg-emerald-100 text-emerald-800;
-}
-
-.dbStatusBadge.needsUpdate {
-  @apply bg-amber-100 text-amber-800;
-}
-
-.dbStatusBadge.notBuilt {
-  @apply bg-red-100 text-red-800;
-}
-
-.dbStatusIcon {
-  @apply text-2xl mb-2;
-}
-
-.uploadZone {
-  @apply relative border-2 border-dashed border-blue-200 rounded-xl p-8 
-         transition-all duration-200 bg-white/50 backdrop-blur-sm
-         hover:border-blue-400 hover:bg-white/60;
-}
-
-.uploadZone.isDragging {
-  @apply border-blue-500 bg-blue-50/50;
-}
-
-.uploadInput {
-  @apply absolute inset-0 w-full h-full opacity-0 cursor-pointer;
-}
-
-.uploadContent {
-  @apply flex flex-col items-center justify-center text-center space-y-4;
-}
-
-.uploadIcon {
-  @apply text-4xl text-blue-500;
-}
-
-.uploadText {
-  @apply text-gray-600;
-}
-
-.uploadList {
-  @apply mt-4 space-y-2;
-}
-
-.uploadItem {
-  @apply bg-white/70 rounded-lg p-4 flex items-center justify-between
-         border border-gray-100 transition-all duration-200;
-}
-
-.uploadItem.uploading {
-  @apply border-blue-200 bg-blue-50/50;
-}
-
-.uploadItem.error {
-  @apply border-red-200 bg-red-50/50;
-}
-
-.uploadItem.success {
-  @apply border-green-200 bg-green-50/50;
-}
-
-.uploadProgress {
-  @apply w-full bg-gray-200 rounded-full h-2 overflow-hidden;
-}
-
-.uploadProgressBar {
-  @apply h-full bg-blue-500 transition-all duration-200;
-}
-
-.uploadError {
-  @apply text-sm text-red-600 mt-2;
-}
-
-.uploadSuccess {
-  @apply text-sm text-green-600 mt-2;
 }
 
 .container {
@@ -312,35 +309,56 @@
 }
 
 .uploadItem {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 0.5rem;
-  background-color: #f9fafb;
-  border-radius: 0.375rem;
-  margin-bottom: 0.5rem;
+  @apply bg-white/70 rounded-lg p-4 flex items-center justify-between
+         border border-gray-100 transition-all duration-200;
 }
 
-.progressBar {
-  flex-grow: 1;
-  height: 4px;
-  background-color: #e2e8f0;
-  border-radius: 2px;
-  overflow: hidden;
+.uploadItem.uploading {
+  @apply border-blue-200 bg-blue-50/50;
 }
 
-.progressFill {
-  height: 100%;
-  background-color: #3b82f6;
-  transition: width 0.2s;
+.uploadItem.error {
+  @apply border-red-200 bg-red-50/50;
 }
 
-.progressFill.success {
-  background-color: #10b981;
+.uploadItem.success {
+  @apply border-emerald-200 bg-emerald-50/50;
 }
 
-.progressFill.error {
-  background-color: #ef4444;
+.uploadItemContent {
+  @apply flex-1 mr-4;
+}
+
+.uploadItemHeader {
+  @apply flex items-center gap-2;
+}
+
+.uploadItemMessage {
+  @apply mt-1.5 text-sm;
+}
+
+.uploadItemMessage.error {
+  @apply text-red-600;
+}
+
+.uploadItemMessage.success {
+  @apply text-emerald-600 flex items-center gap-2;
+}
+
+.uploadProgress {
+  @apply mt-2 w-full bg-gray-200 rounded-full h-1.5 overflow-hidden;
+}
+
+.uploadProgressBar {
+  @apply h-full bg-blue-500 transition-all duration-200;
+}
+
+.uploadProgressBar.success {
+  @apply bg-emerald-500;
+}
+
+.uploadProgressBar.error {
+  @apply bg-red-500;
 }
 
 .statsGrid {

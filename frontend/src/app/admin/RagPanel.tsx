@@ -177,11 +177,6 @@ export default function RagPanel() {
         // Fetch updated document list
         await fetchDocuments();
 
-        // Clean up successful uploads after a delay
-        setTimeout(() => {
-          setUploadingFiles(prev => prev.filter(f => f.id !== uploadFile.id));
-        }, 3000);
-
       } catch (error: any) {
         console.error('Upload error:', error);
         setUploadingFiles(prev =>
@@ -347,31 +342,53 @@ export default function RagPanel() {
                 key={file.id}
                 className={`${styles.uploadItem} ${styles[file.status]}`}
               >
-                <div className="flex-1 mr-4">
-                  <div className="flex items-center gap-2">
+                <div className={styles.uploadItemContent}>
+                  <div className={styles.uploadItemHeader}>
                     <FiFile className="text-gray-500" />
                     <span className="font-medium">{file.file.name}</span>
                     {file.status === 'success' && (
-                      <FiCheckCircle className="text-green-500" />
+                      <FiCheckCircle className="text-emerald-500" />
                     )}
                     {file.status === 'error' && (
                       <FiAlertCircle className="text-red-500" />
                     )}
                   </div>
+                  
                   {file.status === 'uploading' && (
-                    <div className={styles.uploadProgress}>
-                      <div
-                        className={styles.uploadProgressBar}
-                        style={{ width: `${file.progress}%` }}
-                      />
+                    <>
+                      <div className={styles.uploadProgress}>
+                        <div
+                          className={styles.uploadProgressBar}
+                          style={{ width: `${file.progress}%` }}
+                        />
+                      </div>
+                      <div className={styles.uploadItemMessage}>
+                        Uploading... {file.progress.toFixed(0)}%
+                      </div>
+                    </>
+                  )}
+                  
+                  {file.status === 'error' && (
+                    <div className={`${styles.uploadItemMessage} ${styles.error}`}>
+                      {file.error}
                     </div>
                   )}
-                  {file.status === 'error' && (
-                    <div className={styles.uploadError}>{file.error}</div>
+                  
+                  {file.status === 'success' && (
+                    <div className={`${styles.uploadItemMessage} ${styles.success}`}>
+                      <FiCheckCircle />
+                      <span>Successfully uploaded! View the file in the Managed Files section below.</span>
+                    </div>
                   )}
                 </div>
               </div>
             ))}
+            
+            {uploadingFiles.some(f => f.status === 'success') && (
+              <div className="mt-4 text-center text-sm text-gray-600">
+                ✨ You can upload more files using the drop zone above
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -415,31 +432,51 @@ export default function RagPanel() {
               )
               .map((doc) => (
                 <div key={doc.id} className={styles.fileCard}>
-                  <div>
-                    <h4 className="font-medium">{doc.name}</h4>
-                    <p className="text-sm text-gray-600">{doc.description}</p>
-                    <div className="mt-1">
-                      <div className={styles.statusIndicator}>
-                        <span className={`${styles.statusDot} ${styles[doc.status]}`} />
-                        <span className="text-sm capitalize">{doc.status}</span>
-                        <span className="text-sm text-gray-500 ml-2">
-                          {doc.chunks} chunks
-                        </span>
-                        <span className="text-sm text-gray-500 ml-2">
-                          {(doc.fileSize / 1024).toFixed(1)} KB
-                        </span>
+                  <div className={styles.triangleDecoration} />
+                  <div className={styles.squareDecoration} />
+                  <div className={styles.fileCardContent}>
+                    <div className={styles.fileHeader}>
+                      <div>
+                        <h4 className={styles.fileName}>{doc.name}</h4>
+                        <p className={styles.fileDescription}>{doc.description}</p>
                       </div>
-                      {doc.errorMessage && (
-                        <p className="text-sm text-red-600 mt-1">{doc.errorMessage}</p>
+                      <button
+                        onClick={() => handleDeleteFile(doc.id)}
+                        className={styles.deleteButton}
+                        aria-label="Delete document"
+                      >
+                        <FiTrash2 />
+                      </button>
+                    </div>
+
+                    <div className={styles.statusIndicator}>
+                      <span className={`${styles.statusDot} ${styles[doc.status]}`} />
+                      <span className="text-sm capitalize">{doc.status}</span>
+                    </div>
+
+                    <div className={styles.fileStats}>
+                      <span className={styles.statBadge}>
+                        <FiFile className="text-gray-500" />
+                        {(doc.fileSize / 1024).toFixed(1)} KB
+                      </span>
+                      {doc.chunks > 0 && (
+                        <span className={styles.statBadge}>
+                          🧩 {doc.chunks} chunks
+                        </span>
+                      )}
+                      {doc.processedAt && (
+                        <span className={styles.statBadge}>
+                          ✨ Processed {new Date(doc.processedAt).toLocaleDateString()}
+                        </span>
                       )}
                     </div>
+
+                    {doc.errorMessage && (
+                      <p className="text-sm text-red-600 mt-3 bg-red-50/50 p-2 rounded-lg">
+                        {doc.errorMessage}
+                      </p>
+                    )}
                   </div>
-                  <button
-                    onClick={() => handleDeleteFile(doc.id)}
-                    className={styles.deleteButton}
-                  >
-                    <FiTrash2 />
-                  </button>
                 </div>
               ))}
           </div>
