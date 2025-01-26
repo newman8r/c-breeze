@@ -97,4 +97,32 @@ describe('Middleware', () => {
     )
     expect(response).toBe(mockRedirectRes)
   })
+
+  it('allows access to admin routes for admin users', async () => {
+    // Mock authenticated session with admin role
+    mockSupabase.auth.getSession.mockResolvedValue({
+      data: { 
+        session: { 
+          user: { id: 'test-admin-id' } 
+        } 
+      }
+    })
+    mockSupabase.single.mockResolvedValue({ 
+      data: { role: 'admin' } 
+    })
+
+    const mockReq = {
+      nextUrl: { pathname: '/admin/dashboard' },
+      url: 'http://localhost:3000/admin/dashboard',
+    }
+
+    const mockRes = { headers: new Map() }
+    jest.spyOn(NextResponse, 'next').mockReturnValue(mockRes as any)
+
+    const response = await middleware(mockReq as any)
+    expect(response).toBe(mockRes)
+    expect(NextResponse.next).toHaveBeenCalled()
+    expect(mockSupabase.from).toHaveBeenCalledWith('employees')
+    expect(mockSupabase.eq).toHaveBeenCalledWith('user_id', 'test-admin-id')
+  })
 }) 
