@@ -64,7 +64,8 @@
 
 .uploadButton {
   @apply px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg 
-         hover:from-blue-600 hover:to-blue-700 transition-all duration-200 flex items-center gap-2;
+         hover:from-blue-600 hover:to-blue-700 transition-all duration-200 
+         flex items-center gap-2 text-sm;
 }
 
 .deleteButton {
@@ -137,4 +138,255 @@
 
 .dbStatusIcon {
   @apply text-2xl mb-2;
+}
+
+.uploadZone {
+  @apply relative border-2 border-dashed border-blue-200 rounded-xl p-8 
+         transition-all duration-200 bg-white/50 backdrop-blur-sm
+         hover:border-blue-400 hover:bg-white/60;
+}
+
+.uploadZone.isDragging {
+  @apply border-blue-500 bg-blue-50/50;
+}
+
+.uploadInput {
+  @apply absolute inset-0 w-full h-full opacity-0 cursor-pointer;
+}
+
+.uploadContent {
+  @apply flex flex-col items-center justify-center text-center space-y-4;
+}
+
+.uploadIcon {
+  @apply text-4xl text-blue-500;
+}
+
+.uploadText {
+  @apply text-gray-600;
+}
+
+.uploadList {
+  @apply mt-4 space-y-2;
+}
+
+.uploadItem {
+  @apply bg-white/70 rounded-lg p-4 flex items-center justify-between
+         border border-gray-100 transition-all duration-200;
+}
+
+.uploadItem.uploading {
+  @apply border-blue-200 bg-blue-50/50;
+}
+
+.uploadItem.error {
+  @apply border-red-200 bg-red-50/50;
+}
+
+.uploadItem.success {
+  @apply border-green-200 bg-green-50/50;
+}
+
+.uploadProgress {
+  @apply w-full bg-gray-200 rounded-full h-2 overflow-hidden;
+}
+
+.uploadProgressBar {
+  @apply h-full bg-blue-500 transition-all duration-200;
+}
+
+.uploadError {
+  @apply text-sm text-red-600 mt-2;
+}
+
+.uploadSuccess {
+  @apply text-sm text-green-600 mt-2;
+}
+
+.container {
+  padding: 1.5rem;
+}
+
+.settingsSection {
+  background-color: white;
+  border-radius: 0.5rem;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.searchBox {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.375rem;
+  margin-bottom: 1rem;
+  font-size: 0.875rem;
+}
+
+.searchBox:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 1px #3b82f6;
+}
+
+.fileList {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+}
+
+.fileCard {
+  background-color: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  padding: 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  transition: all 0.2s;
+}
+
+.fileCard:hover {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  transform: translateY(-1px);
+}
+
+.statusIndicator {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.statusDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.statusDot.pending {
+  background-color: #9ca3af;
+}
+
+.statusDot.processing {
+  background-color: #3b82f6;
+}
+
+.statusDot.processed {
+  background-color: #10b981;
+}
+
+.statusDot.failed {
+  background-color: #ef4444;
+}
+
+.deleteButton {
+  color: #6b7280;
+  padding: 0.25rem;
+  border-radius: 0.25rem;
+  transition: all 0.2s;
+}
+
+.deleteButton:hover {
+  color: #ef4444;
+  background-color: #fee2e2;
+}
+
+.uploadZone {
+  border: 2px dashed #e2e8f0;
+  border-radius: 0.5rem;
+  padding: 2rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.uploadZone:hover,
+.uploadZone.dragging {
+  border-color: #3b82f6;
+  background-color: #f0f9ff;
+}
+
+.uploadProgress {
+  margin-top: 1rem;
+}
+
+.uploadItem {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.5rem;
+  background-color: #f9fafb;
+  border-radius: 0.375rem;
+  margin-bottom: 0.5rem;
+}
+
+.progressBar {
+  flex-grow: 1;
+  height: 4px;
+  background-color: #e2e8f0;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  background-color: #3b82f6;
+  transition: width 0.2s;
+}
+
+.progressFill.success {
+  background-color: #10b981;
+}
+
+.progressFill.error {
+  background-color: #ef4444;
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.statCard {
+  background-color: white;
+  border-radius: 0.5rem;
+  padding: 1rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.statLabel {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin-bottom: 0.25rem;
+}
+
+.statValue {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.rebuildButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background-color: #3b82f6;
+  color: white;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.rebuildButton:hover {
+  background-color: #2563eb;
+}
+
+.rebuildButton:disabled {
+  background-color: #9ca3af;
+  cursor: not-allowed;
 } 

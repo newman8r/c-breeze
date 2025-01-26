@@ -1,14 +1,34 @@
-import { useState } from 'react';
-import { FiUpload, FiTrash2, FiSearch, FiSettings, FiRefreshCw } from 'react-icons/fi';
+import { useState, useCallback, useEffect } from 'react';
+import { FiUpload, FiTrash2, FiSearch, FiSettings, FiRefreshCw, FiFile, FiCheckCircle, FiAlertCircle } from 'react-icons/fi';
+import { useDropzone } from 'react-dropzone';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import styles from './RagPanel.module.css';
 
 interface RagFile {
   id: string;
   name: string;
   description: string;
-  status: 'processed' | 'processing' | 'error';
+  status: 'pending' | 'processing' | 'processed' | 'failed';
   chunks: number;
   lastUpdated: string;
+  fileType: string;
+  fileSize: number;
+  processedAt?: string;
+  errorMessage?: string;
+  metadata: Record<string, any>;
+}
+
+interface UploadProgress {
+  loaded: number;
+  total: number;
+}
+
+interface UploadingFile {
+  id: string;
+  file: File;
+  progress: number;
+  status: 'uploading' | 'success' | 'error';
+  error?: string;
 }
 
 export default function RagPanel() {
@@ -18,30 +38,40 @@ export default function RagPanel() {
   const [selectedModel, setSelectedModel] = useState('text-embedding-3-small');
   const [testQuery, setTestQuery] = useState('');
   const [testResults, setTestResults] = useState<string[]>([]);
+  const [uploadingFiles, setUploadingFiles] = useState<UploadingFile[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
+  const [documents, setDocuments] = useState<RagFile[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  // Mock data - will be replaced with real data from Supabase
-  const mockFiles: RagFile[] = [
-    {
-      id: '1',
-      name: 'documentation.md',
-      description: 'Main product documentation',
-      status: 'processed',
-      chunks: 45,
-      lastUpdated: '2024-01-25T12:00:00Z',
-    },
-    {
-      id: '2',
-      name: 'api_reference.md',
-      description: 'API endpoints and usage guide',
-      status: 'processing',
-      chunks: 30,
-      lastUpdated: '2024-01-25T11:30:00Z',
-    },
-  ];
+  const supabase = createClientComponentClient();
+
+  const fetchDocuments = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      setLoadError(null);
+      
+      const { data, error } = await supabase.functions.invoke('list-rag-documents');
+      
+      if (error) throw error;
+      
+      setDocuments(data.documents);
+    } catch (error: any) {
+      console.error('Error fetching documents:', error);
+      setLoadError(error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [supabase]);
+
+  // Fetch documents on mount and after successful upload
+  useEffect(() => {
+    fetchDocuments();
+  }, [fetchDocuments]);
 
   const stats = {
-    totalFiles: mockFiles.length,
-    totalChunks: mockFiles.reduce((acc, file) => acc + file.chunks, 0),
+    totalFiles: documents.length,
+    totalChunks: documents.reduce((acc, file) => acc + file.chunks, 0),
     lastRebuild: '2024-01-25 12:00 PM',
     dbStatus: 'up_to_date' as 'up_to_date' | 'needs_update' | 'not_built',
   };
@@ -95,6 +125,93 @@ export default function RagPanel() {
     // Will implement index rebuild logic
     console.log('Rebuilding index...');
   };
+
+  const handleUpload = async (files: File[]) => {
+    const newFiles = files.map(file => ({
+      id: crypto.randomUUID(),
+      file,
+      progress: 0,
+      status: 'uploading' as const,
+    }));
+
+    setUploadingFiles(prev => [...prev, ...newFiles]);
+
+    for (const uploadFile of newFiles) {
+      try {
+        // Get upload URL from Edge Function
+        const { data: uploadData, error: uploadError } = await supabase.functions.invoke('upload-rag-document', {
+          body: {
+            fileName: uploadFile.file.name,
+            fileType: uploadFile.file.type,
+            fileSize: uploadFile.file.size,
+            description: `Uploaded via RAG Panel`,
+          },
+        });
+
+        if (uploadError) throw uploadError;
+
+        // Upload file using signed URL
+        const { error: storageError } = await supabase.storage
+          .from('rag_documents')
+          .upload(uploadData.path, uploadFile.file, {
+            upsert: true,
+            onUploadProgress: (progress: UploadProgress) => {
+              const percent = (progress.loaded / progress.total) * 100;
+              setUploadingFiles(prev =>
+                prev.map(f =>
+                  f.id === uploadFile.id ? { ...f, progress: percent } : f
+                )
+              );
+            },
+          } as any);
+
+        if (storageError) throw storageError;
+
+        // Mark as success and fetch updated document list
+        setUploadingFiles(prev =>
+          prev.map(f =>
+            f.id === uploadFile.id ? { ...f, status: 'success' } : f
+          )
+        );
+
+        // Fetch updated document list
+        await fetchDocuments();
+
+        // Clean up successful uploads after a delay
+        setTimeout(() => {
+          setUploadingFiles(prev => prev.filter(f => f.id !== uploadFile.id));
+        }, 3000);
+
+      } catch (error: any) {
+        console.error('Upload error:', error);
+        setUploadingFiles(prev =>
+          prev.map(f =>
+            f.id === uploadFile.id
+              ? { ...f, status: 'error', error: error.message }
+              : f
+          )
+        );
+      }
+    }
+  };
+
+  const onDrop = useCallback((acceptedFiles: File[]) => {
+    handleUpload(acceptedFiles);
+  }, []);
+
+  const { getRootProps, getInputProps } = useDropzone({
+    onDrop,
+    onDragEnter: () => setIsDragging(true),
+    onDragLeave: () => setIsDragging(false),
+    accept: {
+      'text/plain': ['.txt'],
+      'text/markdown': ['.md'],
+      'application/pdf': ['.pdf'],
+      'application/json': ['.json'],
+      'text/csv': ['.csv'],
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
+    },
+  });
 
   return (
     <div className={styles.ragPanel}>
@@ -203,16 +320,64 @@ export default function RagPanel() {
         </div>
       </div>
 
-      <div className="mt-8">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-semibold">Managed Files 📚</h3>
-          <button
-            onClick={handleFileUpload}
-            className={styles.uploadButton}
-          >
-            <FiUpload /> Upload File
-          </button>
+      <div className={styles.settingsSection}>
+        <h3 className="text-lg font-semibold mb-4">Upload Documents 📄</h3>
+        
+        <div 
+          {...getRootProps()} 
+          className={`${styles.uploadZone} ${isDragging ? styles.isDragging : ''}`}
+        >
+          <input {...getInputProps()} className={styles.uploadInput} />
+          <div className={styles.uploadContent}>
+            <FiUpload className={styles.uploadIcon} />
+            <div className={styles.uploadText}>
+              <p className="font-medium">Drop files here or click to upload</p>
+              <p className="text-sm text-gray-500">
+                Supported formats: TXT, MD, PDF, JSON, CSV, DOCX
+              </p>
+            </div>
+          </div>
         </div>
+
+        {/* Upload Progress */}
+        {uploadingFiles.length > 0 && (
+          <div className={styles.uploadList}>
+            {uploadingFiles.map((file) => (
+              <div
+                key={file.id}
+                className={`${styles.uploadItem} ${styles[file.status]}`}
+              >
+                <div className="flex-1 mr-4">
+                  <div className="flex items-center gap-2">
+                    <FiFile className="text-gray-500" />
+                    <span className="font-medium">{file.file.name}</span>
+                    {file.status === 'success' && (
+                      <FiCheckCircle className="text-green-500" />
+                    )}
+                    {file.status === 'error' && (
+                      <FiAlertCircle className="text-red-500" />
+                    )}
+                  </div>
+                  {file.status === 'uploading' && (
+                    <div className={styles.uploadProgress}>
+                      <div
+                        className={styles.uploadProgressBar}
+                        style={{ width: `${file.progress}%` }}
+                      />
+                    </div>
+                  )}
+                  {file.status === 'error' && (
+                    <div className={styles.uploadError}>{file.error}</div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className={styles.settingsSection}>
+        <h3 className="text-lg font-semibold mb-4">Managed Files 📚</h3>
         
         <input
           type="text"
@@ -222,31 +387,63 @@ export default function RagPanel() {
           className={styles.searchBox}
         />
 
-        <div className={styles.fileList}>
-          {mockFiles.map((file) => (
-            <div key={file.id} className={styles.fileCard}>
-              <div>
-                <h4 className="font-medium">{file.name}</h4>
-                <p className="text-sm text-gray-600">{file.description}</p>
-                <div className="mt-1">
-                  <div className={styles.statusIndicator}>
-                    <span className={`${styles.statusDot} ${styles[file.status]}`} />
-                    <span className="text-sm capitalize">{file.status}</span>
-                    <span className="text-sm text-gray-500 ml-2">
-                      {file.chunks} chunks
-                    </span>
+        {isLoading ? (
+          <div className="flex justify-center items-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
+          </div>
+        ) : loadError ? (
+          <div className="bg-red-50 text-red-600 p-4 rounded-lg">
+            <p>Error loading documents: {loadError}</p>
+            <button
+              onClick={fetchDocuments}
+              className="mt-2 text-sm underline hover:no-underline"
+            >
+              Try again
+            </button>
+          </div>
+        ) : documents.length === 0 ? (
+          <div className="text-center py-8 text-gray-500">
+            <p>No documents uploaded yet</p>
+            <p className="text-sm">Upload your first document to get started</p>
+          </div>
+        ) : (
+          <div className={styles.fileList}>
+            {documents
+              .filter(doc => 
+                doc.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                doc.description.toLowerCase().includes(searchQuery.toLowerCase())
+              )
+              .map((doc) => (
+                <div key={doc.id} className={styles.fileCard}>
+                  <div>
+                    <h4 className="font-medium">{doc.name}</h4>
+                    <p className="text-sm text-gray-600">{doc.description}</p>
+                    <div className="mt-1">
+                      <div className={styles.statusIndicator}>
+                        <span className={`${styles.statusDot} ${styles[doc.status]}`} />
+                        <span className="text-sm capitalize">{doc.status}</span>
+                        <span className="text-sm text-gray-500 ml-2">
+                          {doc.chunks} chunks
+                        </span>
+                        <span className="text-sm text-gray-500 ml-2">
+                          {(doc.fileSize / 1024).toFixed(1)} KB
+                        </span>
+                      </div>
+                      {doc.errorMessage && (
+                        <p className="text-sm text-red-600 mt-1">{doc.errorMessage}</p>
+                      )}
+                    </div>
                   </div>
+                  <button
+                    onClick={() => handleDeleteFile(doc.id)}
+                    className={styles.deleteButton}
+                  >
+                    <FiTrash2 />
+                  </button>
                 </div>
-              </div>
-              <button
-                onClick={() => handleDeleteFile(file.id)}
-                className={styles.deleteButton}
-              >
-                <FiTrash2 />
-              </button>
-            </div>
-          ))}
-        </div>
+              ))}
+          </div>
+        )}
       </div>
 
       <div className={styles.settingsSection}>

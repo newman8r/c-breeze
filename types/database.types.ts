@@ -237,6 +237,122 @@ export type Database = {
           },
         ]
       }
+      document_chunks: {
+        Row: {
+          chunk_index: number
+          content: string
+          created_at: string
+          document_id: number | null
+          embedding: string | null
+          id: number
+          metadata: Json | null
+          organization_id: string
+          tokens: number | null
+        }
+        Insert: {
+          chunk_index: number
+          content: string
+          created_at?: string
+          document_id?: number | null
+          embedding?: string | null
+          id?: never
+          metadata?: Json | null
+          organization_id: string
+          tokens?: number | null
+        }
+        Update: {
+          chunk_index?: number
+          content?: string
+          created_at?: string
+          document_id?: number | null
+          embedding?: string | null
+          id?: never
+          metadata?: Json | null
+          organization_id?: string
+          tokens?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_chunks_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_chunks_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      documents: {
+        Row: {
+          content: string
+          created_at: string
+          created_by: string
+          embedding: string | null
+          error_message: string | null
+          file_size: number
+          file_type: string
+          id: number
+          metadata: Json | null
+          name: string
+          organization_id: string
+          processed_at: string | null
+          status:
+            | Database["public"]["Enums"]["document_processing_status"]
+            | null
+          updated_at: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          created_by: string
+          embedding?: string | null
+          error_message?: string | null
+          file_size: number
+          file_type: string
+          id?: never
+          metadata?: Json | null
+          name: string
+          organization_id: string
+          processed_at?: string | null
+          status?:
+            | Database["public"]["Enums"]["document_processing_status"]
+            | null
+          updated_at?: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          created_by?: string
+          embedding?: string | null
+          error_message?: string | null
+          file_size?: number
+          file_type?: string
+          id?: never
+          metadata?: Json | null
+          name?: string
+          organization_id?: string
+          processed_at?: string | null
+          status?:
+            | Database["public"]["Enums"]["document_processing_status"]
+            | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "documents_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       employees: {
         Row: {
           created_at: string
@@ -398,6 +514,57 @@ export type Database = {
           created_at?: string
           display_name?: string | null
           id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      rag_documents: {
+        Row: {
+          chunks: number | null
+          created_at: string
+          description: string | null
+          error_message: string | null
+          file_size: number
+          file_type: string
+          id: string
+          metadata: Json | null
+          name: string
+          processed_at: string | null
+          status: string
+          storage_path: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          chunks?: number | null
+          created_at?: string
+          description?: string | null
+          error_message?: string | null
+          file_size: number
+          file_type: string
+          id?: string
+          metadata?: Json | null
+          name: string
+          processed_at?: string | null
+          status?: string
+          storage_path: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          chunks?: number | null
+          created_at?: string
+          description?: string | null
+          error_message?: string | null
+          file_size?: number
+          file_type?: string
+          id?: string
+          metadata?: Json | null
+          name?: string
+          processed_at?: string | null
+          status?: string
+          storage_path?: string
           updated_at?: string
           user_id?: string
         }
@@ -642,6 +809,59 @@ export type Database = {
           },
         ]
       }
+      vector_store_metadata: {
+        Row: {
+          chunk_overlap: number | null
+          chunk_size: number | null
+          embedding_model: string | null
+          error_message: string | null
+          failed_documents: number | null
+          last_rebuild: string | null
+          last_update: string | null
+          organization_id: string
+          processed_documents: number | null
+          status: Database["public"]["Enums"]["vector_store_status"] | null
+          total_chunks: number | null
+          total_documents: number | null
+        }
+        Insert: {
+          chunk_overlap?: number | null
+          chunk_size?: number | null
+          embedding_model?: string | null
+          error_message?: string | null
+          failed_documents?: number | null
+          last_rebuild?: string | null
+          last_update?: string | null
+          organization_id: string
+          processed_documents?: number | null
+          status?: Database["public"]["Enums"]["vector_store_status"] | null
+          total_chunks?: number | null
+          total_documents?: number | null
+        }
+        Update: {
+          chunk_overlap?: number | null
+          chunk_size?: number | null
+          embedding_model?: string | null
+          error_message?: string | null
+          failed_documents?: number | null
+          last_rebuild?: string | null
+          last_update?: string | null
+          organization_id?: string
+          processed_documents?: number | null
+          status?: Database["public"]["Enums"]["vector_store_status"] | null
+          total_chunks?: number | null
+          total_documents?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vector_store_metadata_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       user_statistics: {
@@ -659,6 +879,19 @@ export type Database = {
         }
         Returns: undefined
       }
+      binary_quantize:
+        | {
+            Args: {
+              "": string
+            }
+            Returns: unknown
+          }
+        | {
+            Args: {
+              "": unknown
+            }
+            Returns: unknown
+          }
       create_initial_admin: {
         Args: {
           org_id: string
@@ -674,6 +907,13 @@ export type Database = {
           key_hash: string
           key_last_four: string
         }[]
+      }
+      generate_rag_document_path: {
+        Args: {
+          user_id: string
+          original_filename: string
+        }
+        Returns: string
       }
       get_current_user_organization: {
         Args: Record<PropertyKey, never>
@@ -710,6 +950,104 @@ export type Database = {
         }
         Returns: string
       }
+      halfvec_avg: {
+        Args: {
+          "": number[]
+        }
+        Returns: unknown
+      }
+      halfvec_out: {
+        Args: {
+          "": unknown
+        }
+        Returns: unknown
+      }
+      halfvec_send: {
+        Args: {
+          "": unknown
+        }
+        Returns: string
+      }
+      halfvec_typmod_in: {
+        Args: {
+          "": unknown[]
+        }
+        Returns: number
+      }
+      hnsw_bit_support: {
+        Args: {
+          "": unknown
+        }
+        Returns: unknown
+      }
+      hnsw_halfvec_support: {
+        Args: {
+          "": unknown
+        }
+        Returns: unknown
+      }
+      hnsw_sparsevec_support: {
+        Args: {
+          "": unknown
+        }
+        Returns: unknown
+      }
+      hnswhandler: {
+        Args: {
+          "": unknown
+        }
+        Returns: unknown
+      }
+      ivfflat_bit_support: {
+        Args: {
+          "": unknown
+        }
+        Returns: unknown
+      }
+      ivfflat_halfvec_support: {
+        Args: {
+          "": unknown
+        }
+        Returns: unknown
+      }
+      ivfflathandler: {
+        Args: {
+          "": unknown
+        }
+        Returns: unknown
+      }
+      l2_norm:
+        | {
+            Args: {
+              "": unknown
+            }
+            Returns: number
+          }
+        | {
+            Args: {
+              "": unknown
+            }
+            Returns: number
+          }
+      l2_normalize:
+        | {
+            Args: {
+              "": string
+            }
+            Returns: string
+          }
+        | {
+            Args: {
+              "": unknown
+            }
+            Returns: unknown
+          }
+        | {
+            Args: {
+              "": unknown
+            }
+            Returns: unknown
+          }
       log_audit_event: {
         Args: {
           _organization_id?: string
@@ -737,9 +1075,91 @@ export type Database = {
         }
         Returns: string
       }
+      match_documents: {
+        Args: {
+          query_embedding: string
+          match_threshold?: number
+          match_count?: number
+          filter_organization_id?: string
+        }
+        Returns: {
+          id: number
+          content: string
+          metadata: Json
+          similarity: number
+          document_id: number
+        }[]
+      }
+      sparsevec_out: {
+        Args: {
+          "": unknown
+        }
+        Returns: unknown
+      }
+      sparsevec_send: {
+        Args: {
+          "": unknown
+        }
+        Returns: string
+      }
+      sparsevec_typmod_in: {
+        Args: {
+          "": unknown[]
+        }
+        Returns: number
+      }
       update_employee_names: {
         Args: Record<PropertyKey, never>
         Returns: undefined
+      }
+      update_vector_store_status: {
+        Args: {
+          org_id: string
+        }
+        Returns: undefined
+      }
+      vector_avg: {
+        Args: {
+          "": number[]
+        }
+        Returns: string
+      }
+      vector_dims:
+        | {
+            Args: {
+              "": string
+            }
+            Returns: number
+          }
+        | {
+            Args: {
+              "": unknown
+            }
+            Returns: number
+          }
+      vector_norm: {
+        Args: {
+          "": string
+        }
+        Returns: number
+      }
+      vector_out: {
+        Args: {
+          "": string
+        }
+        Returns: unknown
+      }
+      vector_send: {
+        Args: {
+          "": string
+        }
+        Returns: string
+      }
+      vector_typmod_in: {
+        Args: {
+          "": unknown[]
+        }
+        Returns: number
       }
       verify_api_key: {
         Args: {
@@ -755,6 +1175,11 @@ export type Database = {
     Enums: {
       action_type: "create" | "read" | "update" | "delete" | "execute" | "other"
       actor_type: "employee" | "customer" | "ai" | "system"
+      document_processing_status:
+        | "pending"
+        | "processing"
+        | "processed"
+        | "failed"
       message_origin:
         | "ticket"
         | "email"
@@ -775,9 +1200,15 @@ export type Database = {
         | "profile"
         | "user_settings"
         | "api_key"
+        | "document"
       severity_level: "info" | "warning" | "error" | "critical"
       tag_type: "system" | "custom"
       user_role: "customer" | "employee" | "admin"
+      vector_store_status:
+        | "not_built"
+        | "building"
+        | "needs_update"
+        | "up_to_date"
     }
     CompositeTypes: {
       [_ in never]: never
