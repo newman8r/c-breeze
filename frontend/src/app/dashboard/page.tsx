@@ -87,6 +87,7 @@ interface SatisfactionStats {
   last24Hours: number | null
   lastWeek: number | null
   resolvedLastWeek: number
+  messagesLastWeek: number
 }
 
 // Add new interface for expanded state tracking
@@ -391,7 +392,8 @@ export default function DashboardPage() {
   const [satisfactionStats, setSatisfactionStats] = useState<SatisfactionStats>({
     last24Hours: null,
     lastWeek: null,
-    resolvedLastWeek: 0
+    resolvedLastWeek: 0,
+    messagesLastWeek: 0
   });
 
   // Redirect if not authenticated
@@ -685,9 +687,11 @@ export default function DashboardPage() {
           <div className="ocean-card relative overflow-hidden">
             <BauhausShape color="#4A90E2" type="triangle" />
             <div className="relative z-10">
-              <h3 className="text-lg font-medium text-[#4A5568]">Avg Response Time</h3>
-              <p className="text-3xl font-bold text-[#2C5282]">{mockStats.support.avgResponseTime}</p>
-              <p className="text-sm text-[#4A90E2]">Target: 3h</p>
+              <h3 className="text-lg font-medium text-[#4A5568]">Total Messages</h3>
+              <p className="text-3xl font-bold text-[#2C5282]">
+                {satisfactionStats.messagesLastWeek}
+              </p>
+              <p className="text-sm text-[#4A90E2]">Last 7 days</p>
             </div>
           </div>
           

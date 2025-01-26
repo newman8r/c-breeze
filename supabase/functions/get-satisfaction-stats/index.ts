@@ -5,6 +5,7 @@ interface SatisfactionStats {
   last24Hours: number | null
   lastWeek: number | null
   resolvedLastWeek: number
+  messagesLastWeek: number
 }
 
 // Helper function to convert rating to percentage
@@ -85,11 +86,24 @@ Deno.serve(async (req) => {
 
     if (resolvedError) throw resolvedError
 
-    // Calculate satisfaction percentages and resolved count
+    // Fetch total messages from last week
+    const { data: messagesData, error: messagesError } = await supabaseClient
+      .from('tickets')
+      .select('id, ticket_messages!inner(*)')
+      .eq('organization_id', organization_id)
+      .gte('ticket_messages.created_at', lastWeek.toISOString())
+
+    if (messagesError) throw messagesError
+
+    // Count total messages by flattening the ticket_messages arrays
+    const totalMessages = messagesData.reduce((acc, ticket) => acc + ticket.ticket_messages.length, 0)
+
+    // Calculate satisfaction percentages and counts
     const stats: SatisfactionStats = {
       last24Hours: calculateSatisfactionPercentage(last24HoursData.map(t => t.satisfaction_rating!)),
       lastWeek: calculateSatisfactionPercentage(lastWeekData.map(t => t.satisfaction_rating!)),
-      resolvedLastWeek: resolvedData.length
+      resolvedLastWeek: resolvedData.length,
+      messagesLastWeek: totalMessages
     }
 
     return new Response(
