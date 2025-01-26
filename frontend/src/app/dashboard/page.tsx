@@ -530,13 +530,17 @@ export default function DashboardPage() {
       .on(
         'postgres_changes',
         {
-          event: 'INSERT',
+          event: '*',
           schema: 'public',
           table: 'ticket_messages'
         },
-        () => {
-          // Refresh tickets when a new message is added
-          loadTickets()
+        (payload) => {
+          console.log('Ticket message change detected:', {
+            event: payload.eventType,
+            data: payload
+          })
+          // Update satisfaction stats when messages change
+          loadSatisfactionStats()
         }
       )
       .subscribe()
