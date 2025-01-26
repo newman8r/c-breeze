@@ -17,6 +17,7 @@ interface ModifyTicketRequest {
   status?: string
   priority?: string
   assigned_to?: string | null
+  satisfaction_rating?: number | null
 }
 
 interface AuditLogEntry {
@@ -129,6 +130,17 @@ serve(async (req) => {
       if (requestBody.assigned_to && !requestBody.status && currentTicket.status === 'open') {
         updates.status = 'in_progress'
       }
+    }
+
+    // Handle satisfaction rating change
+    if (requestBody.satisfaction_rating !== undefined) {
+      console.log('Updating satisfaction rating to:', requestBody.satisfaction_rating)
+      // Validate rating is between 1 and 5
+      if (requestBody.satisfaction_rating !== null && 
+          (requestBody.satisfaction_rating < 1 || requestBody.satisfaction_rating > 5)) {
+        throw new Error('Satisfaction rating must be between 1 and 5')
+      }
+      updates.satisfaction_rating = requestBody.satisfaction_rating
     }
 
     console.log('Final updates object:', updates)
