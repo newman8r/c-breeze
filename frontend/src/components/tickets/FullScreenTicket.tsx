@@ -13,6 +13,16 @@ interface Employee {
   avatar?: string
 }
 
+interface Tag {
+  id: string
+  name: string
+  description: string
+  color: string
+  type: 'system' | 'custom'
+  added_at?: string
+  added_by?: string
+}
+
 interface Ticket {
   id: string
   title: string
@@ -21,6 +31,7 @@ interface Ticket {
   priority: string
   created_at: string
   category?: string
+  tags: Tag[]
   customer?: {
     name: string
     email: string
@@ -122,27 +133,34 @@ async function modifyTicket(updates: {
   }
 }
 
-export const FullScreenTicket = ({ ticket, onClose }: FullScreenTicketProps) => {
-  const [activeTab, setActiveTab] = useState('details');
-  const [showAssignModal, setShowAssignModal] = useState(false);
-  const [showMergeModal, setShowMergeModal] = useState(false);
-  const [showSplitModal, setShowSplitModal] = useState(false);
-  const [isSnoozing, setIsSnoozing] = useState(false);
-  const [isStatusOpen, setIsStatusOpen] = useState(false);
-  const [isPriorityOpen, setIsPriorityOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [keywords, setKeywords] = useState<string[]>([]);
-  const [showKeywordSuggestions, setShowKeywordSuggestions] = useState(false);
-  const [keywordInput, setKeywordInput] = useState('');
+export const FullScreenTicket = ({ ticket: initialTicket, onClose }: FullScreenTicketProps) => {
+  const [ticket, setTicket] = useState<Ticket>({
+    ...initialTicket,
+    tags: initialTicket.tags || []
+  })
+  const [activeTab, setActiveTab] = useState('details')
+  const [showAssignModal, setShowAssignModal] = useState(false)
+  const [showMergeModal, setShowMergeModal] = useState(false)
+  const [showSplitModal, setShowSplitModal] = useState(false)
+  const [isSnoozing, setIsSnoozing] = useState(false)
+  const [isStatusOpen, setIsStatusOpen] = useState(false)
+  const [isPriorityOpen, setIsPriorityOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [keywords, setKeywords] = useState<string[]>([])
+  const [showKeywordSuggestions, setShowKeywordSuggestions] = useState(false)
+  const [keywordInput, setKeywordInput] = useState('')
   const [orgUsers, setOrgUsers] = useState<Employee[]>([])
   const [isLoadingUsers, setIsLoadingUsers] = useState(false)
   const [assignmentError, setAssignmentError] = useState<string | null>(null)
-  const [messageContent, setMessageContent] = useState('');
-  const [isPrivateNote, setIsPrivateNote] = useState(false);
-  const [attachments, setAttachments] = useState<Array<{ name: string, size: number }>>([]);
-  const [messageError, setMessageError] = useState<string | null>(null);
+  const [messageContent, setMessageContent] = useState('')
+  const [isPrivateNote, setIsPrivateNote] = useState(false)
+  const [attachments, setAttachments] = useState<Array<{ name: string, size: number }>>([])
+  const [messageError, setMessageError] = useState<string | null>(null)
   const [messages, setMessages] = useState<TicketMessage[]>([])
   const [isLoadingMessages, setIsLoadingMessages] = useState(false)
+  const [tagInput, setTagInput] = useState('')
+  const [isAddingTag, setIsAddingTag] = useState(false)
+  const [tagError, setTagError] = useState<string | null>(null)
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -206,8 +224,11 @@ export const FullScreenTicket = ({ ticket, onClose }: FullScreenTicketProps) => 
         ticket_id: ticket.id,
         status: newStatus
       })
-      // Optimistically update the UI
-      ticket.status = newStatus
+      // Update ticket state
+      setTicket(prev => ({
+        ...prev,
+        status: newStatus
+      }))
       setIsStatusOpen(false)
     } catch (error) {
       console.error('Failed to update status:', error)
@@ -221,8 +242,11 @@ export const FullScreenTicket = ({ ticket, onClose }: FullScreenTicketProps) => 
         ticket_id: ticket.id,
         priority: newPriority
       })
-      // Optimistically update the UI
-      ticket.priority = newPriority
+      // Update ticket state
+      setTicket(prev => ({
+        ...prev,
+        priority: newPriority
+      }))
       setIsPriorityOpen(false)
     } catch (error) {
       console.error('Failed to update priority:', error)
@@ -258,8 +282,11 @@ export const FullScreenTicket = ({ ticket, onClose }: FullScreenTicketProps) => 
         throw new Error(data.error || 'Failed to assign user')
       }
 
-      // Update the local ticket state with the new assignment
-      ticket.assigned_employee = userId ? orgUsers.find(user => user.id === userId) || null : null
+      // Update the ticket state with the new assignment
+      setTicket(prev => ({
+        ...prev,
+        assigned_employee: userId ? orgUsers.find(user => user.id === userId) || null : null
+      }))
       setShowAssignModal(false)
     } catch (error) {
       console.error('Error assigning user:', error)
@@ -447,6 +474,147 @@ export const FullScreenTicket = ({ ticket, onClose }: FullScreenTicketProps) => 
       setMessageError(error.message || 'Failed to send message')
     }
   }
+
+  // Add this new function to fetch updated ticket data
+  const refreshTicketData = async () => {
+    try {
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+
+      if (!session?.access_token) {
+        throw new Error('No access token available')
+      }
+
+      const response = await fetch(`http://localhost:54321/functions/v1/api-get-ticket?ticket_id=${ticket.id}`, {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`
+        }
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch updated ticket data')
+      }
+
+      const data = await response.json()
+      if (data.success && data.ticket) {
+        setTicket(data.ticket)
+      }
+    } catch (error) {
+      console.error('Error refreshing ticket data:', error)
+    }
+  }
+
+  const handleAddTag = async (tagName: string) => {
+    try {
+      setTagError(null)
+      setIsAddingTag(true)
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+
+      if (!session?.access_token) {
+        throw new Error('No access token available')
+      }
+
+      const response = await fetch('http://localhost:54321/functions/v1/manage-ticket-tags', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          ticket_id: ticket.id,
+          tag_ids: [tagName],
+          action: 'add'
+        })
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || 'Failed to add tag')
+      }
+
+      // Clear input and hide suggestions
+      setTagInput('')
+      setShowKeywordSuggestions(false)
+      
+      // Refresh ticket data to get updated tags
+      await refreshTicketData()
+    } catch (error: any) {
+      console.error('Error adding tag:', error)
+      setTagError(error.message || 'Failed to add tag')
+    } finally {
+      setIsAddingTag(false)
+    }
+  }
+
+  const handleRemoveTag = async (tagId: string) => {
+    try {
+      setTagError(null)
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+
+      if (!session?.access_token) {
+        throw new Error('No access token available')
+      }
+
+      const response = await fetch('http://localhost:54321/functions/v1/manage-ticket-tags', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          ticket_id: ticket.id,
+          tag_ids: [tagId],
+          action: 'remove'
+        })
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || 'Failed to remove tag')
+      }
+
+      // Refresh ticket data to get updated tags
+      await refreshTicketData()
+    } catch (error: any) {
+      console.error('Error removing tag:', error)
+      setTagError(error.message || 'Failed to remove tag')
+    }
+  }
+
+  // Add effect to load initial ticket data
+  useEffect(() => {
+    const loadTicketData = async () => {
+      try {
+        const supabase = createClient()
+        const { data: { session } } = await supabase.auth.getSession()
+
+        if (!session?.access_token) {
+          throw new Error('No access token available')
+        }
+
+        const response = await fetch(`http://localhost:54321/functions/v1/api-get-ticket?ticket_id=${initialTicket.id}`, {
+          headers: {
+            Authorization: `Bearer ${session.access_token}`
+          }
+        })
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch ticket data')
+        }
+
+        const data = await response.json()
+        if (data.success && data.ticket) {
+          setTicket(data.ticket)
+        }
+      } catch (error) {
+        console.error('Error loading ticket data:', error)
+      }
+    }
+
+    loadTicketData()
+  }, [initialTicket.id])
 
   return (
     <div className="fixed inset-0 z-[100] bg-gradient-to-br from-blue-50/95 to-white/95 backdrop-blur-sm overflow-y-auto">
@@ -991,20 +1159,30 @@ export const FullScreenTicket = ({ ticket, onClose }: FullScreenTicketProps) => 
               </div>
             </div>
 
-            {/* Keywords Section */}
+            {/* Keywords (Tags) Section */}
             <div className="bg-white/50 rounded-lg p-6">
-              <h3 className="text-lg font-medium text-[#2C5282] mb-4">Keywords</h3>
+              <h3 className="text-lg font-medium text-[#2C5282] mb-4">Tags</h3>
               <div className="space-y-4">
+                {tagError && (
+                  <div className="p-2 bg-red-50 text-red-600 rounded-lg text-sm">
+                    {tagError}
+                  </div>
+                )}
                 <div className="flex flex-wrap gap-2">
-                  {keywords.map((keyword, index) => (
+                  {(ticket.tags || []).map((tag) => (
                     <div
-                      key={index}
-                      className="flex items-center gap-1 px-3 py-1 bg-[#4A90E2]/10 text-[#2C5282] rounded-full text-sm"
+                      key={tag.id}
+                      className="flex items-center gap-1 px-3 py-1 rounded-full text-sm"
+                      style={{
+                        backgroundColor: `${tag.color}20`,
+                        color: tag.color
+                      }}
                     >
-                      <span>{keyword}</span>
+                      <span>{tag.name}</span>
                       <button
-                        onClick={() => setKeywords(keywords.filter((_, i) => i !== index))}
-                        className="text-[#2C5282]/60 hover:text-[#2C5282] ml-1"
+                        onClick={() => handleRemoveTag(tag.id)}
+                        className="ml-1 opacity-60 hover:opacity-100"
+                        disabled={isAddingTag}
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -1013,42 +1191,44 @@ export const FullScreenTicket = ({ ticket, onClose }: FullScreenTicketProps) => 
                     </div>
                   ))}
                 </div>
-                <div className="relative">
-                  <input
-                    type="text"
-                    placeholder="Add keyword..."
-                    className="w-full px-4 py-2 bg-white/50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4A90E2]/40"
-                    value={keywordInput}
-                    onChange={(e) => {
-                      setKeywordInput(e.target.value);
-                      setShowKeywordSuggestions(true);
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <input
+                      type="text"
+                      placeholder="Search tags..."
+                      className="w-full px-4 py-2 bg-white/50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4A90E2]/40"
+                      value={tagInput}
+                      onChange={(e) => {
+                        setTagInput(e.target.value);
+                        setShowKeywordSuggestions(true);
+                      }}
+                      onFocus={() => setShowKeywordSuggestions(true)}
+                      disabled={isAddingTag}
+                    />
+                    {/* Tag suggestions dropdown with fixed positioning */}
+                    {showKeywordSuggestions && tagInput && (
+                      <div className="absolute left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-[200px] overflow-y-auto z-[100]">
+                        <div className="p-4 text-sm text-gray-500">
+                          Tag search functionality coming soon...
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (tagInput.trim()) {
+                        handleAddTag(tagInput.trim());
+                      }
                     }}
-                    onFocus={() => setShowKeywordSuggestions(true)}
-                  />
-                  {showKeywordSuggestions && keywordInput && (
-                    <div className="absolute left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-[200px] overflow-y-auto z-[100]">
-                      {mockKeywordSuggestions
-                        .filter(suggestion => 
-                          suggestion.toLowerCase().includes(keywordInput.toLowerCase()) &&
-                          !keywords.includes(suggestion)
-                        )
-                        .map((suggestion, index) => (
-                          <div
-                            key={index}
-                            className="px-4 py-2 hover:bg-gray-50 cursor-pointer"
-                            onClick={() => {
-                              if (!keywords.includes(suggestion)) {
-                                setKeywords([...keywords, suggestion]);
-                              }
-                              setKeywordInput('');
-                              setShowKeywordSuggestions(false);
-                            }}
-                          >
-                            {suggestion}
-                          </div>
-                        ))}
-                    </div>
-                  )}
+                    disabled={isAddingTag || !tagInput.trim()}
+                    className={`px-4 py-2 rounded-lg text-white transition-colors ${
+                      isAddingTag || !tagInput.trim()
+                        ? 'bg-gray-300 cursor-not-allowed'
+                        : 'bg-[#4A90E2] hover:bg-[#2C5282]'
+                    }`}
+                  >
+                    {isAddingTag ? 'Adding...' : 'Add Tag'}
+                  </button>
                 </div>
               </div>
             </div>

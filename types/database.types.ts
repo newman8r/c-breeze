@@ -203,6 +203,7 @@ export type Database = {
           name: string
           organization_id: string
           status: string | null
+          user_id: string | null
         }
         Insert: {
           contact_info?: Json | null
@@ -213,6 +214,7 @@ export type Database = {
           name: string
           organization_id: string
           status?: string | null
+          user_id?: string | null
         }
         Update: {
           contact_info?: Json | null
@@ -223,6 +225,7 @@ export type Database = {
           name?: string
           organization_id?: string
           status?: string | null
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -404,26 +407,35 @@ export type Database = {
         Row: {
           color: string | null
           created_at: string
+          created_by: string | null
           description: string | null
           id: string
           name: string
           organization_id: string
+          type: Database["public"]["Enums"]["tag_type"]
+          updated_at: string
         }
         Insert: {
           color?: string | null
           created_at?: string
+          created_by?: string | null
           description?: string | null
           id?: string
           name: string
           organization_id: string
+          type?: Database["public"]["Enums"]["tag_type"]
+          updated_at?: string
         }
         Update: {
           color?: string | null
           created_at?: string
+          created_by?: string | null
           description?: string | null
           id?: string
           name?: string
           organization_id?: string
+          type?: Database["public"]["Enums"]["tag_type"]
+          updated_at?: string
         }
         Relationships: [
           {
@@ -511,16 +523,19 @@ export type Database = {
       ticket_tags: {
         Row: {
           created_at: string
+          created_by: string | null
           tag_id: string
           ticket_id: string
         }
         Insert: {
           created_at?: string
+          created_by?: string | null
           tag_id: string
           ticket_id: string
         }
         Update: {
           created_at?: string
+          created_by?: string | null
           tag_id?: string
           ticket_id?: string
         }
@@ -761,6 +776,7 @@ export type Database = {
         | "user_settings"
         | "api_key"
       severity_level: "info" | "warning" | "error" | "critical"
+      tag_type: "system" | "custom"
       user_role: "customer" | "employee" | "admin"
     }
     CompositeTypes: {

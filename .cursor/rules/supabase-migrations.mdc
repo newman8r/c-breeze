@@ -1,0 +1,5 @@
+---
+description: making sure our migrations names are properly ordered
+globs: 
+---
+When genrating migrations, always look in the migrations folder and look at the filenames - we must always create one with w higher numbering than the prvious

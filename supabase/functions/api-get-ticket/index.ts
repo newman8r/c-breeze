@@ -2,7 +2,47 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
 
-console.log('Loading API get ticket function...')
+// Setup type definitions for built-in Supabase Runtime APIs
+import "jsr:@supabase/functions-js/edge-runtime.d.ts"
+
+interface Tag {
+  id: string
+  name: string
+  description: string
+  color: string
+  type: 'system' | 'custom'
+}
+
+interface TicketTag {
+  tag_id: string
+  created_at: string
+  created_by: string
+  tags: Tag
+}
+
+interface Customer {
+  id: string
+  name: string
+  email: string
+  company?: string
+  phone?: string
+}
+
+interface Ticket {
+  id: string
+  organization_id: string
+  customer_id: string
+  title: string
+  description: string
+  status: string
+  priority: string
+  created_at: string
+  updated_at: string
+  customers: Customer
+  ticket_tags: TicketTag[]
+}
+
+console.log('Loading api-get-ticket function...')
 
 serve(async (req) => {
   // Handle CORS
@@ -11,52 +51,42 @@ serve(async (req) => {
   }
 
   try {
-    // Create Supabase client
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Get API key
-    const apiKey = req.headers.get('apikey')
-    console.log('Verifying API key...')
-    if (!apiKey) {
-      throw new Error('API key is required')
+    // Get user from auth header
+    const authHeader = req.headers.get('Authorization')?.split(' ')[1]
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: 'No authorization header' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
     }
 
-    // Get the last 4 characters of the provided API key
-    const keyLastFour = apiKey.slice(-4)
-    console.log('Key last four:', keyLastFour)
+    // Verify user is an employee
+    const { data: { user }, error: userError } = await supabaseClient.auth.getUser(authHeader)
+    if (userError || !user) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
 
-    // First get the API key by last four digits
-    const { data: apiKeyData, error: apiKeyError } = await supabaseClient
-      .from('api_keys')
-      .select('id, organization_id, employee_id, status, key_hash, key_last_four')
-      .eq('key_last_four', keyLastFour)
-      .eq('status', 'active')
+    // Get employee data to verify organization access
+    const { data: employee, error: employeeError } = await supabaseClient
+      .from('employees')
+      .select('organization_id')
+      .eq('user_id', user.id)
       .single()
 
-    if (apiKeyError) {
-      console.error('API key error:', apiKeyError)
-      throw new Error('Invalid API key')
+    if (employeeError || !employee) {
+      return new Response(
+        JSON.stringify({ error: 'User is not an employee' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
     }
-
-    // Now verify the full key
-    const { data: verificationResults, error: verificationError } = await supabaseClient
-      .rpc('verify_api_key', { key_to_verify: apiKey })
-
-    if (verificationError) {
-      console.error('API key verification error:', verificationError)
-      throw new Error('Invalid API key')
-    }
-
-    const verificationData = verificationResults?.[0]
-    if (!verificationData?.is_valid || verificationData.organization_id !== apiKeyData.organization_id) {
-      console.error('API key verification failed')
-      throw new Error('Invalid API key')
-    }
-
-    console.log('Found API key data:', apiKeyData)
 
     // Get ticket ID from URL parameters
     const url = new URL(req.url)
@@ -66,7 +96,7 @@ serve(async (req) => {
       throw new Error('Ticket ID is required')
     }
 
-    // Get ticket details
+    // Get ticket details with tags
     const { data: ticket, error: ticketError } = await supabaseClient
       .from('tickets')
       .select(`
@@ -83,10 +113,22 @@ serve(async (req) => {
           id,
           name,
           email
+        ),
+        ticket_tags (
+          tag_id,
+          created_at,
+          created_by,
+          tags (
+            id,
+            name,
+            description,
+            color,
+            type
+          )
         )
       `)
       .eq('id', ticketId)
-      .eq('organization_id', apiKeyData.organization_id)
+      .eq('organization_id', employee.organization_id)
       .single()
 
     if (ticketError || !ticket) {
@@ -94,32 +136,21 @@ serve(async (req) => {
       throw new Error('Invalid ticket ID or ticket not found')
     }
 
-    // Get ticket messages
-    const { data: messages, error: messagesError } = await supabaseClient
-      .from('ticket_messages')
-      .select(`
-        id,
-        organization_id,
-        ticket_id,
-        content,
-        sender_type,
-        created_at,
-        metadata
-      `)
-      .eq('ticket_id', ticketId)
-      .eq('organization_id', apiKeyData.organization_id)
-      .order('created_at', { ascending: true })
-
-    if (messagesError) {
-      console.error('Messages error:', messagesError)
-      throw new Error('Failed to fetch ticket messages')
+    // Transform the tags data to be more API-friendly
+    const transformedTicket = {
+      ...ticket,
+      tags: ticket.ticket_tags?.map(tt => ({
+        ...tt.tags,
+        added_at: tt.created_at,
+        added_by: tt.created_by
+      })) || [],
+      ticket_tags: undefined // Remove the nested structure
     }
 
     return new Response(
       JSON.stringify({
         success: true,
-        ticket,
-        messages
+        ticket: transformedTicket
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
