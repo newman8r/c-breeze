@@ -387,11 +387,12 @@ export const FullScreenTicket = ({ ticket: initialTicket, onClose }: FullScreenT
     fetchMessages()
   }, [fetchMessages])
 
-  // Set up realtime subscription
+  // Set up realtime subscription for messages and tags
   useEffect(() => {
     const supabase = createClient()
     
-    const channel = supabase
+    // Messages subscription
+    const messagesChannel = supabase
       .channel(`ticket-messages-${ticket.id}`)
       .on(
         'postgres_changes',
@@ -420,8 +421,27 @@ export const FullScreenTicket = ({ ticket: initialTicket, onClose }: FullScreenT
       )
       .subscribe()
 
+    // Tags subscription
+    const tagsChannel = supabase
+      .channel(`ticket-tags-${ticket.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // Listen for all changes (INSERT, UPDATE, DELETE)
+          schema: 'public',
+          table: 'ticket_tags',
+          filter: `ticket_id=eq.${ticket.id}`,
+        },
+        async () => {
+          // Refresh ticket data to get updated tags
+          await refreshTicketData()
+        }
+      )
+      .subscribe()
+
     return () => {
-      supabase.removeChannel(channel)
+      supabase.removeChannel(messagesChannel)
+      supabase.removeChannel(tagsChannel)
     }
   }, [ticket.id])
 
