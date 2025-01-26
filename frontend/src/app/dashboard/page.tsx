@@ -83,6 +83,11 @@ interface MockStats {
   }
 }
 
+interface SatisfactionStats {
+  last24Hours: number | null
+  lastWeek: number | null
+}
+
 // Add new interface for expanded state tracking
 interface ExpandedStates {
   [key: string]: boolean;
@@ -382,6 +387,10 @@ export default function DashboardPage() {
   const [isStatusOpen, setIsStatusOpen] = useState(false);
   const [isPriorityOpen, setIsPriorityOpen] = useState(false);
   const [showKnowledgeBase, setShowKnowledgeBase] = useState(false);
+  const [satisfactionStats, setSatisfactionStats] = useState<SatisfactionStats>({
+    last24Hours: null,
+    lastWeek: null
+  });
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -492,6 +501,45 @@ export default function DashboardPage() {
       supabase.removeChannel(channel)
     }
   }, [user, organizationId])
+
+  // Add function to load satisfaction stats
+  const loadSatisfactionStats = async () => {
+    if (!organizationId) return;
+
+    try {
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session?.access_token) {
+        throw new Error('No access token available');
+      }
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/get-satisfaction-stats`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({ organization_id: organizationId })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch satisfaction stats');
+      }
+
+      const stats = await response.json();
+      setSatisfactionStats(stats);
+    } catch (error) {
+      console.error('Error loading satisfaction stats:', error);
+    }
+  };
+
+  // Add effect to load satisfaction stats and refresh every 5 minutes
+  useEffect(() => {
+    loadSatisfactionStats();
+    const interval = setInterval(loadSatisfactionStats, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [organizationId]);
 
   const toggleTicketExpansion = (ticketId: string) => {
     setExpandedTickets(prev => ({
@@ -652,8 +700,12 @@ export default function DashboardPage() {
             <BauhausShape color="#FFB347" type="circle" />
             <div className="relative z-10">
               <h3 className="text-lg font-medium text-[#4A5568]">Satisfaction</h3>
-              <p className="text-3xl font-bold text-[#2C5282]">{mockStats.support.satisfaction}%</p>
-              <p className="text-sm text-[#FFB347]">Last 24 hours</p>
+              <p className="text-3xl font-bold text-[#2C5282]">
+                {satisfactionStats.last24Hours ?? '-'}%
+              </p>
+              <p className="text-sm text-[#FFB347]">
+                {satisfactionStats.lastWeek !== null ? `${satisfactionStats.lastWeek}% this week` : 'No ratings this week'}
+              </p>
             </div>
           </div>
         </motion.div>
