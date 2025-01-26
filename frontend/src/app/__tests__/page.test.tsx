@@ -3,6 +3,14 @@ import '@testing-library/jest-dom'
 import Home from '../page'
 import { useUser } from '@/contexts/UserContext'
 
+// Mock framer-motion to avoid animation issues in tests
+jest.mock('framer-motion', () => ({
+  motion: {
+    section: ({ children, ...props }: any) => <section {...props}>{children}</section>,
+    div: ({ children, ...props }: any) => <div {...props}>{children}</div>,
+  },
+}))
+
 // Mock UserContext
 jest.mock('@/contexts/UserContext', () => ({
   useUser: jest.fn(),
@@ -15,81 +23,84 @@ jest.mock('next/link', () => {
   }
 })
 
-// Mock framer-motion
-jest.mock('framer-motion', () => ({
-  motion: {
-    div: ({ children, ...props }: any) => {
-      const { animate, initial, transition, variants, ...validProps } = props
-      return <div {...validProps}>{children}</div>
-    },
-    section: ({ children, ...props }: any) => {
-      const { animate, initial, transition, variants, ...validProps } = props
-      return <section {...validProps}>{children}</section>
-    },
-  },
-}))
-
 describe('Home Page', () => {
   beforeEach(() => {
+    // Reset all mocks before each test
     jest.clearAllMocks()
   })
 
-  it('renders the hero section with title', () => {
-    ;(useUser as jest.Mock).mockReturnValue({
-      user: null,
-      loading: false,
-    })
-
-    const { container } = render(<Home />)
-    const heading = container.querySelector('h1')
-    expect(heading).toBeInTheDocument()
-    expect(heading).toHaveTextContent(/Customer Support/i)
-    expect(heading).toHaveTextContent(/Simplified/i)
-  })
-
-  it('shows login and register buttons when user is not logged in', () => {
+  it('shows login button and register link when user is not logged in', () => {
     ;(useUser as jest.Mock).mockReturnValue({
       user: null,
       loading: false,
     })
 
     render(<Home />)
-    expect(screen.getByText(/Log in/i)).toBeInTheDocument()
-    expect(screen.getByText(/Start Free Trial/i)).toBeInTheDocument()
+
+    expect(screen.getByText('Log in')).toBeInTheDocument()
+    expect(screen.getByText('Start Free Trial')).toBeInTheDocument()
+    expect(screen.queryByText('Go to Dashboard')).not.toBeInTheDocument()
   })
 
-  it('shows dashboard button when user is logged in', () => {
+  it('shows dashboard link when user is logged in', () => {
     ;(useUser as jest.Mock).mockReturnValue({
-      user: { id: '123', email: 'test@example.com' },
+      user: { id: 'test-user' },
       loading: false,
     })
 
     render(<Home />)
-    expect(screen.getByText(/Go to Dashboard/i)).toBeInTheDocument()
-    expect(screen.queryByText(/Start Free Trial/i)).not.toBeInTheDocument()
+
+    expect(screen.queryByText('Log in')).not.toBeInTheDocument()
+    expect(screen.queryByText('Start Free Trial')).not.toBeInTheDocument()
+    expect(screen.getByText('Go to Dashboard')).toBeInTheDocument()
   })
 
-  it('renders feature sections', () => {
-    ;(useUser as jest.Mock).mockReturnValue({
-      user: null,
-      loading: false,
-    })
-
-    render(<Home />)
-    expect(screen.getByText(/Smart Ticketing/i)).toBeInTheDocument()
-    expect(screen.getByText(/Team Collaboration/i)).toBeInTheDocument()
-    expect(screen.getByText(/Customer Insights/i)).toBeInTheDocument()
-    expect(screen.getByText(/Multi-Channel Support/i)).toBeInTheDocument()
-  })
-
-  it('does not show auth buttons while loading', () => {
+  it('hides auth buttons while loading', () => {
     ;(useUser as jest.Mock).mockReturnValue({
       user: null,
       loading: true,
     })
 
     render(<Home />)
-    expect(screen.queryByText(/Log in/i)).not.toBeInTheDocument()
-    expect(screen.queryByText(/Start Free Trial/i)).not.toBeInTheDocument()
+
+    expect(screen.queryByText('Log in')).not.toBeInTheDocument()
+    expect(screen.queryByText('Start Free Trial')).not.toBeInTheDocument()
+    expect(screen.queryByText('Go to Dashboard')).not.toBeInTheDocument()
+  })
+
+  it('renders the hero section with title and description', () => {
+    ;(useUser as jest.Mock).mockReturnValue({
+      user: null,
+      loading: false,
+    })
+
+    render(<Home />)
+
+    expect(screen.getByText('Customer Support,')).toBeInTheDocument()
+    expect(screen.getByText('Simplified')).toBeInTheDocument()
+    expect(screen.getByText(/Streamline your customer support/)).toBeInTheDocument()
+  })
+
+  it('renders all feature sections', () => {
+    ;(useUser as jest.Mock).mockReturnValue({
+      user: null,
+      loading: false,
+    })
+
+    render(<Home />)
+
+    // Check main features
+    expect(screen.getByText('Smart Ticketing')).toBeInTheDocument()
+    expect(screen.getByText('Team Collaboration')).toBeInTheDocument()
+    expect(screen.getByText('Customer Insights')).toBeInTheDocument()
+    expect(screen.getByText('Multi-Channel Support')).toBeInTheDocument()
+
+    // Check advanced features
+    expect(screen.getByText('AI-Powered Responses')).toBeInTheDocument()
+    expect(screen.getByText('Intelligent Routing')).toBeInTheDocument()
+    expect(screen.getByText('Agent Copilot')).toBeInTheDocument()
+    expect(screen.getByText('Smart Triage')).toBeInTheDocument()
+    expect(screen.getByText('Unified Agent Workspace')).toBeInTheDocument()
+    expect(screen.getByText('Knowledge Integration')).toBeInTheDocument()
   })
 }) 
