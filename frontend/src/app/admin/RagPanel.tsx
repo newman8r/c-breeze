@@ -133,10 +133,21 @@ export default function RagPanel() {
     console.log('File upload clicked');
   };
 
-  const handleDeleteFile = (id: string) => {
-    // Will implement file deletion logic
-    console.log('Delete file:', id);
-  };
+  const handleDeleteFile = async (id: string) => {
+    try {
+      const { error } = await supabase.functions.invoke('delete-rag-document', {
+        body: { documentId: id }
+      })
+
+      if (error) throw error
+
+      // Refresh documents and settings
+      await Promise.all([fetchDocuments(), fetchSettings()])
+    } catch (error) {
+      console.error('Error deleting document:', error)
+      // You might want to show an error toast here
+    }
+  }
 
   const handleTestSearch = () => {
     // Will implement vector search test
@@ -187,15 +198,21 @@ export default function RagPanel() {
 
         if (storageError) throw storageError;
 
-        // Mark as success and fetch updated document list
+        // Mark as success
         setUploadingFiles(prev =>
           prev.map(f =>
             f.id === uploadFile.id ? { ...f, status: 'success' } : f
           )
         );
 
-        // Fetch updated document list
-        await fetchDocuments();
+        // Update RAG settings status to needs_rebuild
+        await supabase
+          .from('rag_settings')
+          .update({ status: 'needs_rebuild' })
+          .eq('organization_id', uploadData.document.organization_id)
+
+        // Fetch updated document list and settings
+        await Promise.all([fetchDocuments(), fetchSettings()]);
 
       } catch (error: any) {
         console.error('Upload error:', error);
