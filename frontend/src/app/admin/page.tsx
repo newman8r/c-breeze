@@ -10,9 +10,10 @@ import { getFunctionUrl } from '@/lib/supabase'
 import type { Database } from '@/lib/database.types'
 import { useUser } from '@/contexts/UserContext'
 import styles from './ApiKeys.module.css'
+import RagPanel from './RagPanel'
 
 // Tab type definition
-type Tab = 'customers' | 'employees' | 'ticketing' | 'automation' | 'billing' | 'audit-logs' | 'api-keys'
+type Tab = 'customers' | 'employees' | 'ticketing' | 'automation' | 'billing' | 'audit-logs' | 'api-keys' | 'rag-system'
 
 interface ApiError {
   error: string
@@ -477,7 +478,8 @@ export default function AdminPanel() {
     { id: 'automation', label: 'Automation' },
     { id: 'billing', label: 'Billing' },
     { id: 'audit-logs', label: '🔍 Audit Logs' },
-    { id: 'api-keys', label: 'API Keys' }
+    { id: 'api-keys', label: 'API Keys' },
+    { id: 'rag-system', label: 'RAG System' }
   ]
 
   return (
@@ -1447,11 +1449,6 @@ export default function AdminPanel() {
                                 </span>
                               </td>
                               <td className="px-6 py-4">
-                                <span className={styles[`key-status-${key.status}`]}>
-                                  {key.status === 'active' ? '🟢 Active' : '⚫ Revoked'}
-                                </span>
-                              </td>
-                              <td className="px-6 py-4">
                                 <div className="flex items-center space-x-2">
                                   {key.status === 'active' ? (
                                     <button
@@ -1691,6 +1688,12 @@ export default function AdminPanel() {
                   </div>
                 </motion.div>
               </motion.div>
+            )}
+
+            {activeTab === 'rag-system' && (
+              <div className="space-y-8">
+                <RagPanel />
+              </div>
             )}
           </div>
         </div>

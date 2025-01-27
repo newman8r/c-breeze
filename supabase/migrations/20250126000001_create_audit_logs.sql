@@ -26,7 +26,9 @@ CREATE TYPE public.resource_type AS ENUM (
     'tag',
     'invitation',
     'profile',
-    'user_settings'
+    'user_settings',
+    'api_key',
+    'document'
 );
 
 -- Create enum for severity levels
