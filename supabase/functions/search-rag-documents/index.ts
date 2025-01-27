@@ -19,7 +19,9 @@ serve(async (req) => {
 
   try {
     // Get the search query and limit from the request
-    const { query, limit = 5 } = await req.json()
+    const { query, limit = 5, organization_id } = await req.json()
+    console.log('Received request with:', { query, limit, organization_id })
+    
     if (!query) {
       throw new Error('Search query is required')
     }
@@ -30,24 +32,33 @@ serve(async (req) => {
       throw new Error('Missing authorization header')
     }
 
-    // Create a client with the user's auth context
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      {
-        global: { headers: { Authorization: authHeader } }
+    // If organization_id is provided in the request, use it
+    let orgId = organization_id
+    if (!orgId) {
+      console.log('No organization_id provided in request, attempting to get from auth context')
+      // Create a client with the user's auth context
+      const supabaseClient = createClient(
+        Deno.env.get('SUPABASE_URL') ?? '',
+        Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+        {
+          global: { headers: { Authorization: authHeader } }
+        }
+      )
+
+      // Get the user's organization
+      const { data: employeeData, error: employeeError } = await supabaseClient
+        .from('employees')
+        .select('organization_id')
+        .single()
+
+      if (employeeError || !employeeData) {
+        throw new Error('Could not determine organization')
       }
-    )
-
-    // Get the user's organization
-    const { data: employeeData, error: employeeError } = await supabaseClient
-      .from('employees')
-      .select('organization_id')
-      .single()
-
-    if (employeeError || !employeeData) {
-      throw new Error('Could not determine organization')
+      
+      orgId = employeeData.organization_id
     }
+    
+    console.log('Using organization ID:', orgId)
 
     // Generate embedding for the search query
     const embeddingResponse = await openai.embeddings.create({
@@ -56,6 +67,7 @@ serve(async (req) => {
     })
 
     // Use the match_chunks function to find similar chunks
+    console.log('Calling match_chunks')
     const { data: matches, error: matchError } = await supabase.rpc(
       'match_chunks',
       {
@@ -73,6 +85,7 @@ serve(async (req) => {
       .from('rag_documents')
       .select('id, name, description')
       .in('id', documentIds)
+      .eq('organization_id', orgId)
 
     if (docError) throw docError
 

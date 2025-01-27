@@ -54,6 +54,11 @@ interface SearchResult {
   }
 }
 
+interface RagQueryResponse {
+  answer: string
+  error?: string
+}
+
 export default function RagPanel() {
   const [searchQuery, setSearchQuery] = useState('');
   const [chunkSize, setChunkSize] = useState(500);
@@ -70,6 +75,9 @@ export default function RagPanel() {
   const [isSearching, setIsSearching] = useState(false)
   const [searchError, setSearchError] = useState<string | null>(null)
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
+  const [queryInput, setQueryInput] = useState('')
+  const [queryResult, setQueryResult] = useState<RagQueryResponse | null>(null)
+  const [isQuerying, setIsQuerying] = useState(false)
 
   const supabase = createClientComponentClient();
 
@@ -215,8 +223,22 @@ export default function RagPanel() {
     setSearchResults([])
 
     try {
+      // Get organization ID first
+      const { data: employeeData } = await supabase
+        .from('employees')
+        .select('organization_id')
+        .single()
+
+      if (!employeeData?.organization_id) {
+        throw new Error('Could not determine organization')
+      }
+
       const { data, error } = await supabase.functions.invoke('search-rag-documents', {
-        body: { query: testQuery, limit: 5 }
+        body: { 
+          query: testQuery, 
+          limit: 5,
+          organization_id: employeeData.organization_id
+        }
       })
 
       if (error) throw error
@@ -311,6 +333,40 @@ export default function RagPanel() {
       'text/plain': ['.txt']
     },
   });
+
+  const handleQuery = async () => {
+    if (!queryInput.trim()) return
+    
+    setIsQuerying(true)
+    setQueryResult(null)
+    
+    try {
+      // Get organization ID first
+      const { data: employeeData } = await supabase
+        .from('employees')
+        .select('organization_id')
+        .single()
+
+      if (!employeeData?.organization_id) {
+        throw new Error('Could not determine organization')
+      }
+
+      const { data, error } = await supabase.functions.invoke<RagQueryResponse>('rag-query', {
+        body: { 
+          query: queryInput,
+          organization_id: employeeData.organization_id 
+        }
+      })
+      
+      if (error) throw error
+      setQueryResult(data)
+    } catch (error) {
+      console.error('Query error:', error)
+      setQueryResult({ answer: '', error: error instanceof Error ? error.message : 'Failed to query' })
+    } finally {
+      setIsQuerying(false)
+    }
+  }
 
   return (
     <div className={styles.ragPanel}>
@@ -614,6 +670,46 @@ export default function RagPanel() {
           <div className="text-center py-8 text-gray-500">
             <p>No matching results found</p>
             <p className="text-sm">Try adjusting your search terms</p>
+          </div>
+        )}
+      </div>
+
+      <div className={`${styles.section} ${styles.card}`}>
+        <h2>Test RAG Query</h2>
+        <p className={styles.description}>
+          Test the RAG system by asking questions about your uploaded documents.
+        </p>
+        
+        <div className={styles.queryInputWrapper}>
+          <input
+            type="text"
+            value={queryInput}
+            onChange={(e) => setQueryInput(e.target.value)}
+            placeholder="Ask a question about your documents..."
+            className={styles.queryInput}
+            onKeyDown={(e) => e.key === 'Enter' && handleQuery()}
+          />
+          <button
+            onClick={handleQuery}
+            disabled={isQuerying || !queryInput.trim()}
+            className={styles.queryButton}
+          >
+            {isQuerying ? 'Querying...' : 'Ask'}
+          </button>
+        </div>
+
+        {queryResult && (
+          <div className={styles.queryResult}>
+            {queryResult.error ? (
+              <div className={styles.queryError}>
+                Error: {queryResult.error}
+              </div>
+            ) : (
+              <div className={styles.queryAnswer}>
+                <h3>Answer:</h3>
+                <p>{queryResult.answer}</p>
+              </div>
+            )}
           </div>
         )}
       </div>
