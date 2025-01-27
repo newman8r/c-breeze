@@ -70,6 +70,51 @@ export default function RagPanel() {
     }
   }, [supabase]);
 
+  // Set up real-time subscription for rag_settings
+  useEffect(() => {
+    // First get the organization ID
+    const getOrgAndSubscribe = async () => {
+      try {
+        const { data: employeeData } = await supabase
+          .from('employees')
+          .select('organization_id')
+          .single();
+
+        if (!employeeData?.organization_id) return;
+
+        // Subscribe to changes in rag_settings for our organization
+        const subscription = supabase
+          .channel('rag_settings_changes')
+          .on(
+            'postgres_changes',
+            {
+              event: '*',
+              schema: 'public',
+              table: 'rag_settings',
+              filter: `organization_id=eq.${employeeData.organization_id}`,
+            },
+            (payload) => {
+              console.log('RAG settings changed:', payload);
+              // Update our local state with the new settings
+              if (payload.new) {
+                setRagSettings(payload.new as RagSettings);
+              }
+            }
+          )
+          .subscribe();
+
+        // Cleanup subscription on unmount
+        return () => {
+          subscription.unsubscribe();
+        };
+      } catch (error) {
+        console.error('Error setting up real-time subscription:', error);
+      }
+    };
+
+    getOrgAndSubscribe();
+  }, [supabase]);
+
   const fetchDocuments = useCallback(async () => {
     try {
       setIsLoading(true);

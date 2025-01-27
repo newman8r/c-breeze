@@ -132,11 +132,6 @@ export default function RagSettings() {
     >
       <div className={styles.settingsHeader}>
         <h2 className={styles.settingsTitle}>RAG System Settings</h2>
-        {settings && (
-          <span className={`${styles.statusBadge} ${getStatusBadgeClass(settings.status)}`}>
-            {settings.status.replace('_', ' ')}
-          </span>
-        )}
       </div>
 
       <form onSubmit={handleSubmit} className={styles.settingsForm}>
