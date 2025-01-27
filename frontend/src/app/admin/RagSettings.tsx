@@ -58,7 +58,9 @@ export default function RagSettings() {
     setRebuilding(true)
 
     try {
-      const { error } = await supabase.functions.invoke('process-rag-documents')
+      const { error } = await supabase.functions.invoke('process-rag-documents', {
+        body: { rebuild: true }
+      })
       if (error) throw error
 
       setSuccess('Vector database rebuilt successfully')

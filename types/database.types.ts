@@ -521,38 +521,47 @@ export type Database = {
       }
       rag_chunks: {
         Row: {
-          id: number
-          created_at: string
-          updated_at: string
-          document_id: string
-          content: string
-          embedding: number[]
           chunk_index: number
-          status: 'pending' | 'processed' | 'failed'
+          content: string
+          created_at: string
+          document_id: string
+          embedding: string | null
           error_message: string | null
+          id: number
+          status: Database["public"]["Enums"]["rag_chunk_status"]
+          updated_at: string
         }
         Insert: {
-          id?: number
-          created_at?: string
-          updated_at?: string
-          document_id: string
-          content: string
-          embedding?: number[]
           chunk_index: number
-          status?: 'pending' | 'processed' | 'failed'
+          content: string
+          created_at?: string
+          document_id: string
+          embedding?: string | null
           error_message?: string | null
+          id?: never
+          status?: Database["public"]["Enums"]["rag_chunk_status"]
+          updated_at?: string
         }
         Update: {
-          id?: number
-          created_at?: string
-          updated_at?: string
-          document_id?: string
-          content?: string
-          embedding?: number[]
           chunk_index?: number
-          status?: 'pending' | 'processed' | 'failed'
+          content?: string
+          created_at?: string
+          document_id?: string
+          embedding?: string | null
           error_message?: string | null
+          id?: never
+          status?: Database["public"]["Enums"]["rag_chunk_status"]
+          updated_at?: string
         }
+        Relationships: [
+          {
+            foreignKeyName: "rag_chunks_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "rag_documents"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       rag_documents: {
         Row: {
@@ -1284,6 +1293,7 @@ export type Database = {
         | "api"
         | "other"
       message_sender_type: "employee" | "customer" | "system" | "ai"
+      rag_chunk_status: "pending" | "processed" | "failed"
       rag_system_status: "up_to_date" | "needs_rebuild" | "not_built"
       resource_type:
         | "system"

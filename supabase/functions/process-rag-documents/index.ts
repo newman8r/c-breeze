@@ -63,15 +63,57 @@ serve(async (req) => {
   }
 
   try {
-    // Get all pending documents
+    // Check if this is a rebuild operation
+    const { rebuild = false } = await req.json().catch(() => ({}))
+
+    // Get the user from the auth header
+    const authHeader = req.headers.get('Authorization')
+    if (!authHeader) {
+      throw new Error('Missing authorization header')
+    }
+
+    // Create a client with the user's auth context
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      {
+        global: { headers: { Authorization: authHeader } }
+      }
+    )
+
+    // Get the user's organization
+    const { data: employeeData, error: employeeError } = await supabaseClient
+      .from('employees')
+      .select('organization_id')
+      .single()
+
+    if (employeeError || !employeeData) {
+      throw new Error('Could not determine organization')
+    }
+
+    if (rebuild) {
+      console.log('Rebuild requested - clearing existing embeddings...')
+      const { error: deleteError } = await supabase
+        .from('rag_chunks')
+        .delete()
+        .neq('id', 0) // Delete all rows
+
+      if (deleteError) throw deleteError
+    }
+
+    // Get documents to process - all for rebuild, only pending for normal processing
     const { data: documents, error: fetchError } = await supabase
       .from('rag_documents')
       .select('*')
-      .eq('status', 'pending')
+      .in('status', rebuild ? ['processed', 'pending', 'failed'] : ['pending'])
     
     if (fetchError) throw fetchError
     
     console.log(`Found ${documents?.length || 0} document(s) to process`)
+
+    if (rebuild && (!documents || documents.length === 0)) {
+      throw new Error('No documents found to process')
+    }
     
     const results = []
     for (const document of (documents || [])) {
@@ -97,6 +139,14 @@ serve(async (req) => {
           model: 'text-embedding-ada-002',
           input: chunks,
         })
+
+        // Delete any existing chunks for this document
+        const { error: deleteChunksError } = await supabase
+          .from('rag_chunks')
+          .delete()
+          .eq('document_id', document.id)
+
+        if (deleteChunksError) throw deleteChunksError
 
         // Store chunks and embeddings
         console.log('Storing chunks and embeddings...')
@@ -148,6 +198,20 @@ serve(async (req) => {
           error: error.message
         })
       }
+    }
+
+    if (rebuild) {
+      // Update last_rebuild_at in rag_settings
+      const { error: updateError } = await supabase
+        .from('rag_settings')
+        .update({
+          last_rebuild_at: new Date().toISOString(),
+          total_chunks: results.reduce((acc, r) => acc + (r.success ? r.chunks : 0), 0),
+          status: 'up_to_date'
+        })
+        .eq('organization_id', employeeData.organization_id)
+
+      if (updateError) throw updateError
     }
 
     return new Response(
