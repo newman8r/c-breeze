@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { createClient } from '@/utils/supabase'
+import { FiRefreshCw } from 'react-icons/fi'
 import styles from './RagSettings.module.css'
 
 interface RagSettings {
@@ -19,6 +20,7 @@ export default function RagSettings() {
   const [settings, setSettings] = useState<RagSettings | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [rebuilding, setRebuilding] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const supabase = createClient()
@@ -47,6 +49,25 @@ export default function RagSettings() {
       console.error('Error loading settings:', err)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleRebuildIndex = async () => {
+    setError(null)
+    setSuccess(null)
+    setRebuilding(true)
+
+    try {
+      const { error } = await supabase.functions.invoke('process-rag-documents')
+      if (error) throw error
+
+      setSuccess('Vector database rebuilt successfully')
+      fetchSettings() // Refresh settings to get updated status
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to rebuild vector database')
+      console.error('Error rebuilding index:', err)
+    } finally {
+      setRebuilding(false)
     }
   }
 
@@ -195,21 +216,48 @@ export default function RagSettings() {
             </div>
           </div>
 
-          <button
-            type="submit"
-            disabled={saving}
-            className={styles.saveButton}
-          >
-            {saving ? (
-              <motion.span
-                animate={{ rotate: 360 }}
-                transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                className="inline-block w-4 h-4 border-2 border-t-transparent border-white rounded-full"
-              />
-            ) : (
-              'Save Settings'
-            )}
-          </button>
+          <div className={styles.buttonGroup}>
+            <button
+              type="button"
+              onClick={handleRebuildIndex}
+              disabled={rebuilding}
+              className={styles.rebuildButton}
+            >
+              {rebuilding ? (
+                <>
+                  <motion.span
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                    className="inline-block"
+                  >
+                    <FiRefreshCw className="w-4 h-4" />
+                  </motion.span>
+                  {' Processing...'}
+                </>
+              ) : (
+                <>
+                  <FiRefreshCw className="w-4 h-4" />
+                  {' Rebuild Index'}
+                </>
+              )}
+            </button>
+
+            <button
+              type="submit"
+              disabled={saving}
+              className={styles.saveButton}
+            >
+              {saving ? (
+                <motion.span
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                  className="inline-block w-4 h-4 border-2 border-t-transparent border-white rounded-full"
+                />
+              ) : (
+                'Save Settings'
+              )}
+            </button>
+          </div>
         </div>
       </form>
 

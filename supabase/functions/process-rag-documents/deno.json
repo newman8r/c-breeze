@@ -1,0 +1,10 @@
+{
+  "tasks": {
+    "serve": "deno run --allow-net --allow-env --allow-read index.ts"
+  },
+  "imports": {
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.39.3",
+    "@xenova/transformers": "https://cdn.jsdelivr.net/npm/@xenova/transformers@2.5.0",
+    "std/server": "https://deno.land/std@0.168.0/http/server.ts"
+  }
+} 

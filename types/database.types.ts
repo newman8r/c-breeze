@@ -519,6 +519,41 @@ export type Database = {
         }
         Relationships: []
       }
+      rag_chunks: {
+        Row: {
+          id: number
+          created_at: string
+          updated_at: string
+          document_id: string
+          content: string
+          embedding: number[]
+          chunk_index: number
+          status: 'pending' | 'processed' | 'failed'
+          error_message: string | null
+        }
+        Insert: {
+          id?: number
+          created_at?: string
+          updated_at?: string
+          document_id: string
+          content: string
+          embedding?: number[]
+          chunk_index: number
+          status?: 'pending' | 'processed' | 'failed'
+          error_message?: string | null
+        }
+        Update: {
+          id?: number
+          created_at?: string
+          updated_at?: string
+          document_id?: string
+          content?: string
+          embedding?: number[]
+          chunk_index?: number
+          status?: 'pending' | 'processed' | 'failed'
+          error_message?: string | null
+        }
+      }
       rag_documents: {
         Row: {
           chunks: number | null
@@ -569,6 +604,53 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      rag_settings: {
+        Row: {
+          chunk_overlap: number
+          chunk_size: number
+          created_at: string
+          embedding_model: string
+          id: string
+          last_rebuild_at: string | null
+          organization_id: string
+          status: Database["public"]["Enums"]["rag_system_status"]
+          total_chunks: number
+          updated_at: string
+        }
+        Insert: {
+          chunk_overlap?: number
+          chunk_size?: number
+          created_at?: string
+          embedding_model?: string
+          id?: string
+          last_rebuild_at?: string | null
+          organization_id: string
+          status?: Database["public"]["Enums"]["rag_system_status"]
+          total_chunks?: number
+          updated_at?: string
+        }
+        Update: {
+          chunk_overlap?: number
+          chunk_size?: number
+          created_at?: string
+          embedding_model?: string
+          id?: string
+          last_rebuild_at?: string | null
+          organization_id?: string
+          status?: Database["public"]["Enums"]["rag_system_status"]
+          total_chunks?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rag_settings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       tags: {
         Row: {
@@ -1075,6 +1157,19 @@ export type Database = {
         }
         Returns: string
       }
+      match_chunks: {
+        Args: {
+          query_embedding: string
+          match_threshold?: number
+          match_count?: number
+        }
+        Returns: {
+          id: number
+          document_id: string
+          content: string
+          similarity: number
+        }[]
+      }
       match_documents: {
         Args: {
           query_embedding: string
@@ -1189,6 +1284,7 @@ export type Database = {
         | "api"
         | "other"
       message_sender_type: "employee" | "customer" | "system" | "ai"
+      rag_system_status: "up_to_date" | "needs_rebuild" | "not_built"
       resource_type:
         | "system"
         | "organization"

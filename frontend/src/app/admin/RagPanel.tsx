@@ -122,11 +122,6 @@ export default function RagPanel() {
     ]);
   };
 
-  const handleRebuildIndex = () => {
-    // Will implement index rebuild logic
-    console.log('Rebuilding index...');
-  };
-
   const handleUpload = async (files: File[]) => {
     const newFiles = files.map(file => ({
       id: crypto.randomUUID(),
@@ -213,12 +208,6 @@ export default function RagPanel() {
     <div className={styles.ragPanel}>
       <div className={styles.header}>
         <h2 className={styles.title}>RAG System Management 🧠</h2>
-        <button
-          onClick={handleRebuildIndex}
-          className={styles.uploadButton}
-        >
-          <FiRefreshCw /> Rebuild Index
-        </button>
       </div>
 
       <div className={styles.statGrid}>
