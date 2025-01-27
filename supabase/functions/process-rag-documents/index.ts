@@ -201,8 +201,11 @@ serve(async (req) => {
     }
 
     if (rebuild) {
+      console.log('Updating rag_settings for organization:', employeeData.organization_id)
+      console.log('Total chunks processed:', results.reduce((acc, r) => acc + (r.success ? r.chunks : 0), 0))
+
       // Update last_rebuild_at in rag_settings
-      const { error: updateError } = await supabase
+      const { data: settingsData, error: updateError } = await supabase
         .from('rag_settings')
         .update({
           last_rebuild_at: new Date().toISOString(),
@@ -210,8 +213,14 @@ serve(async (req) => {
           status: 'up_to_date'
         })
         .eq('organization_id', employeeData.organization_id)
+        .select()
 
-      if (updateError) throw updateError
+      if (updateError) {
+        console.error('Error updating rag_settings:', updateError)
+        throw updateError
+      }
+
+      console.log('Successfully updated rag_settings:', settingsData)
     }
 
     return new Response(

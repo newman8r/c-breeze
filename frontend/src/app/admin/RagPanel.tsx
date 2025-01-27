@@ -32,6 +32,18 @@ interface UploadingFile {
   error?: string;
 }
 
+interface RagSettings {
+  id: string;
+  chunk_size: number;
+  chunk_overlap: number;
+  embedding_model: string;
+  last_rebuild_at: string | null;
+  total_chunks: number;
+  status: 'up_to_date' | 'needs_rebuild' | 'not_built';
+  created_at: string;
+  updated_at: string;
+}
+
 export default function RagPanel() {
   const [searchQuery, setSearchQuery] = useState('');
   const [chunkSize, setChunkSize] = useState(500);
@@ -44,8 +56,19 @@ export default function RagPanel() {
   const [documents, setDocuments] = useState<RagFile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [ragSettings, setRagSettings] = useState<RagSettings | null>(null);
 
   const supabase = createClientComponentClient();
+
+  const fetchSettings = useCallback(async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke('get-rag-settings');
+      if (error) throw error;
+      setRagSettings(data.settings);
+    } catch (error) {
+      console.error('Error fetching RAG settings:', error);
+    }
+  }, [supabase]);
 
   const fetchDocuments = useCallback(async () => {
     try {
@@ -65,16 +88,17 @@ export default function RagPanel() {
     }
   }, [supabase]);
 
-  // Fetch documents on mount and after successful upload
+  // Fetch documents and settings on mount and after successful upload
   useEffect(() => {
     fetchDocuments();
-  }, [fetchDocuments]);
+    fetchSettings();
+  }, [fetchDocuments, fetchSettings]);
 
   const stats = {
     totalFiles: documents.length,
-    totalChunks: documents.reduce((acc, file) => acc + file.chunks, 0),
-    lastRebuild: '2024-01-25 12:00 PM',
-    dbStatus: 'up_to_date' as 'up_to_date' | 'needs_update' | 'not_built',
+    totalChunks: ragSettings?.total_chunks ?? documents.reduce((acc, file) => acc + (file.chunks || 0), 0),
+    lastRebuild: ragSettings?.last_rebuild_at ?? null,
+    dbStatus: ragSettings?.status ?? 'not_built',
   };
 
   // Helper function to get DB status display info
@@ -87,7 +111,7 @@ export default function RagPanel() {
           className: styles.upToDate,
           description: 'Vector database is current with all documents'
         };
-      case 'needs_update':
+      case 'needs_rebuild':
         return {
           label: 'Needs Update',
           icon: '⚠️',
@@ -235,10 +259,14 @@ export default function RagPanel() {
               🕒 Last Rebuild
             </span>
             <span className={styles.statValue}>
-              {new Date(stats.lastRebuild).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              {stats.lastRebuild 
+                ? new Date(stats.lastRebuild).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                : 'Never'}
             </span>
             <span className={styles.statSubtext}>
-              {new Date(stats.lastRebuild).toLocaleDateString()}
+              {stats.lastRebuild 
+                ? new Date(stats.lastRebuild).toLocaleDateString()
+                : 'No rebuilds yet'}
             </span>
           </div>
         </div>
