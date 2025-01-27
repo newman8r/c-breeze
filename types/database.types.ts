@@ -574,6 +574,7 @@ export type Database = {
           id: string
           metadata: Json | null
           name: string
+          organization_id: string
           processed_at: string | null
           status: string
           storage_path: string
@@ -590,6 +591,7 @@ export type Database = {
           id?: string
           metadata?: Json | null
           name: string
+          organization_id: string
           processed_at?: string | null
           status?: string
           storage_path: string
@@ -606,13 +608,22 @@ export type Database = {
           id?: string
           metadata?: Json | null
           name?: string
+          organization_id?: string
           processed_at?: string | null
           status?: string
           storage_path?: string
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "rag_documents_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       rag_settings: {
         Row: {
