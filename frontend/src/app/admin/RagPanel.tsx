@@ -281,12 +281,7 @@ export default function RagPanel() {
     onDragEnter: () => setIsDragging(true),
     onDragLeave: () => setIsDragging(false),
     accept: {
-      'text/plain': ['.txt'],
-      'text/markdown': ['.md'],
-      'application/pdf': ['.pdf'],
-      'application/json': ['.json'],
-      'text/csv': ['.csv'],
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
+      'text/plain': ['.txt']
     },
   });
 
@@ -369,7 +364,7 @@ export default function RagPanel() {
             <div className={styles.uploadText}>
               <p className="font-medium">Drop files here or click to upload</p>
               <p className="text-sm text-gray-500">
-                Supported formats: TXT, MD, PDF, JSON, CSV, DOCX
+                Supported formats: TXT
               </p>
             </div>
           </div>
