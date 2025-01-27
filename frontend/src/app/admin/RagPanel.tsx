@@ -44,6 +44,16 @@ interface RagSettings {
   updated_at: string;
 }
 
+interface SearchResult {
+  content: string
+  similarity: number
+  document: {
+    id: string
+    name: string
+    description: string
+  }
+}
+
 export default function RagPanel() {
   const [searchQuery, setSearchQuery] = useState('');
   const [chunkSize, setChunkSize] = useState(500);
@@ -57,6 +67,9 @@ export default function RagPanel() {
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [ragSettings, setRagSettings] = useState<RagSettings | null>(null);
+  const [isSearching, setIsSearching] = useState(false)
+  const [searchError, setSearchError] = useState<string | null>(null)
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([])
 
   const supabase = createClientComponentClient();
 
@@ -194,13 +207,27 @@ export default function RagPanel() {
     }
   }
 
-  const handleTestSearch = () => {
-    // Will implement vector search test
-    setTestResults([
-      'Result 1: Matching content from documentation...',
-      'Result 2: Another relevant match...',
-    ]);
-  };
+  const handleTestSearch = async () => {
+    if (!testQuery.trim()) return
+
+    setIsSearching(true)
+    setSearchError(null)
+    setSearchResults([])
+
+    try {
+      const { data, error } = await supabase.functions.invoke('search-rag-documents', {
+        body: { query: testQuery, limit: 5 }
+      })
+
+      if (error) throw error
+      setSearchResults(data.results)
+    } catch (error) {
+      console.error('Search error:', error)
+      setSearchError(error instanceof Error ? error.message : 'Failed to perform search')
+    } finally {
+      setIsSearching(false)
+    }
+  }
 
   const handleUpload = async (files: File[]) => {
     const newFiles = files.map(file => ({
@@ -521,28 +548,72 @@ export default function RagPanel() {
 
       <div className={styles.settingsSection}>
         <h3 className="text-lg font-semibold mb-4">Test Vector Search 🔍</h3>
-        <div className="flex gap-2">
+        <div className="flex gap-2 mb-4">
           <input
             type="text"
             placeholder="Enter a test query..."
             value={testQuery}
             onChange={(e) => setTestQuery(e.target.value)}
             className={styles.searchBox}
+            onKeyDown={(e) => e.key === 'Enter' && handleTestSearch()}
           />
           <button
             onClick={handleTestSearch}
-            className={styles.uploadButton}
+            className={`${styles.searchButton} ${isSearching ? styles.searching : ''}`}
+            disabled={isSearching || !testQuery.trim()}
           >
-            <FiSearch /> Search
+            {isSearching ? (
+              <div className={styles.searchingSpinner} />
+            ) : (
+              <FiSearch className="w-5 h-5" />
+            )}
+            Search
           </button>
         </div>
-        {testResults.length > 0 && (
-          <div className={styles.testResults}>
-            {testResults.map((result, index) => (
-              <div key={index} className="mb-2 last:mb-0">
-                {result}
+
+        {/* Search Results */}
+        {searchError ? (
+          <div className="bg-red-50/50 text-red-600 p-4 rounded-lg mt-4">
+            <p>{searchError}</p>
+            <button
+              onClick={handleTestSearch}
+              className="mt-2 text-sm underline hover:no-underline"
+            >
+              Try again
+            </button>
+          </div>
+        ) : searchResults.length > 0 ? (
+          <div className="space-y-4 mt-4">
+            {searchResults.map((result, index) => (
+              <div
+                key={index}
+                className={`${styles.resultCard} bg-gradient-to-br from-blue-50/80 to-blue-100/50 backdrop-blur-sm`}
+              >
+                <div className={styles.resultHeader}>
+                  <div className={styles.resultMeta}>
+                    <h4 className={styles.resultTitle}>
+                      {result.document.name}
+                    </h4>
+                    {result.document.description && (
+                      <p className={styles.resultDescription}>
+                        {result.document.description}
+                      </p>
+                    )}
+                  </div>
+                  <div className={styles.resultScore}>
+                    {(result.similarity * 100).toFixed(1)}% match
+                  </div>
+                </div>
+                <div className={styles.resultContent}>
+                  {result.content}
+                </div>
               </div>
             ))}
+          </div>
+        ) : testQuery && !isSearching && (
+          <div className="text-center py-8 text-gray-500">
+            <p>No matching results found</p>
+            <p className="text-sm">Try adjusting your search terms</p>
           </div>
         )}
       </div>
