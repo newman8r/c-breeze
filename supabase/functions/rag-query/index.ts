@@ -1,11 +1,26 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
 import { corsHeaders } from '../_shared/cors.ts'
+import { ChatOpenAI } from '@langchain/openai'
 import { OpenAI } from 'https://deno.land/x/openai@v4.24.0/mod.ts'
+
+// Set environment variables for LangSmith
+const LANGCHAIN_API_KEY = Deno.env.get('LANGCHAIN_API_KEY')
+if (!LANGCHAIN_API_KEY) {
+  throw new Error('LANGCHAIN_API_KEY is required')
+}
 
 // Initialize clients
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+
+// Initialize LangChain chat model
+const chatModel = new ChatOpenAI({
+  modelName: 'gpt-4-turbo-preview',
+  temperature: 0.7
+})
+
+// Initialize OpenAI client for non-traced operations
 const openai = new OpenAI({
   apiKey: Deno.env.get('OPENAI_API_KEY')!,
 })
@@ -72,7 +87,7 @@ serve(async (req) => {
     console.log('Using organization ID:', orgId)
 
     // Call our search endpoint with the user's auth header
-    const response = await fetch(`${supabaseUrl}/functions/v1/search-rag-documents`, {
+    const searchResponse = await fetch(`${supabaseUrl}/functions/v1/search-rag-documents`, {
       method: 'POST',
       headers: {
         'Authorization': authHeader,
@@ -85,28 +100,33 @@ serve(async (req) => {
       })
     })
 
-    if (!response.ok) {
+    if (!searchResponse.ok) {
       throw new Error('Failed to fetch search results')
     }
 
-    const { results } = await response.json()
+    const { results } = await searchResponse.json()
     
     // Format the context from search results
     const context = results
       .map((r: any) => `${r.content}\nSource: ${r.document.name}`)
       .join('\n\n')
 
-    // Call OpenAI with the context and query
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4-turbo-preview',
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPT.replace('{context}', context).replace('{question}', query) },
-        { role: 'user', content: query }
-      ],
-      temperature: 0.7,
+    // Call OpenAI with the context and query using LangChain
+    console.log('Invoking LangChain model with tracing...')
+    const llmResponse = await chatModel.invoke([
+      { role: 'system', content: SYSTEM_PROMPT.replace('{context}', context).replace('{question}', query) },
+      { role: 'user', content: query }
+    ], {
+      metadata: {
+        query,
+        contextLength: context.length,
+        numResults: results.length
+      },
+      tags: ['rag-query', 'production']
     })
 
-    const answer = completion.choices[0].message.content
+    console.log('LangChain response received:', llmResponse)
+    const answer = llmResponse.content
 
     return new Response(
       JSON.stringify({ answer }),

@@ -1,19 +1,19 @@
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
-import { corsHeaders } from '../_shared/cors.ts'
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "@supabase/supabase-js";
+import { corsHeaders } from "../_shared/cors.ts";
 import OpenAI from 'https://esm.sh/openai@4'
 import {
   ChatPromptTemplate,
   MessagesPlaceholder,
-} from 'npm:@langchain/core/prompts'
-import { RunnableSequence } from 'npm:@langchain/core/runnables'
-import { ChatOpenAI } from 'npm:@langchain/openai'
+} from "@langchain/core/prompts"
+import { RunnableSequence } from "@langchain/core/runnables"
+import { ChatOpenAI } from "@langchain/openai"
 import { 
   FunctionParameters,
-  JsonOutputFunctionsParser
-} from 'npm:langchain/output_parsers'
-import { z } from 'npm:zod'
-import { zodToJsonSchema } from 'npm:zod-to-json-schema'
+  StructuredOutputParser
+} from "@langchain/core/output_parsers"
+import { z } from "zod"
+import { zodToJsonSchema } from "zod-to-json-schema"
 
 // Initialize clients
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!
@@ -119,13 +119,55 @@ const languageDetectionSchema = z.object({
     needed: z.boolean().describe('Whether translation to English is needed'),
     text: z.string().optional().describe('English translation of the text if needed')
   })
-}).describe('Language detection result with detailed analysis')
+})
 
 // Create the language agent's function schema
 const languageAgentSchema = {
   name: 'detect_language',
-  description: 'Analyze and detect the language of a given text with high confidence',
-  parameters: zodToJsonSchema(languageDetectionSchema)
+  description: 'Analyze and detect the language of a given text',
+  parameters: {
+    type: 'object',
+    properties: {
+      languageCode: {
+        type: 'string',
+        description: 'ISO 639-1 language code of the detected language'
+      },
+      confidence: {
+        type: 'number',
+        description: 'Confidence score between 0 and 1'
+      },
+      details: {
+        type: 'object',
+        properties: {
+          commonWords: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Common words found that indicate this language'
+          },
+          scriptAnalysis: {
+            type: 'string',
+            description: 'Analysis of the writing system/script used'
+          }
+        },
+        required: ['commonWords', 'scriptAnalysis']
+      },
+      translation: {
+        type: 'object',
+        properties: {
+          needed: {
+            type: 'boolean',
+            description: 'Whether translation to English is needed'
+          },
+          text: {
+            type: 'string',
+            description: 'English translation if needed'
+          }
+        },
+        required: ['needed']
+      }
+    },
+    required: ['languageCode', 'confidence', 'details', 'translation']
+  }
 } as const
 
 // Initialize language model with function calling
@@ -136,38 +178,31 @@ const languageModel = model.bind({
 
 // Create the language agent prompt
 const languagePrompt = ChatPromptTemplate.fromMessages([
-  ['system', `You are a language detection and translation specialist agent. Your role is to:
-1. Analyze text to determine its primary language
-2. Provide ISO 639-1 language codes (e.g. 'en' for English, 'es' for Spanish)
-3. Calculate a confidence score based on:
-   - Presence of language-specific characters/scripts
-   - Common words and phrases
-   - Grammar patterns
-4. Identify key words that helped determine the language
-5. Analyze the writing system/script used
-6. If the language is not English (languageCode != 'en'):
-   - Set translation.needed to true
-   - Provide an accurate English translation in translation.text
-   - Maintain the original meaning and tone in the translation
-   If the language is English:
-   - Set translation.needed to false
-   - Do not provide a translation
+  ['system', `You are a language detection specialist. Analyze the provided text and:
+1. Determine the primary language (use ISO 639-1 codes like 'en', 'es', etc.)
+2. Calculate a confidence score (0-1)
+3. Identify common words that helped determine the language
+4. Analyze the writing system/script
+5. If not English, provide a translation
 
-Be conservative with confidence scores:
-- Score > 0.9: Very clear language indicators present
-- Score > 0.7: Strong language indicators but some ambiguity
-- Score > 0.5: Moderate confidence, mixed language elements
-- Score < 0.5: Low confidence, unclear or minimal text
-
-Always analyze the full text before making a determination.`],
+You must respond using the detect_language function with complete information.`],
   ['human', '{text}']
 ])
+
+// Create structured output parser for language detection
+const languageOutputParser = StructuredOutputParser.fromZodSchema(languageDetectionSchema)
 
 // Create the language detection chain
 const languageChain = RunnableSequence.from([
   languagePrompt,
   languageModel,
-  new JsonOutputFunctionsParser<z.infer<typeof languageDetectionSchema>>()
+  // Extract the function call arguments and parse them
+  (response) => {
+    if (!response.additional_kwargs?.function_call?.arguments) {
+      throw new Error('No function call arguments found in response')
+    }
+    return JSON.parse(response.additional_kwargs.function_call.arguments)
+  }
 ])
 
 // Validity check schema
@@ -232,7 +267,13 @@ Original inquiry: {inquiry}
 const validityChain = RunnableSequence.from([
   validityPrompt,
   validityModel,
-  new JsonOutputFunctionsParser<z.infer<typeof validityCheckSchema>>()
+  // Extract the function call arguments and parse them
+  (response) => {
+    if (!response.additional_kwargs?.function_call?.arguments) {
+      throw new Error('No function call arguments found in response')
+    }
+    return JSON.parse(response.additional_kwargs.function_call.arguments)
+  }
 ])
 
 // Error handling schema
@@ -300,8 +341,44 @@ Reason: {reason}`]
 const errorChain = RunnableSequence.from([
   errorPrompt,
   errorModel,
-  new JsonOutputFunctionsParser<z.infer<typeof errorResponseSchema>>()
+  // Extract the function call arguments and parse them
+  (response) => {
+    if (!response.additional_kwargs?.function_call?.arguments) {
+      throw new Error('No function call arguments found in response')
+    }
+    return JSON.parse(response.additional_kwargs.function_call.arguments)
+  }
 ])
+
+// Add vector search function
+async function performVectorSearch(
+  analysisId: string,
+  originalInquiry: string,
+  organizationId: string,
+  metadata: any
+): Promise<any> {
+  const response = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/vector-search-coordinator`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      analysisId,
+      originalInquiry,
+      metadata: {
+        ...metadata,
+        organizationId
+      }
+    })
+  })
+
+  if (!response.ok) {
+    throw new Error('Failed to perform vector search')
+  }
+
+  return response.json()
+}
 
 // Define the coordinator's state schema using Zod
 const CoordinatorStateSchema = z.object({
@@ -340,7 +417,17 @@ const CoordinatorStateSchema = z.object({
     message: z.string().describe('Error message'),
     response: z.string().describe('Response message to send to customer'),
     occurredAt: z.string().datetime()
-  }).optional()
+  }).optional(),
+  vectorSearchResults: z.object({
+    searchPhrases: z.array(z.string()),
+    results: z.record(z.array(z.object({
+      content: z.string(),
+      documentId: z.string(),
+      similarity: z.number(),
+      isRelevant: z.boolean(),
+      relevanceReason: z.string().optional()
+    })))
+  }).optional(),
 }).describe('Complete state of the ticket analysis process')
 
 // Convert Zod schema to JSON schema for OpenAI functions
@@ -389,7 +476,13 @@ When you receive new information or need to make updates:
 const coordinatorChain = RunnableSequence.from([
   coordinatorPrompt,
   coordinatorModel,
-  new JsonOutputFunctionsParser<z.infer<typeof CoordinatorStateSchema>>()
+  // Extract the function call arguments and parse them
+  (response) => {
+    if (!response.additional_kwargs?.function_call?.arguments) {
+      throw new Error('No function call arguments found in response')
+    }
+    return JSON.parse(response.additional_kwargs.function_call.arguments)
+  }
 ])
 
 // Add the ticket creation function
@@ -429,7 +522,7 @@ async function createTicket(
   return response.json()
 }
 
-// Update the serve function to use both agents
+// Remove the test endpoint and restore the full workflow
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -471,28 +564,15 @@ serve(async (req) => {
       }
     }
 
-    // Perform language detection
-    console.log('Detecting language...')
+    // Step 1: Language Detection
+    console.log('Step 1: Detecting language...')
     const languageResult = await languageChain.invoke({
       text: customerInquiry
     })
-
     console.log('Language detection result:', languageResult)
 
-    // After language detection, perform validity check
-    console.log('Checking inquiry validity...')
-    const validityResult = await validityChain.invoke({
-      inquiry: customerInquiry,
-      languageCode: languageResult.languageCode,
-      translation: languageResult.translation.needed ? 
-        `English translation: ${languageResult.translation.text}` : 
-        'No translation needed'
-    })
-
-    console.log('Validity check result:', validityResult)
-
-    // Update state with both language and validity analysis
-    const updatedState = {
+    // Update state with language analysis
+    const stateWithLanguage = {
       ...initialState,
       languageAnalysis: {
         code: languageResult.languageCode,
@@ -502,23 +582,33 @@ serve(async (req) => {
           needed: languageResult.translation.needed,
           text: languageResult.translation.text
         }
-      },
-      validityAnalysis: {
-        isValid: validityResult.isValid,
-        reason: validityResult.reason,
-        analyzedAt: new Date().toISOString(),
-        category: validityResult.category,
-        confidence: validityResult.confidence,
-        suggestedResponse: validityResult.suggestedResponse
       }
     }
 
-    // If inquiry is invalid, generate error response
+    // Step 2: Validity Check
+    console.log('Step 2: Checking inquiry validity...')
+    const validityResult = await validityChain.invoke({
+      inquiry: customerInquiry,
+      languageCode: languageResult.languageCode,
+      translation: languageResult.translation.needed ? 
+        `English translation: ${languageResult.translation.text}` : 
+        'No translation needed'
+    })
+    console.log('Validity check result:', validityResult)
+
+    // Update state with validity analysis
+    const stateWithValidity = {
+      ...stateWithLanguage,
+      validityAnalysis: {
+        isValid: validityResult.isValid,
+        reason: validityResult.reason,
+        analyzedAt: new Date().toISOString()
+      }
+    }
+
+    // Step 3: Handle Invalid Inquiries
     if (!validityResult.isValid) {
-      console.log('Invalid inquiry detected:', validityResult.reason)
-      
-      // Generate error response
-      console.log('Generating error response...')
+      console.log('Step 3a: Generating error response for invalid inquiry...')
       const errorResult = await errorChain.invoke({
         languageCode: languageResult.languageCode,
         inquiry: customerInquiry,
@@ -527,85 +617,90 @@ serve(async (req) => {
         category: validityResult.category,
         reason: validityResult.reason
       })
-
-      console.log('Error response generated:', errorResult)
-
-      // Log invalid inquiry for monitoring (you can extend this to save to a database)
-      console.log('Invalid Inquiry Log:', {
-        timestamp: new Date().toISOString(),
-        inquiry: customerInquiry,
-        language: languageResult.languageCode,
-        category: validityResult.category,
-        reason: validityResult.reason,
-        severity: errorResult.severity,
-        internalNote: errorResult.internalNote
-      })
+      console.log('Error response:', errorResult)
 
       return new Response(
         JSON.stringify({
           success: true,
           state: {
-            ...updatedState,
+            ...stateWithValidity,
             error: {
               type: 'invalid_inquiry',
               message: validityResult.reason,
               response: languageResult.languageCode === 'en' ? 
                 errorResult.responseMessage : 
                 errorResult.translatedResponse || errorResult.responseMessage,
-              occurredAt: new Date().toISOString(),
-              severity: errorResult.severity,
-              suggestedActions: errorResult.suggestedActions,
-              internalNote: errorResult.internalNote
+              occurredAt: new Date().toISOString()
             }
           }
         }),
         {
-          headers: {
-            ...corsHeaders,
-            'Content-Type': 'application/json',
-          },
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           status: 200,
-        },
+        }
       )
     }
 
-    // Continue with coordinator if valid
+    // Step 4: Vector Search for Valid Inquiries
+    console.log('Step 4: Performing vector search...')
+    let stateWithSearch = { ...stateWithValidity }
+    try {
+      const searchResults = await performVectorSearch(
+        stateWithValidity.analysisId,
+        customerInquiry,
+        organizationId,
+        {
+          language: stateWithValidity.languageAnalysis,
+          validity: stateWithValidity.validityAnalysis
+        }
+      )
+      console.log('Vector search results:', searchResults)
+      stateWithSearch.vectorSearchResults = searchResults
+    } catch (error) {
+      console.error('Vector search error:', error)
+      // Continue without vector search results
+    }
+
+    // Step 5: Coordinator for Final Processing
+    console.log('Step 5: Running coordinator for final processing...')
     const finalState = await coordinatorChain.invoke({
-      input: JSON.stringify(updatedState),
+      input: JSON.stringify(stateWithSearch),
       agent_scratchpad: []
     })
+    console.log('Final state:', finalState)
 
-    // If coordinator indicates ticket creation is needed
-    if (finalState.validityAnalysis?.isValid && !finalState.ticketCreation) {
+    // Step 6: Create Ticket
+    if (!finalState.error && !finalState.ticketCreation) {
+      console.log('Step 6: Creating support ticket...')
       try {
-        // Create the ticket with customer information and organization ID from request
         const ticketResult = await createTicket(
           organizationId,
           finalState.customerInquiry.content,
           finalState.customerInquiry.content + 
             (finalState.languageAnalysis?.translation?.needed ? 
-              `\n\nTranslation: ${finalState.languageAnalysis.translation.text}` : ''),
-          'medium', // Default priority, could be determined by content analysis
-          'general', // Default category, could be determined by content analysis
+              `\n\nTranslation: ${finalState.languageAnalysis.translation.text}` : '') +
+            (finalState.vectorSearchResults ? '\n\nRelevant Documentation:\n' + 
+              JSON.stringify(finalState.vectorSearchResults, null, 2) : ''),
+          'medium',
+          'general',
           finalState.customerInquiry.email,
           finalState.customerInquiry.name,
           {
             analysisId: finalState.analysisId,
             languageAnalysis: finalState.languageAnalysis,
             validityAnalysis: finalState.validityAnalysis,
+            vectorSearchResults: finalState.vectorSearchResults,
             originalInquiry: finalState.customerInquiry.content,
             processedAt: new Date().toISOString()
           }
         )
-
-        // Update final state with ticket information
         finalState.ticketCreation = {
           id: ticketResult.ticket.id,
           status: ticketResult.ticket.status,
           createdAt: ticketResult.ticket.created_at
         }
       } catch (error) {
-        console.error('Error creating ticket:', error)
+        console.error('Ticket creation error:', error)
         finalState.error = {
           type: 'ticket_creation_failed',
           message: error.message,
@@ -616,29 +711,20 @@ serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({
-        success: true,
-        state: finalState
-      }),
+      JSON.stringify({ success: true, state: finalState }),
       {
-        headers: {
-          ...corsHeaders,
-          'Content-Type': 'application/json',
-        },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200,
-      },
+      }
     )
   } catch (error) {
     console.error('Error:', error)
     return new Response(
       JSON.stringify({ error: error.message }),
       {
-        headers: {
-          ...corsHeaders,
-          'Content-Type': 'application/json',
-        },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 500,
-      },
+      }
     )
   }
 }) 

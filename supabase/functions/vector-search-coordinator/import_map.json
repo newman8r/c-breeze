@@ -1,0 +1,17 @@
+{
+  "imports": {
+    "@langchain/core/": "https://esm.sh/v135/@langchain/core@0.2.29/",
+    "@langchain/openai": "https://esm.sh/v135/@langchain/openai@0.3.0/",
+    "@supabase/supabase-js": "https://esm.sh/v135/@supabase/supabase-js@2.39.3",
+    "zod": "npm:zod@3.22.4",
+    "zod-to-json-schema": "npm:zod-to-json-schema@3.22.3"
+  },
+  "scopes": {
+    "https://esm.sh/v135/": {
+      "@langchain/core": "https://esm.sh/v135/@langchain/core@0.2.29/"
+    },
+    "https://esm.sh/v135/@langchain/openai@0.3.0/": {
+      "@langchain/core/": "https://esm.sh/v135/@langchain/core@0.2.29/"
+    }
+  }
+} 
