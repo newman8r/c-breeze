@@ -556,4 +556,53 @@
 .description {
   color: var(--muted-foreground);
   margin-bottom: 1rem;
+}
+
+.textarea {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 14px;
+  resize: vertical;
+  background: var(--input-bg);
+  color: var(--text-color);
+}
+
+.textarea:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px var(--primary-color-alpha);
+}
+
+.inputGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.result {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 16px;
+  margin-top: 16px;
+}
+
+.result h4 {
+  margin: 0 0 12px 0;
+  color: var(--text-color);
+}
+
+.pre {
+  background: var(--code-bg);
+  padding: 12px;
+  border-radius: 4px;
+  overflow-x: auto;
+  font-family: monospace;
+  font-size: 13px;
+  margin: 0;
+  color: var(--text-color);
 } 

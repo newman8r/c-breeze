@@ -59,6 +59,80 @@ interface RagQueryResponse {
   error?: string
 }
 
+const LanguageDetectionTest = () => {
+  const [inquiry, setInquiry] = useState('')
+  const [result, setResult] = useState<any>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  
+  const supabase = createClientComponentClient()
+
+  const handleTest = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      
+      const { data: { session } } = await supabase.auth.getSession()
+      
+      const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/ticket-analysis`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`
+        },
+        body: JSON.stringify({ customerInquiry: inquiry })
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to analyze inquiry')
+      }
+
+      const data = await response.json()
+      setResult(data.state)
+    } catch (err) {
+      console.error('Error testing language detection:', err)
+      setError(err instanceof Error ? err.message : 'An error occurred')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className={styles.card}>
+      <h3>Language Detection Test</h3>
+      <div className={styles.inputGroup}>
+        <textarea
+          value={inquiry}
+          onChange={(e) => setInquiry(e.target.value)}
+          placeholder="Enter customer inquiry to test language detection..."
+          className={styles.textarea}
+          rows={4}
+        />
+        <button
+          onClick={handleTest}
+          disabled={loading || !inquiry.trim()}
+          className={styles.button}
+        >
+          {loading ? 'Analyzing...' : 'Test Language Detection'}
+        </button>
+      </div>
+      {error && (
+        <div className={styles.error}>
+          {error}
+        </div>
+      )}
+      {result && (
+        <div className={styles.result}>
+          <h4>Analysis Result:</h4>
+          <pre className={styles.pre}>
+            {JSON.stringify(result, null, 2)}
+          </pre>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function RagPanel() {
   const [searchQuery, setSearchQuery] = useState('');
   const [chunkSize, setChunkSize] = useState(500);
@@ -713,6 +787,8 @@ export default function RagPanel() {
           </div>
         )}
       </div>
+
+      <LanguageDetectionTest />
     </div>
   );
 } 
