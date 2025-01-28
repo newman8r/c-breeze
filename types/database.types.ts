@@ -288,6 +288,69 @@ export type Database = {
           },
         ]
       }
+      document_processing_queue: {
+        Row: {
+          attempt_count: number | null
+          chunk_size: number
+          chunk_start: number
+          chunks_created: number | null
+          created_at: string | null
+          document_id: string | null
+          error_message: string | null
+          id: string
+          organization_id: string | null
+          processed_at: string | null
+          status: Database["public"]["Enums"]["document_chunk_status"]
+          total_size: number
+          updated_at: string | null
+        }
+        Insert: {
+          attempt_count?: number | null
+          chunk_size: number
+          chunk_start: number
+          chunks_created?: number | null
+          created_at?: string | null
+          document_id?: string | null
+          error_message?: string | null
+          id?: string
+          organization_id?: string | null
+          processed_at?: string | null
+          status?: Database["public"]["Enums"]["document_chunk_status"]
+          total_size: number
+          updated_at?: string | null
+        }
+        Update: {
+          attempt_count?: number | null
+          chunk_size?: number
+          chunk_start?: number
+          chunks_created?: number | null
+          created_at?: string | null
+          document_id?: string | null
+          error_message?: string | null
+          id?: string
+          organization_id?: string | null
+          processed_at?: string | null
+          status?: Database["public"]["Enums"]["document_chunk_status"]
+          total_size?: number
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_processing_queue_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "rag_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_processing_queue_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       documents: {
         Row: {
           content: string
@@ -1177,19 +1240,34 @@ export type Database = {
         }
         Returns: string
       }
-      match_chunks: {
-        Args: {
-          query_embedding: string
-          match_threshold?: number
-          match_count?: number
-        }
-        Returns: {
-          id: number
-          document_id: string
-          content: string
-          similarity: number
-        }[]
-      }
+      match_chunks:
+        | {
+            Args: {
+              query_embedding: string
+              match_threshold?: number
+              match_count?: number
+            }
+            Returns: {
+              id: number
+              document_id: string
+              content: string
+              similarity: number
+            }[]
+          }
+        | {
+            Args: {
+              query_embedding: string
+              match_threshold?: number
+              match_count?: number
+              organization_id?: string
+            }
+            Returns: {
+              id: number
+              document_id: string
+              content: string
+              similarity: number
+            }[]
+          }
       match_documents: {
         Args: {
           query_embedding: string
@@ -1290,6 +1368,7 @@ export type Database = {
     Enums: {
       action_type: "create" | "read" | "update" | "delete" | "execute" | "other"
       actor_type: "employee" | "customer" | "ai" | "system"
+      document_chunk_status: "pending" | "processing" | "completed" | "failed"
       document_processing_status:
         | "pending"
         | "processing"

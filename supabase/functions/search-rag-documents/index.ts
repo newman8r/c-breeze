@@ -62,7 +62,7 @@ serve(async (req) => {
 
     // Generate embedding for the search query
     const embeddingResponse = await openai.embeddings.create({
-      model: 'text-embedding-ada-002',
+      model: 'text-embedding-3-small',
       input: query,
     })
 
@@ -72,8 +72,9 @@ serve(async (req) => {
       'match_chunks',
       {
         query_embedding: JSON.stringify(embeddingResponse.data[0].embedding),
-        match_threshold: 0.7, // Adjust this threshold as needed
-        match_count: limit
+        match_threshold: 0.5, // Lower threshold for better recall
+        match_count: limit,
+        organization_id: orgId
       }
     )
 
