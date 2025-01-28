@@ -197,6 +197,7 @@ export type Database = {
         Row: {
           contact_info: Json | null
           created_at: string
+          created_by_ai: boolean | null
           email: string
           id: string
           last_login_at: string | null
@@ -208,6 +209,7 @@ export type Database = {
         Insert: {
           contact_info?: Json | null
           created_at?: string
+          created_by_ai?: boolean | null
           email: string
           id?: string
           last_login_at?: string | null
@@ -219,6 +221,7 @@ export type Database = {
         Update: {
           contact_info?: Json | null
           created_at?: string
+          created_by_ai?: boolean | null
           email?: string
           id?: string
           last_login_at?: string | null
@@ -890,9 +893,11 @@ export type Database = {
       }
       tickets: {
         Row: {
+          ai_metadata: Json | null
           assigned_to: string | null
           category: string | null
           created_at: string
+          created_by_ai: boolean | null
           customer_id: string
           description: string
           due_date: string | null
@@ -908,9 +913,11 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          ai_metadata?: Json | null
           assigned_to?: string | null
           category?: string | null
           created_at?: string
+          created_by_ai?: boolean | null
           customer_id: string
           description: string
           due_date?: string | null
@@ -926,9 +933,11 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          ai_metadata?: Json | null
           assigned_to?: string | null
           category?: string | null
           created_at?: string
+          created_by_ai?: boolean | null
           customer_id?: string
           description?: string
           due_date?: string | null

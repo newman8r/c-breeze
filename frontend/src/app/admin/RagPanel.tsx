@@ -59,8 +59,10 @@ interface RagQueryResponse {
   error?: string
 }
 
-const LanguageDetectionTest = () => {
+const MultiAgentTest = () => {
   const [inquiry, setInquiry] = useState('')
+  const [customerEmail, setCustomerEmail] = useState('')
+  const [customerName, setCustomerName] = useState('Test Customer') // Default name for testing
   const [result, setResult] = useState<any>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -72,7 +74,18 @@ const LanguageDetectionTest = () => {
       setLoading(true)
       setError(null)
       
+      // Get the session for authentication
       const { data: { session } } = await supabase.auth.getSession()
+      
+      // Get the organization ID
+      const { data: employeeData, error: employeeError } = await supabase
+        .from('employees')
+        .select('organization_id')
+        .single()
+
+      if (employeeError || !employeeData?.organization_id) {
+        throw new Error('Could not determine organization')
+      }
       
       const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/ticket-analysis`, {
         method: 'POST',
@@ -80,7 +93,12 @@ const LanguageDetectionTest = () => {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session?.access_token}`
         },
-        body: JSON.stringify({ customerInquiry: inquiry })
+        body: JSON.stringify({ 
+          customerInquiry: inquiry,
+          customerEmail,
+          customerName,
+          organizationId: employeeData.organization_id
+        })
       })
 
       if (!response.ok) {
@@ -90,7 +108,7 @@ const LanguageDetectionTest = () => {
       const data = await response.json()
       setResult(data.state)
     } catch (err) {
-      console.error('Error testing language detection:', err)
+      console.error('Error testing multi-agent system:', err)
       setError(err instanceof Error ? err.message : 'An error occurred')
     } finally {
       setLoading(false)
@@ -99,21 +117,28 @@ const LanguageDetectionTest = () => {
 
   return (
     <div className={styles.card}>
-      <h3>Language Detection Test</h3>
+      <h3>Multi-Agent System Test</h3>
       <div className={styles.inputGroup}>
+        <input
+          type="email"
+          value={customerEmail}
+          onChange={(e) => setCustomerEmail(e.target.value)}
+          placeholder="Customer email address..."
+          className={styles.input}
+        />
         <textarea
           value={inquiry}
           onChange={(e) => setInquiry(e.target.value)}
-          placeholder="Enter customer inquiry to test language detection..."
+          placeholder="Enter customer inquiry to test the multi-agent system..."
           className={styles.textarea}
           rows={4}
         />
         <button
           onClick={handleTest}
-          disabled={loading || !inquiry.trim()}
+          disabled={loading || !inquiry.trim() || !customerEmail.trim()}
           className={styles.button}
         >
-          {loading ? 'Analyzing...' : 'Test Language Detection'}
+          {loading ? 'Processing...' : 'Test Multi-Agent System'}
         </button>
       </div>
       {error && (
@@ -788,7 +813,7 @@ export default function RagPanel() {
         )}
       </div>
 
-      <LanguageDetectionTest />
+      <MultiAgentTest />
     </div>
   );
 } 

@@ -558,22 +558,22 @@
   margin-bottom: 1rem;
 }
 
+.input {
+  @apply w-full p-3 rounded-lg bg-white/50 border border-gray-200 mb-3;
+  transition: all 0.2s ease-in-out;
+}
+
+.input:focus {
+  @apply bg-white/80 outline-none ring-2 ring-blue-300;
+}
+
 .textarea {
-  width: 100%;
-  padding: 12px;
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  font-family: inherit;
-  font-size: 14px;
-  resize: vertical;
-  background: var(--input-bg);
-  color: var(--text-color);
+  @apply w-full p-3 rounded-lg bg-white/50 border border-gray-200 mb-3;
+  transition: all 0.2s ease-in-out;
 }
 
 .textarea:focus {
-  outline: none;
-  border-color: var(--primary-color);
-  box-shadow: 0 0 0 2px var(--primary-color-alpha);
+  @apply bg-white/80 outline-none ring-2 ring-blue-300;
 }
 
 .inputGroup {

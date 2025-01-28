@@ -70,6 +70,43 @@ const timingTool = {
   }
 } as const
 
+// Ticket creation tool schema
+const createTicketTool = {
+  name: 'create_ticket',
+  description: 'Create a new support ticket from the analyzed inquiry',
+  parameters: {
+    type: 'object',
+    properties: {
+      title: {
+        type: 'string',
+        description: 'A clear, concise title summarizing the inquiry'
+      },
+      description: {
+        type: 'string',
+        description: 'Detailed description of the inquiry, including any translations if needed'
+      },
+      priority: {
+        type: 'string',
+        enum: ['low', 'medium', 'high'],
+        description: 'Priority level for the ticket'
+      },
+      category: {
+        type: 'string',
+        description: 'Category of the support ticket'
+      },
+      customerEmail: {
+        type: 'string',
+        description: 'Email address of the customer making the inquiry'
+      },
+      customerName: {
+        type: 'string',
+        description: 'Name of the customer making the inquiry'
+      }
+    },
+    required: ['title', 'description', 'customerEmail', 'customerName']
+  }
+} as const
+
 // Language detection schema
 const languageDetectionSchema = z.object({
   languageCode: z.string().describe('ISO 639-1 language code of the detected language'),
@@ -272,6 +309,8 @@ const CoordinatorStateSchema = z.object({
   startTime: z.string().datetime().describe('ISO timestamp when analysis started'),
   customerInquiry: z.object({
     content: z.string().describe('The original customer inquiry text'),
+    email: z.string().describe('Customer email address'),
+    name: z.string().describe('Customer name'),
     metadata: z.object({
       source: z.string().optional().describe('Source of the inquiry (email, chat, etc)'),
       timestamp: z.string().datetime().describe('When the inquiry was received')
@@ -316,7 +355,7 @@ const coordinatorFunctionSchema = {
 
 // Initialize the coordinator model with function calling
 const coordinatorModel = model.bind({
-  functions: [coordinatorFunctionSchema],
+  functions: [coordinatorFunctionSchema, createTicketTool],
   function_call: { name: 'update_analysis_state' }
 })
 
@@ -327,8 +366,15 @@ Your role is to:
 1. Maintain a complete state of the analysis using the provided state schema
 2. Coordinate with specialized agents (language, validity, error) to gather information
 3. Make decisions based on the collected information
-4. Ensure all timestamps and IDs are properly recorded
-5. Handle any errors gracefully and maintain state consistency
+4. Create support tickets for valid inquiries using the create_ticket tool
+5. Ensure all timestamps and IDs are properly recorded
+6. Handle any errors gracefully and maintain state consistency
+
+When creating tickets:
+- Generate a clear, concise title that summarizes the inquiry
+- Include both original text and translation (if any) in the description
+- Set appropriate priority based on content analysis
+- Choose relevant category based on the inquiry type
 
 When you receive new information or need to make updates:
 - Always include the full state object in your response
@@ -346,6 +392,43 @@ const coordinatorChain = RunnableSequence.from([
   new JsonOutputFunctionsParser<z.infer<typeof CoordinatorStateSchema>>()
 ])
 
+// Add the ticket creation function
+async function createTicket(
+  organizationId: string,
+  title: string,
+  description: string,
+  priority: string,
+  category: string,
+  customerEmail: string,
+  customerName: string,
+  aiMetadata: any
+): Promise<any> {
+  const response = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/create-ai-ticket`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      organizationId,
+      title,
+      description,
+      priority,
+      category,
+      customerEmail,
+      customerName,
+      aiMetadata
+    })
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(`Failed to create ticket: ${error.message}`)
+  }
+
+  return response.json()
+}
+
 // Update the serve function to use both agents
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -356,10 +439,22 @@ serve(async (req) => {
     const body = await req.json()
     console.log('Received request body:', body)
 
-    const { customerInquiry } = body
+    const { customerInquiry, customerEmail, customerName, organizationId } = body
 
     if (!customerInquiry) {
       throw new Error('Missing required parameter: customerInquiry')
+    }
+
+    if (!organizationId) {
+      throw new Error('Missing required parameter: organizationId')
+    }
+
+    if (!customerEmail) {
+      throw new Error('Missing required parameter: customerEmail')
+    }
+
+    if (!customerName) {
+      throw new Error('Missing required parameter: customerName')
     }
 
     // Initialize analysis state
@@ -368,6 +463,8 @@ serve(async (req) => {
       startTime: new Date().toISOString(),
       customerInquiry: {
         content: customerInquiry,
+        email: customerEmail,
+        name: customerName,
         metadata: {
           timestamp: new Date().toISOString()
         }
@@ -477,6 +574,46 @@ serve(async (req) => {
       input: JSON.stringify(updatedState),
       agent_scratchpad: []
     })
+
+    // If coordinator indicates ticket creation is needed
+    if (finalState.validityAnalysis?.isValid && !finalState.ticketCreation) {
+      try {
+        // Create the ticket with customer information and organization ID from request
+        const ticketResult = await createTicket(
+          organizationId,
+          finalState.customerInquiry.content,
+          finalState.customerInquiry.content + 
+            (finalState.languageAnalysis?.translation?.needed ? 
+              `\n\nTranslation: ${finalState.languageAnalysis.translation.text}` : ''),
+          'medium', // Default priority, could be determined by content analysis
+          'general', // Default category, could be determined by content analysis
+          finalState.customerInquiry.email,
+          finalState.customerInquiry.name,
+          {
+            analysisId: finalState.analysisId,
+            languageAnalysis: finalState.languageAnalysis,
+            validityAnalysis: finalState.validityAnalysis,
+            originalInquiry: finalState.customerInquiry.content,
+            processedAt: new Date().toISOString()
+          }
+        )
+
+        // Update final state with ticket information
+        finalState.ticketCreation = {
+          id: ticketResult.ticket.id,
+          status: ticketResult.ticket.status,
+          createdAt: ticketResult.ticket.created_at
+        }
+      } catch (error) {
+        console.error('Error creating ticket:', error)
+        finalState.error = {
+          type: 'ticket_creation_failed',
+          message: error.message,
+          response: 'Failed to create support ticket',
+          occurredAt: new Date().toISOString()
+        }
+      }
+    }
 
     return new Response(
       JSON.stringify({
