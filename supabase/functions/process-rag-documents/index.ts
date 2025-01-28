@@ -16,7 +16,7 @@ const openai = new OpenAI({
 const MAX_CHUNK_SIZE = 50 * 1024
 
 async function processDocumentChunk(queueItem: any) {
-  const { document_id, chunk_start, chunk_size } = queueItem
+  const { document_id, chunk_start, chunk_size, organization_id } = queueItem
 
   // Get document details
   const { data: document, error: docError } = await supabase
@@ -40,9 +40,16 @@ async function processDocumentChunk(queueItem: any) {
 
   // Convert to text and split into paragraphs
   const content = await fileData.text()
+  console.log('Processing content length:', content.length)
+  
   const paragraphs = content.split(/\n\s*\n/)
     .map(p => p.trim())
     .filter(p => p.length > 0)
+  
+  console.log('Split into paragraphs:', {
+    numParagraphs: paragraphs.length,
+    sampleLengths: paragraphs.slice(0, 3).map(p => p.length)
+  })
 
   // Get embeddings for all paragraphs
   const embeddingResponse = await openai.embeddings.create({
@@ -50,13 +57,24 @@ async function processDocumentChunk(queueItem: any) {
     input: paragraphs,
   })
 
+  console.log('Got embeddings for paragraphs:', {
+    numEmbeddings: embeddingResponse.data.length,
+    firstEmbeddingSize: embeddingResponse.data[0].embedding.length
+  })
+
   // Store chunks and embeddings
   const chunksToInsert = paragraphs.map((chunk, index) => ({
     document_id,
     content: chunk,
     embedding: embeddingResponse.data[index].embedding,
-    chunk_index: index
+    chunk_index: index,
+    status: 'processed'
   }))
+
+  console.log('Inserting chunks:', {
+    numChunks: chunksToInsert.length,
+    firstChunkLength: chunksToInsert[0].content.length
+  })
 
   const { error: insertError } = await supabase
     .from('rag_chunks')
@@ -65,6 +83,8 @@ async function processDocumentChunk(queueItem: any) {
   if (insertError) throw insertError
 
   // Update document status and chunk count
+  console.log('Updating document status with chunks:', chunksToInsert.length)
+  
   const { error: updateError } = await supabase
     .from('rag_documents')
     .update({
@@ -75,6 +95,17 @@ async function processDocumentChunk(queueItem: any) {
     .eq('id', document_id)
 
   if (updateError) throw updateError
+
+  // Clear all queue items for this document since we processed everything
+  console.log('Clearing remaining queue items for document:', document_id)
+  await supabase
+    .from('document_processing_queue')
+    .update({
+      status: 'completed',
+      processed_at: new Date().toISOString(),
+      chunks_created: chunksToInsert.length
+    })
+    .eq('document_id', document_id)
 
   return chunksToInsert.length
 }
@@ -232,10 +263,11 @@ serve(async (req) => {
         status: 'pending'
       }))
 
-      // Insert queue items
-      const { error: queueError } = await supabase
+      // Insert queue items and get back the inserted records
+      const { data: insertedItems, error: queueError } = await supabase
         .from('document_processing_queue')
         .insert(queueItems)
+        .select()
 
       if (queueError) {
         console.error('Queue insert error:', queueError)
@@ -243,16 +275,27 @@ serve(async (req) => {
       }
 
       // Process first chunk immediately
-      if (queueItems.length > 0) {
-        const firstChunk = queueItems[0]
+      if (insertedItems && insertedItems.length > 0) {
+        const firstChunk = insertedItems[0]
         try {
+          console.log('Processing first chunk:', {
+            id: firstChunk.id,
+            document_id: doc.id,
+            chunk_index: 0,
+            total_chunks: insertedItems.length
+          })
+
           // Update status to processing
           await supabase
             .from('document_processing_queue')
             .update({ status: 'processing' })
             .eq('id', firstChunk.id)
 
-          const chunksCreated = await processDocumentChunk(firstChunk)
+          const chunksCreated = await processDocumentChunk({
+            ...firstChunk,
+            document_id: doc.id,
+            organization_id: employeeData.organization_id
+          })
 
           // Update queue item status
           await supabase
@@ -263,6 +306,82 @@ serve(async (req) => {
               chunks_created: chunksCreated
             })
             .eq('id', firstChunk.id)
+
+          // Check if this was the last chunk
+          const { count: remainingCount } = await supabase
+            .from('document_processing_queue')
+            .select('*', { count: 'exact' })
+            .eq('document_id', doc.id)
+            .in('status', ['pending', 'processing'])
+
+          console.log('Checking remaining chunks:', {
+            documentId: doc.id,
+            remainingCount,
+            queueStatus: 'pending,processing'
+          })
+
+          if (remainingCount === 0) {
+            console.log('All chunks processed, updating RAG settings')
+            
+            // Log the subquery first
+            const { data: orgDocIds, error: orgDocsError } = await supabase
+              .from('rag_documents')
+              .select('id')
+              .eq('organization_id', employeeData.organization_id)
+
+            if (orgDocsError) {
+              console.error('Error getting org document ids:', orgDocsError)
+            } else {
+              console.log('Organization document ids:', orgDocIds.map(d => d.id))
+            }
+
+            // Get total chunks count by joining with rag_documents
+            console.log('Counting chunks for organization documents...')
+            const { data: chunkData, count: totalChunks, error: countError } = await supabase
+              .from('rag_chunks')
+              .select('*', { count: 'exact' })
+              .in('document_id', orgDocIds.map(d => d.id))
+
+            if (countError) {
+              console.error('Error counting chunks:', countError)
+            }
+
+            console.log('Total chunks count result:', {
+              totalChunks,
+              error: countError?.message,
+              sampleChunks: chunkData?.slice(0, 2)
+            })
+
+            // Update RAG settings status
+            console.log('Updating RAG settings with:', {
+              status: 'up_to_date',
+              totalChunks,
+              organizationId: employeeData.organization_id
+            })
+
+            const { data: updateResult, error: updateError } = await supabase
+              .from('rag_settings')
+              .update({
+                status: 'up_to_date',
+                last_rebuild_at: new Date().toISOString(),
+                total_chunks: totalChunks || 0
+              })
+              .eq('organization_id', employeeData.organization_id)
+              .select()
+
+            if (updateError) {
+              console.error('Error updating RAG settings:', updateError)
+            } else {
+              console.log('RAG settings updated successfully:', updateResult)
+            }
+          } else {
+            console.log('More chunks to process:', remainingCount)
+            // Set document status to processing
+            await supabase
+              .from('rag_documents')
+              .update({ status: 'processing' })
+              .eq('id', doc.id)
+          }
         } catch (error) {
           console.error('Error processing first chunk:', error)
           // Update queue item with error
@@ -278,15 +397,6 @@ serve(async (req) => {
         }
       }
     }
-
-    // Update RAG settings status
-    await supabase
-      .from('rag_settings')
-      .update({
-        status: 'needs_rebuild',
-        last_rebuild_at: new Date().toISOString()
-      })
-      .eq('organization_id', employeeData.organization_id)
 
     return new Response(
       JSON.stringify({
