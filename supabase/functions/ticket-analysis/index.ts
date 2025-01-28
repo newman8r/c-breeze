@@ -198,6 +198,74 @@ const validityChain = RunnableSequence.from([
   new JsonOutputFunctionsParser<z.infer<typeof validityCheckSchema>>()
 ])
 
+// Error handling schema
+const errorResponseSchema = z.object({
+  responseMessage: z.string().describe('The response message to send to the user'),
+  internalNote: z.string().describe('Internal note about why this was flagged'),
+  severity: z.enum(['low', 'medium', 'high']).describe('Severity level of the invalid inquiry'),
+  suggestedActions: z.array(z.string()).describe('Suggested actions for handling this type of inquiry'),
+  translatedResponse: z.string().optional().describe('Response translated to the original inquiry language if needed')
+}).describe('Error response with detailed handling instructions')
+
+// Create the error agent's function schema
+const errorAgentSchema = {
+  name: 'generate_error_response',
+  description: 'Generate an appropriate error response for an invalid inquiry',
+  parameters: zodToJsonSchema(errorResponseSchema)
+} as const
+
+// Initialize error model with function calling
+const errorModel = model.bind({
+  functions: [errorAgentSchema],
+  function_call: { name: 'generate_error_response' }
+})
+
+// Create the error agent prompt
+const errorPrompt = ChatPromptTemplate.fromMessages([
+  ['system', `You are an error handling specialist for a modern help desk chat system. Your role is to:
+
+1. Generate concise, chat-friendly responses to invalid inquiries
+2. Keep responses brief but clear and professional
+3. Maintain a helpful tone while being direct
+4. Suggest next steps when appropriate
+5. Ensure responses are culturally appropriate and properly translated
+
+Response Style Guidelines:
+- Use a conversational, direct tone
+- Avoid formal letter structures (no "Dear User", "Best regards", etc.)
+- Keep responses to 1-2 short paragraphs
+- Be clear but concise about why the inquiry cannot be processed
+- For non-English responses, maintain the same casual but professional tone
+
+Response Structure:
+- Start with the main point
+- Briefly explain why (if appropriate)
+- Suggest what to do next (if applicable)
+
+Examples by category:
+- Spam: "We can only help with genuine support inquiries. Please submit your actual question about our product or service."
+- Off-topic: "This seems unrelated to our services. For product support or account help, please try asking a specific question about our platform."
+- Unclear: "Could you please provide more details about what you need help with? Specific information will help us assist you better."
+- Harassment: "We're here to help, but we need to keep communication respectful. Please rephrase your question without inappropriate language, and we'll be happy to assist."
+
+Remember to match the tone of the response to the severity of the issue while keeping it conversational.`],
+  ['human', `Please generate a chat-friendly error response for this invalid inquiry.
+Context:
+Language: {languageCode}
+Original inquiry: {inquiry}
+Translation (if any): {translation}
+Validity result: {validityResult}
+Category: {category}
+Reason: {reason}`]
+])
+
+// Create the error handling chain
+const errorChain = RunnableSequence.from([
+  errorPrompt,
+  errorModel,
+  new JsonOutputFunctionsParser<z.infer<typeof errorResponseSchema>>()
+])
+
 // Define the coordinator's state schema using Zod
 const CoordinatorStateSchema = z.object({
   analysisId: z.string().uuid().describe('Unique identifier for this analysis session'),
@@ -348,9 +416,34 @@ serve(async (req) => {
       }
     }
 
-    // If inquiry is invalid, we'll stop here and return the result
+    // If inquiry is invalid, generate error response
     if (!validityResult.isValid) {
       console.log('Invalid inquiry detected:', validityResult.reason)
+      
+      // Generate error response
+      console.log('Generating error response...')
+      const errorResult = await errorChain.invoke({
+        languageCode: languageResult.languageCode,
+        inquiry: customerInquiry,
+        translation: languageResult.translation.needed ? languageResult.translation.text : undefined,
+        validityResult: validityResult.isValid,
+        category: validityResult.category,
+        reason: validityResult.reason
+      })
+
+      console.log('Error response generated:', errorResult)
+
+      // Log invalid inquiry for monitoring (you can extend this to save to a database)
+      console.log('Invalid Inquiry Log:', {
+        timestamp: new Date().toISOString(),
+        inquiry: customerInquiry,
+        language: languageResult.languageCode,
+        category: validityResult.category,
+        reason: validityResult.reason,
+        severity: errorResult.severity,
+        internalNote: errorResult.internalNote
+      })
+
       return new Response(
         JSON.stringify({
           success: true,
@@ -359,8 +452,13 @@ serve(async (req) => {
             error: {
               type: 'invalid_inquiry',
               message: validityResult.reason,
-              response: validityResult.suggestedResponse || 'We cannot process this inquiry at this time.',
-              occurredAt: new Date().toISOString()
+              response: languageResult.languageCode === 'en' ? 
+                errorResult.responseMessage : 
+                errorResult.translatedResponse || errorResult.responseMessage,
+              occurredAt: new Date().toISOString(),
+              severity: errorResult.severity,
+              suggestedActions: errorResult.suggestedActions,
+              internalNote: errorResult.internalNote
             }
           }
         }),
