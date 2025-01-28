@@ -134,24 +134,69 @@ const languageChain = RunnableSequence.from([
 ])
 
 // Validity check schema
-const validitySchema = {
+const validityCheckSchema = z.object({
+  isValid: z.boolean().describe('Whether the inquiry is valid for a support ticket'),
+  reason: z.string().describe('Detailed explanation of the validity decision'),
+  category: z.enum(['valid_inquiry', 'spam', 'harassment', 'off_topic', 'unclear']).describe('Category of the validity check result'),
+  confidence: z.number().min(0).max(1).describe('Confidence score of the validity assessment'),
+  suggestedResponse: z.string().optional().describe('If invalid, a suggested response to the user explaining why')
+}).describe('Validity check result with detailed analysis')
+
+// Create the validity agent's function schema
+const validityAgentSchema = {
   name: 'check_validity',
-  description: 'Check if the inquiry is valid for a support ticket',
-  parameters: {
-    type: 'object',
-    properties: {
-      isValid: {
-        type: 'boolean',
-        description: 'Whether the inquiry is valid for a support ticket'
-      },
-      reason: {
-        type: 'string',
-        description: 'Explanation of why the inquiry is valid or invalid'
-      }
-    },
-    required: ['isValid', 'reason']
-  }
+  description: 'Analyze if a customer inquiry is valid for a support ticket',
+  parameters: zodToJsonSchema(validityCheckSchema)
 } as const
+
+// Initialize validity model with function calling
+const validityModel = model.bind({
+  functions: [validityAgentSchema],
+  function_call: { name: 'check_validity' }
+})
+
+// Create the validity agent prompt
+const validityPrompt = ChatPromptTemplate.fromMessages([
+  ['system', `You are a validity assessment specialist for a help desk ticket system. Your role is to:
+
+1. Analyze customer inquiries to determine if they are valid support ticket requests
+2. Detect and flag inappropriate content (spam, harassment, etc.)
+3. Ensure inquiries are relevant to a help desk context
+4. Provide detailed explanations for your decisions
+5. Suggest appropriate responses for invalid inquiries
+
+Valid inquiries typically:
+- Ask for help with a product, service, or system
+- Report technical issues or bugs
+- Request information about features or functionality
+- Seek clarification on documentation or processes
+
+Invalid inquiries include:
+- Spam or automated messages
+- Harassment, threats, or inappropriate content
+- Questions completely unrelated to support (e.g., "What's the weather?")
+- Nonsensical or unclear messages
+
+For each inquiry:
+1. Assess the content carefully
+2. Determine validity with a confidence score
+3. Categorize the result
+4. Provide a detailed reason for your decision
+5. If invalid, suggest a polite and helpful response explaining why
+
+Be thorough but fair in your assessment. If in doubt about validity, lean towards accepting the inquiry and flag it as low confidence.`],
+  ['human', `Please analyze this customer inquiry for validity. Consider the following context:
+Language detected: {languageCode}
+Original inquiry: {inquiry}
+{translation}`]
+])
+
+// Create the validity check chain
+const validityChain = RunnableSequence.from([
+  validityPrompt,
+  validityModel,
+  new JsonOutputFunctionsParser<z.infer<typeof validityCheckSchema>>()
+])
 
 // Define the coordinator's state schema using Zod
 const CoordinatorStateSchema = z.object({
@@ -269,7 +314,19 @@ serve(async (req) => {
 
     console.log('Language detection result:', languageResult)
 
-    // Update state with language analysis
+    // After language detection, perform validity check
+    console.log('Checking inquiry validity...')
+    const validityResult = await validityChain.invoke({
+      inquiry: customerInquiry,
+      languageCode: languageResult.languageCode,
+      translation: languageResult.translation.needed ? 
+        `English translation: ${languageResult.translation.text}` : 
+        'No translation needed'
+    })
+
+    console.log('Validity check result:', validityResult)
+
+    // Update state with both language and validity analysis
     const updatedState = {
       ...initialState,
       languageAnalysis: {
@@ -280,10 +337,44 @@ serve(async (req) => {
           needed: languageResult.translation.needed,
           text: languageResult.translation.text
         }
+      },
+      validityAnalysis: {
+        isValid: validityResult.isValid,
+        reason: validityResult.reason,
+        analyzedAt: new Date().toISOString(),
+        category: validityResult.category,
+        confidence: validityResult.confidence,
+        suggestedResponse: validityResult.suggestedResponse
       }
     }
 
-    // Pass the updated state to the coordinator
+    // If inquiry is invalid, we'll stop here and return the result
+    if (!validityResult.isValid) {
+      console.log('Invalid inquiry detected:', validityResult.reason)
+      return new Response(
+        JSON.stringify({
+          success: true,
+          state: {
+            ...updatedState,
+            error: {
+              type: 'invalid_inquiry',
+              message: validityResult.reason,
+              response: validityResult.suggestedResponse || 'We cannot process this inquiry at this time.',
+              occurredAt: new Date().toISOString()
+            }
+          }
+        }),
+        {
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/json',
+          },
+          status: 200,
+        },
+      )
+    }
+
+    // Continue with coordinator if valid
     const finalState = await coordinatorChain.invoke({
       input: JSON.stringify(updatedState),
       agent_scratchpad: []
