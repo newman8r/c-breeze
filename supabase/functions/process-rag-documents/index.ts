@@ -16,41 +16,52 @@ const openai = new OpenAI({
 // OpenAI recommends 200-1000 tokens per chunk for embeddings
 const MAX_TOKENS_PER_CHUNK = 500
 
-function chunkText(text: string): string[] {
+async function chunkText(text: string): Promise<string[]> {
   if (!text) return []
   
   console.log('Starting chunking process...')
-  const tokenizer = new GPT3Tokenizer({ type: 'gpt3' })
-  
-  // First, split text into sentences (roughly)
-  const sentences = text.split(/[.!?]+/)
-    .map(s => s.trim())
-    .filter(s => s.length > 0)
-    .map(s => s + '.')
-  
-  console.log(`Split into ${sentences.length} sentences`)
-  
+
+  // First, split text into paragraphs
+  const paragraphs = text.split(/\n\s*\n/)
+    .map(p => p.trim())
+    .filter(p => p.length > 0)
+
+  console.log(`Split into ${paragraphs.length} paragraphs`)
+
+  // Get token count for each paragraph using OpenAI
+  const tokenCounts = await Promise.all(
+    paragraphs.map(async (p) => {
+      const response = await openai.embeddings.create({
+        model: 'text-embedding-3-small',
+        input: p,
+        encoding_format: 'float'
+      })
+      return response.usage.total_tokens
+    })
+  )
+
+  // Combine paragraphs into chunks based on token count
   const chunks: string[] = []
   let currentChunk: string[] = []
   let currentLength = 0
-  
-  for (const sentence of sentences) {
-    const tokenCount = tokenizer.encode(sentence).text.length
+
+  paragraphs.forEach((paragraph, i) => {
+    const tokenCount = tokenCounts[i]
     
     if (currentLength + tokenCount > MAX_TOKENS_PER_CHUNK && currentChunk.length > 0) {
       // Current chunk is full, start a new one
-      chunks.push(currentChunk.join(' '))
+      chunks.push(currentChunk.join('\n\n'))
       currentChunk = []
       currentLength = 0
     }
     
-    currentChunk.push(sentence)
+    currentChunk.push(paragraph)
     currentLength += tokenCount
-  }
+  })
   
   // Add the last chunk if there is one
   if (currentChunk.length > 0) {
-    chunks.push(currentChunk.join(' '))
+    chunks.push(currentChunk.join('\n\n'))
   }
   
   console.log(`Created ${chunks.length} chunks`)
@@ -65,7 +76,7 @@ serve(async (req) => {
   try {
     // Check if this is a rebuild operation
     const { rebuild = false } = await req.json().catch(() => ({}))
-
+    
     // Get the user from the auth header
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
@@ -121,16 +132,16 @@ serve(async (req) => {
       
       try {
         // Download document content
-        const { data: fileData, error: downloadError } = await supabase
-          .storage
-          .from('rag_documents')
-          .download(document.storage_path)
+    const { data: fileData, error: downloadError } = await supabase
+      .storage
+      .from('rag_documents')
+      .download(document.storage_path)
 
-        if (downloadError) throw downloadError
+    if (downloadError) throw downloadError
 
         // Convert to text and chunk
         const content = await fileData.text()
-        const chunks = chunkText(content)
+        const chunks = await chunkText(content)
         console.log(`Split into ${chunks.length} chunks`)
 
         // Get embeddings for all chunks at once
