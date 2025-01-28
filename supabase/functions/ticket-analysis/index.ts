@@ -77,6 +77,10 @@ const languageDetectionSchema = z.object({
   details: z.object({
     commonWords: z.array(z.string()).describe('Common words found that indicate this language'),
     scriptAnalysis: z.string().describe('Analysis of the writing system/script used')
+  }),
+  translation: z.object({
+    needed: z.boolean().describe('Whether translation to English is needed'),
+    text: z.string().optional().describe('English translation of the text if needed')
   })
 }).describe('Language detection result with detailed analysis')
 
@@ -95,7 +99,7 @@ const languageModel = model.bind({
 
 // Create the language agent prompt
 const languagePrompt = ChatPromptTemplate.fromMessages([
-  ['system', `You are a language detection specialist agent. Your role is to:
+  ['system', `You are a language detection and translation specialist agent. Your role is to:
 1. Analyze text to determine its primary language
 2. Provide ISO 639-1 language codes (e.g. 'en' for English, 'es' for Spanish)
 3. Calculate a confidence score based on:
@@ -104,6 +108,13 @@ const languagePrompt = ChatPromptTemplate.fromMessages([
    - Grammar patterns
 4. Identify key words that helped determine the language
 5. Analyze the writing system/script used
+6. If the language is not English (languageCode != 'en'):
+   - Set translation.needed to true
+   - Provide an accurate English translation in translation.text
+   - Maintain the original meaning and tone in the translation
+   If the language is English:
+   - Set translation.needed to false
+   - Do not provide a translation
 
 Be conservative with confidence scores:
 - Score > 0.9: Very clear language indicators present
@@ -156,7 +167,11 @@ const CoordinatorStateSchema = z.object({
   languageAnalysis: z.object({
     code: z.string().describe('ISO 639-1 language code'),
     confidence: z.number().min(0).max(1).describe('Confidence score of language detection'),
-    detectedAt: z.string().datetime()
+    detectedAt: z.string().datetime(),
+    translation: z.object({
+      needed: z.boolean().describe('Whether translation was needed'),
+      text: z.string().optional().describe('English translation if needed')
+    })
   }).optional(),
   validityAnalysis: z.object({
     isValid: z.boolean().describe('Whether the inquiry is valid for a support ticket'),
@@ -260,7 +275,11 @@ serve(async (req) => {
       languageAnalysis: {
         code: languageResult.languageCode,
         confidence: languageResult.confidence,
-        detectedAt: new Date().toISOString()
+        detectedAt: new Date().toISOString(),
+        translation: {
+          needed: languageResult.translation.needed,
+          text: languageResult.translation.text
+        }
       }
     }
 
