@@ -14,210 +14,107 @@ Our system implements a sophisticated multi-agent architecture for analyzing and
 
 ### 2. Agent Structure
 
-#### Coordinator Agent
-- **Role**: Orchestrates the entire analysis process
-- **Implementation**: Uses `RunnableSequence` from LangChain
-- **State Management**: 
-  - Maintains complete analysis state using Zod schema
-  - Tracks customer information throughout the process
-  - Handles ticket creation with proper customer association
-- **Key Features**:
-  - UUID generation for analysis tracking
-  - Timestamp management
-  - State transitions coordination
-  - Error handling
-  - Customer data validation
-
-#### Language Detection Agent
-- **Purpose**: Analyzes inquiry language and handles translations
+#### Vector Search Agent
+- **Role**: Performs semantic search over knowledge base
 - **Features**:
-  - ISO 639-1 language code identification
-  - Confidence scoring
-  - Automatic translation to English when needed
-  - Script and writing system analysis
-  - Maintains original inquiry context
+  - RAG-based document retrieval
+  - Relevance scoring
+  - Document chunking
+  - Embedding generation
+  - Search result filtering
 
-#### Validity Assessment Agent
-- **Purpose**: Determines if inquiries are valid support requests
-- **Categories**:
-  - Valid inquiry
-  - Spam
-  - Harassment
-  - Off-topic
-  - Unclear
+#### Ticket Processing Coordinator
+- **Role**: Manages ticket metadata and classification
+- **Sub-Agents**:
+  - Priority Determination Agent
+  - Tag Generation Agent
+  - Assignment Determination Agent
 - **Features**:
-  - Confidence scoring
-  - Detailed reasoning
-  - Category classification
-  - Response suggestions
-  - Customer context consideration
+  - Priority level assignment
+  - Automated tagging
+  - Assignment routing
+  - Metadata management
+  - Database updates
 
-#### Error Handling Agent
-- **Purpose**: Generates appropriate responses for invalid inquiries
-- **Features**:
-  - Chat-friendly response generation
-  - Multi-language support
-  - Severity assessment
-  - Action suggestions
-  - Customer-specific error handling
+### 3. Processing Flow
 
-### 3. Implementation Pattern
+#### Current Implementation
+1. **Parallel Processing**
+   - Vector Search Agent begins document retrieval
+   - Ticket Processing Coordinator starts analysis
+   - Both operate independently for efficiency
 
-#### Function Calling Pattern
-We use OpenAI's function calling capability throughout the system:
-```typescript
-const model = new ChatOpenAI({
-  modelName: 'gpt-4-turbo-preview',
-  temperature: 0
-})
+2. **Vector Search Process**
+   - Semantic search over document base
+   - Relevance scoring and filtering
+   - Result aggregation
+   - Context preparation for RAG
 
-// Example of function binding
-const specializedModel = model.bind({
-  functions: [functionSchema],
-  function_call: { name: 'function_name' }
-})
-```
+3. **Ticket Processing**
+   - Priority determination with vector context
+   - Tag generation with vector context
+   - Assignment routing
+   - Database updates (priority, tags)
 
-#### Chain Structure
-Each agent is implemented as a LangChain sequence:
-```typescript
-const agentChain = RunnableSequence.from([
-  promptTemplate,
-  specializedModel,
-  new JsonOutputFunctionsParser()
-])
-```
+4. **Upcoming: Response Generation**
+   - Will require completed vector search
+   - Uses RAG for informed responses
+   - Combines ticket metadata
+   - Customer context integration
 
-### 4. Data Flow
+### 4. Data Management
 
-1. **Initial Request**
-   - Customer inquiry received with email and name
-   - Organization context established
-   - Analysis state initialized with UUID
+#### Tag System
+- AI-generated tag support
+- Hierarchical tag structure
+- Organization-specific tags
+- Tag metadata tracking
+- Usage analytics
 
-2. **Language Processing**
-   - Language detection
-   - Translation if needed
-   - State update with language analysis
+#### Priority System
+- Four-level priority scale
+- Context-aware determination
+- Business impact assessment
+- SLA integration
+- Priority adjustment logic
 
-3. **Validity Assessment**
-   - Content analysis
-   - Category determination
-   - Customer context consideration
-   - State update with validity results
+### 5. Database Integration
 
-4. **Response Generation**
-   - For invalid inquiries: Error agent generates response
-   - For valid inquiries: Proceeds to ticket creation
+#### Supabase Tables
+- `tickets`: Core ticket information
+- `ticket_tags`: Tag associations
+- `tags`: Tag definitions
+- `rag_documents`: Knowledge base
+- `rag_chunks`: Searchable content
 
-5. **Customer Processing**
-   - Customer lookup by email and organization
-   - New customer creation if needed
-   - AI-created customer flagging
-
-6. **Ticket Creation**
-   - Linked to customer record
-   - Organization context maintained
-   - Complete metadata inclusion
-   - State finalization
-
-### 5. Schema Management
-
-We use Zod for comprehensive schema definition and validation:
-```typescript
-const CoordinatorStateSchema = z.object({
-  analysisId: z.string().uuid(),
-  customerInquiry: z.object({
-    content: z.string(),
-    email: z.string(),
-    name: z.string(),
-    metadata: z.object({
-      timestamp: z.string().datetime()
-    })
-  }),
-  // ... other state fields
-}).describe('Complete state of the ticket analysis process')
-```
-
-### 6. Error Handling
-
-- Comprehensive error catching at each stage
-- Detailed error responses
-- State preservation during failures
-- Audit logging
-- Customer-specific error handling
-
-### 7. Integration Points
-
-#### Supabase Integration
-- Customer management with AI creation flags
-- Ticket creation with full metadata
-- Organization context maintenance
-- Audit logging
-- Customer-ticket relationship management
-
-#### OpenAI Integration
-- Function calling
-- Response parsing
-- Temperature control (0 for consistency)
-- Model selection
-- Context preservation
-
-## Best Practices Implemented
-
-1. **Modularity**
-   - Each agent has a single responsibility
-   - Clear interfaces between components
-   - Isolated state management
-   - Customer handling separation
-
-2. **Type Safety**
-   - Comprehensive TypeScript usage
-   - Zod schema validation
-   - Database type generation
-   - Customer data validation
-
-3. **Error Handling**
-   - Graceful degradation
-   - Informative error messages
-   - State consistency
-   - Customer data protection
-
-4. **Performance**
-   - Parallel processing where possible
-   - Efficient state management
-   - Minimal redundant API calls
-   - Smart customer lookup
-
-5. **Maintainability**
-   - Clear documentation
-   - Consistent coding patterns
-   - Modular architecture
-   - Separation of concerns
+#### RLS Policies
+- Organization isolation
+- AI agent permissions
+- User role restrictions
+- Data access controls
 
 ## Future Enhancements
 
-1. **Agent Improvements**
-   - Enhanced priority detection
-   - More sophisticated category assignment
-   - Sentiment analysis
-   - Customer history consideration
+### 1. Response Generation
+- RAG-based response creation
+- Template integration
+- Multi-language support
+- Tone adjustment
+- Customer history consideration
 
-2. **System Enhancements**
-   - Caching layer
-   - Rate limiting
-   - Enhanced monitoring
-   - Customer data enrichment
+### 2. Process Optimization
+- Smart parallel processing
+- Resource allocation
+- Caching strategies
+- Performance monitoring
 
-3. **Integration Possibilities**
-   - Knowledge base integration
-   - CRM system connections
-   - Analytics pipeline
-   - Customer feedback loop
+### 3. Integration Possibilities
+- Knowledge base expansion
+- Response templating
+- Analytics pipeline
+- Customer feedback loop
 
 ## References
-
 - [LangChain.js Documentation](https://js.langchain.com/docs)
 - [OpenAI Function Calling](https://platform.openai.com/docs/guides/gpt/function-calling)
-- [Zod Documentation](https://zod.dev/)
 - [Supabase Documentation](https://supabase.com/docs) 

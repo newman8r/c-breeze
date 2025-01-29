@@ -51,7 +51,7 @@ const priorityModel = model.bind({
 // Create the priority agent prompt
 const priorityPrompt = ChatPromptTemplate.fromMessages([
   ['system', `You are a ticket priority specialist. Your role is to:
-1. Analyze customer inquiries and context to determine appropriate priority levels
+1. Analyze customer inquiries to determine appropriate priority levels
 2. Consider business impact and urgency
 3. Evaluate technical complexity and risk
 4. Account for customer needs and expectations
@@ -66,9 +66,6 @@ Always explain your reasoning for the chosen priority level.`],
   ['human', `Please determine the priority for this ticket:
 
 Original Inquiry: {inquiry}
-
-Context from Vector Search:
-{vectorSearchResults}
 
 Please evaluate the severity and urgency to assign an appropriate priority level.`]
 ])
@@ -123,9 +120,6 @@ Always explain your reasoning for the chosen tags.`],
   ['human', `Please generate tags for this ticket:
 
 Original Inquiry: {inquiry}
-
-Context from Vector Search:
-{vectorSearchResults}
 
 Please suggest 2-3 relevant tags that categorize this ticket.`]
 ])
@@ -328,15 +322,9 @@ const ticketProcessingChain = RunnableSequence.from([
     console.log('Starting ticket processing, validating input...')
     const validated = RequestSchema.parse(input)
     
-    if (!validated.results || Object.keys(validated.results).length === 0) {
-      throw new Error('No vector search results available for ticket processing')
-    }
-
     console.log('Processing ticket:', { 
       analysisId: validated.analysisId,
-      metadata: validated.metadata,
-      hasResults: true,
-      resultCount: Object.keys(validated.results).length
+      metadata: validated.metadata
     })
     return validated
   },
@@ -345,8 +333,7 @@ const ticketProcessingChain = RunnableSequence.from([
   async (input) => {
     console.log('Determining priority...')
     const priorityResponse = await priorityPrompt.pipe(priorityModel).invoke({
-      inquiry: input.originalInquiry,
-      vectorSearchResults: JSON.stringify(input.results)
+      inquiry: input.originalInquiry
     })
 
     // Parse function call result
@@ -372,8 +359,7 @@ const ticketProcessingChain = RunnableSequence.from([
   async (input) => {
     console.log('Generating tags...')
     const tagResponse = await tagMakerPrompt.pipe(tagMakerModel).invoke({
-      inquiry: input.originalInquiry,
-      vectorSearchResults: JSON.stringify(input.results)
+      inquiry: input.originalInquiry
     })
 
     // Parse function call result
