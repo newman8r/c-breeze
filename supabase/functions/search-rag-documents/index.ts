@@ -72,23 +72,60 @@ serve(async (req) => {
       'match_chunks',
       {
         query_embedding: JSON.stringify(embeddingResponse.data[0].embedding),
-        match_threshold: 0.5, // Lower threshold for better recall
+        match_threshold: 0.3, // Lowered threshold for the new embedding model
         match_count: limit,
         organization_id: orgId
       }
     )
 
-    if (matchError) throw matchError
+    if (matchError) {
+      console.error('Match chunks error:', matchError)
+      throw matchError
+    }
+
+    console.log('Match chunks results:', {
+      matchCount: matches?.length || 0,
+      firstMatch: matches?.[0] ? {
+        similarity: matches[0].similarity,
+        documentId: matches[0].document_id,
+        hasContent: !!matches[0].content,
+        similarityThreshold: 0.3 // Log the threshold for reference
+      } : null
+    })
+
+    if (!matches || matches.length === 0) {
+      console.log('No matches found above threshold')
+      return new Response(
+        JSON.stringify({ results: [] }),
+        {
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/json',
+          },
+          status: 200,
+        }
+      )
+    }
 
     // Get document details for the matched chunks
     const documentIds = [...new Set(matches.map(m => m.document_id))]
+    console.log('Found document IDs:', documentIds)
+
     const { data: documents, error: docError } = await supabase
       .from('rag_documents')
       .select('id, name, description')
       .in('id', documentIds)
       .eq('organization_id', orgId)
 
-    if (docError) throw docError
+    if (docError) {
+      console.error('Document fetch error:', docError)
+      throw docError
+    }
+
+    console.log('Found documents:', {
+      count: documents?.length || 0,
+      ids: documents?.map(d => d.id)
+    })
 
     // Combine chunk matches with document metadata
     const results = matches.map(match => ({

@@ -139,10 +139,19 @@ Mark chunks as relevant if they:
 
 Always explain your reasoning and highlight key matching terms.`],
   ['human', `Please evaluate this document chunk for relevance:
+
 Inquiry: {inquiry}
-Chunk: {chunk.content}
+
+Document Content: {chunk.content}
+
 Document ID: {chunk.documentId}
-Similarity Score: {chunk.similarity}`]
+Similarity Score: {chunk.similarity}
+
+Please provide your evaluation in the following format:
+- Is the chunk relevant? (true/false)
+- Confidence score (0-1)
+- Reason for your decision
+- Key matching terms or concepts found`]
 ])
 
 // Create the search agent's function schema
@@ -254,9 +263,8 @@ const vectorSearchChain = RunnableSequence.from([
     const results: Record<string, any[]> = {}
     for (const phrase of input.searchPhrases) {
       console.log(`Searching for phrase: ${phrase}`)
-      
-      // Perform vector search
-      const searchResult = await fetch(`${supabaseUrl}/functions/v1/search-rag-documents`, {
+
+      const searchResponse = await fetch(`${supabaseUrl}/functions/v1/search-rag-documents`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${supabaseServiceKey}`,
@@ -269,40 +277,50 @@ const vectorSearchChain = RunnableSequence.from([
           limit: 5
         })
       }).then(r => r.json())
-      
-      // Evaluate relevance using relevance chain
-      const relevanceChain = RunnableSequence.from([
-        (chunk) => ({
-          inquiry: input.originalInquiry,
-          chunk: {
-            content: chunk.content,
-            documentId: chunk.documentId,
-            similarity: chunk.similarity
-          }
-        }),
-        relevancePrompt,
-        relevanceModel,
-        (response) => {
-          if (!response.additional_kwargs?.function_call?.arguments) {
-            throw new Error('No function call arguments found in response')
-          }
-          return JSON.parse(response.additional_kwargs.function_call.arguments)
-        }
-      ])
+
+      if (searchResponse.error) {
+        console.error('Search error:', searchResponse.error)
+        throw new Error(`Search failed: ${searchResponse.error}`)
+      }
+
+      if (!searchResponse.results || !Array.isArray(searchResponse.results)) {
+        console.warn('No results found for phrase:', phrase)
+        results[phrase] = []
+        continue
+      }
 
       const evaluatedChunks = await Promise.all(
-        searchResult.results.map(async (result: any) => {
-          const chunk = {
-            content: result.content,
-            documentId: result.document.id,
-            similarity: result.similarity
+        searchResponse.results.map(async (result: any) => {
+          if (!result.content) {
+            throw new Error('No content found in search result')
           }
 
-          const relevance = await relevanceChain.invoke(chunk)
+          const relevanceChain = RunnableSequence.from([
+            relevancePrompt,
+            relevanceModel,
+            (response) => {
+              if (!response.additional_kwargs?.function_call?.arguments) {
+                throw new Error('No function call arguments found in response')
+              }
+              return JSON.parse(response.additional_kwargs.function_call.arguments)
+            }
+          ])
+
+          const relevance = await relevanceChain.invoke({
+            inquiry: input.originalInquiry,
+            "chunk.content": result.content,
+            "chunk.documentId": result.document_id,
+            "chunk.similarity": result.similarity
+          })
+
           return {
-            ...chunk,
+            content: result.content,
+            documentId: result.document_id,
+            similarity: result.similarity,
             isRelevant: relevance.isRelevant,
-            relevanceReason: relevance.reason
+            relevanceReason: relevance.reason,
+            confidence: relevance.confidence,
+            keyMatches: relevance.keyMatches
           }
         })
       )
