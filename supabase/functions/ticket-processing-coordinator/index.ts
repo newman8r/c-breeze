@@ -210,6 +210,38 @@ const RequestSchema = z.object({
   })
 }).strict()
 
+// Add function to update ticket priority
+async function updateTicketPriority(
+  ticketId: string,
+  priority: string,
+  organizationId: string
+): Promise<void> {
+  console.log('Updating ticket priority:', { ticketId, priority })
+  
+  // Create Supabase client with service role key
+  const supabaseClient = createClient(
+    Deno.env.get('SUPABASE_URL')!,
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+  )
+
+  // Update ticket directly using Supabase client
+  const { error: updateError } = await supabaseClient
+    .from('tickets')
+    .update({ 
+      priority,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', ticketId)
+    .eq('organization_id', organizationId)
+
+  if (updateError) {
+    console.error('Failed to update ticket priority:', updateError)
+    throw new Error(`Failed to update ticket priority: ${updateError.message}`)
+  }
+
+  console.log('Successfully updated ticket priority')
+}
+
 // Create the ticket processing chain
 const ticketProcessingChain = RunnableSequence.from([
   // Input validation
@@ -244,6 +276,15 @@ const ticketProcessingChain = RunnableSequence.from([
     }
     const priorityResult = JSON.parse(priorityResponse.additional_kwargs.function_call.arguments)
     console.log('Priority determined:', priorityResult)
+
+    // Update ticket priority if we have a ticket ID
+    if (input.metadata.ticketId) {
+      await updateTicketPriority(
+        input.metadata.ticketId,
+        priorityResult.priority,
+        input.metadata.organizationId
+      )
+    }
 
     return { ...input, priorityResult }
   },
