@@ -2,227 +2,23 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "@supabase/supabase-js"
 import { corsHeaders } from "../_shared/cors.ts"
 import { ChatOpenAI } from "@langchain/openai"
-import {
-  ChatPromptTemplate,
-  MessagesPlaceholder,
-} from "@langchain/core/prompts"
+import { ChatPromptTemplate } from "@langchain/core/prompts"
 import { RunnableSequence } from "@langchain/core/runnables"
 import { z } from "zod"
-import { zodToJsonSchema } from "zod-to-json-schema"
 
-// Initialize clients
+// Initialize Supabase client
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-// Initialize the base model
+// Initialize OpenAI model
 const model = new ChatOpenAI({
   modelName: 'gpt-4-turbo-preview',
   temperature: 0
 })
 
-// Create the cleanup agent's function schema
-const cleanupAgentSchema = {
-  name: 'extract_search_phrases',
-  description: 'Extract key search phrases from a customer inquiry',
-  parameters: {
-    type: 'object',
-    properties: {
-      searchPhrases: {
-        type: 'array',
-        items: { type: 'string' },
-        description: 'List of search phrases extracted from the inquiry'
-      },
-      reasoning: {
-        type: 'string',
-        description: 'Explanation of how the search phrases were extracted'
-      }
-    },
-    required: ['searchPhrases', 'reasoning']
-  }
-} as const
-
-// Initialize cleanup model with function calling
-const cleanupModel = model.bind({
-  functions: [cleanupAgentSchema],
-  function_call: { name: 'extract_search_phrases' }
-})
-
-// Create the cleanup agent prompt
-const cleanupPrompt = ChatPromptTemplate.fromMessages([
-  ['system', `You are a search phrase extraction specialist. Your role is to:
-1. Analyze customer inquiries to identify key search terms
-2. Break down complex inquiries into searchable phrases
-3. Extract product names, features, and technical terms
-4. Generate variations of important terms
-
-Guidelines for extracting search phrases:
-- Focus on specific technical terms and product names
-- Include error messages or error codes
-- Consider synonyms for technical terms
-- Break long descriptions into shorter phrases
-- Remove unnecessary context words
-- Keep phrases between 2-6 words for best results
-
-Always explain your reasoning for the chosen search phrases.`],
-  ['human', '{inquiry}']
-])
-
-// Create the cleanup chain
-const cleanupChain = RunnableSequence.from([
-  (input) => ({ inquiry: input.originalInquiry }),
-  cleanupPrompt,
-  cleanupModel,
-  (response) => {
-    if (!response.additional_kwargs?.function_call?.arguments) {
-      throw new Error('No function call arguments found in response')
-    }
-    return JSON.parse(response.additional_kwargs.function_call.arguments)
-  }
-])
-
-// Create the relevance agent's function schema
-const relevanceAgentSchema = {
-  name: 'evaluate_chunk_relevance',
-  description: 'Evaluate if a document chunk is relevant to the inquiry',
-  parameters: {
-    type: 'object',
-    properties: {
-      isRelevant: {
-        type: 'boolean',
-        description: 'Whether the chunk is relevant to the inquiry'
-      },
-      confidence: {
-        type: 'number',
-        description: 'Confidence score between 0 and 1'
-      },
-      reason: {
-        type: 'string',
-        description: 'Explanation of why the chunk is or is not relevant'
-      },
-      keyMatches: {
-        type: 'array',
-        items: { type: 'string' },
-        description: 'Key terms or concepts that match between the chunk and inquiry'
-      }
-    },
-    required: ['isRelevant', 'confidence', 'reason', 'keyMatches']
-  }
-} as const
-
-// Initialize relevance model with function calling
-const relevanceModel = model.bind({
-  functions: [relevanceAgentSchema],
-  function_call: { name: 'evaluate_chunk_relevance' }
-})
-
-// Create the relevance agent prompt
-const relevancePrompt = ChatPromptTemplate.fromMessages([
-  ['system', `You are a document relevance specialist. Your role is to:
-1. Evaluate if a document chunk is relevant to a user's inquiry
-2. Identify key matching terms and concepts
-3. Provide a clear explanation for your relevance decision
-4. Assign a confidence score to your evaluation
-
-Guidelines for relevance evaluation:
-- Compare specific technical terms and concepts
-- Consider both direct and indirect relevance
-- Look for matching error messages or symptoms
-- Evaluate if the information would help answer the inquiry
-- Consider the context and related concepts
-
-Mark chunks as relevant if they:
-- Directly answer the inquiry
-- Provide necessary background information
-- Explain related processes or features
-- Offer solutions to similar problems
-
-Always explain your reasoning and highlight key matching terms.`],
-  ['human', `Please evaluate this document chunk for relevance:
-
-Inquiry: {inquiry}
-
-Document Content: {chunk.content}
-
-Document ID: {chunk.documentId}
-Similarity Score: {chunk.similarity}
-
-Please provide your evaluation in the following format:
-- Is the chunk relevant? (true/false)
-- Confidence score (0-1)
-- Reason for your decision
-- Key matching terms or concepts found`]
-])
-
-// Create the search agent's function schema
-const searchAgentSchema = {
-  name: 'analyze_search_results',
-  description: 'Analyze vector search results for relevance to the inquiry',
-  parameters: {
-    type: 'object',
-    properties: {
-      searchPhrases: {
-        type: 'array',
-        items: { type: 'string' },
-        description: 'Search phrases extracted from the inquiry'
-      },
-      results: {
-        type: 'object',
-        additionalProperties: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              content: { type: 'string' },
-              documentId: { type: 'string' },
-              similarity: { type: 'number' },
-              isRelevant: { type: 'boolean' },
-              relevanceReason: { type: 'string' }
-            },
-            required: ['content', 'documentId', 'similarity', 'isRelevant']
-          }
-        }
-      }
-    },
-    required: ['searchPhrases', 'results']
-  }
-} as const
-
-// Initialize search model with function calling
-const searchModel = model.bind({
-  functions: [searchAgentSchema],
-  function_call: { name: 'analyze_search_results' }
-})
-
-// Create the search agent prompt
-const searchPrompt = ChatPromptTemplate.fromMessages([
-  ['system', `You are a vector search analysis specialist. Your role is to:
-1. Analyze search results for relevance to the original inquiry
-2. Identify key information that helps answer the inquiry
-3. Filter out irrelevant or low-quality matches
-4. Provide clear reasons for relevance decisions
-
-For each search result:
-- Compare content directly to the inquiry context
-- Consider both semantic and literal relevance
-- Look for specific product, feature, or process mentions
-- Evaluate if the information would help resolve the inquiry
-
-Mark results as relevant if they:
-- Directly answer the inquiry
-- Provide necessary background information
-- Explain related processes or features
-- Offer solutions to similar problems
-
-Always explain your relevance decisions clearly.`],
-  ['human', `Please analyze these vector search results:
-Original Inquiry: {inquiry}
-Search Results: {searchResults}
-Context: {context}`]
-])
-
-// Define schemas for request validation
-const RequestSchema = z.object({
+// Define our state schema
+const StateSchema = z.object({
   analysisId: z.string().uuid(),
   originalInquiry: z.string(),
   metadata: z.object({
@@ -240,127 +36,218 @@ const RequestSchema = z.object({
       isValid: z.boolean(),
       reason: z.string()
     }).optional()
-  })
+  }),
+  searchPhrases: z.array(z.string()).optional(),
+  vectorResults: z.array(z.object({
+    content: z.string(),
+    documentId: z.string(),
+    similarity: z.number(),
+    isRelevant: z.boolean()
+  })).optional(),
+  status: z.enum(['initializing', 'searching', 'completed', 'error']),
+  error: z.object({
+    message: z.string(),
+    details: z.any()
+  }).optional()
 })
 
-// Create the vector search chain
-const vectorSearchChain = RunnableSequence.from([
-  // Input validation
-  (input: { analysisId: string, originalInquiry: string, metadata: any }) => {
-    const { analysisId, originalInquiry, metadata } = RequestSchema.parse(input)
-    console.log('Validated input:', { analysisId, metadata: { ...metadata, ticketId: metadata.ticketId } })
-    return { analysisId, originalInquiry, metadata }
-  },
+type State = z.infer<typeof StateSchema>
 
-  // Search phrase generation
-  async (input) => {
-    const { searchPhrases } = await cleanupChain.invoke(input)
-    return { ...input, searchPhrases }
-  },
+// Create the search phrase extractor
+const searchPhraseExtractor = RunnableSequence.from([
+  ChatPromptTemplate.fromMessages([
+    ["system", "Extract 2-3 key search phrases from the inquiry. Focus on technical terms, error messages, and specific features."],
+    ["human", "{inquiry}"]
+  ]),
+  model,
+  (output) => output.content.split('\n').filter(Boolean).map(p => p.trim())
+])
 
-  // Vector search and relevance evaluation
-  async (input) => {
-    const results: Record<string, any[]> = {}
-    for (const phrase of input.searchPhrases) {
-      console.log(`Searching for phrase: ${phrase}`)
+// Vector Search Agent
+class VectorSearchAgent {
+  private state: State
 
-      const searchResponse = await fetch(`${supabaseUrl}/functions/v1/search-rag-documents`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${supabaseServiceKey}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          query: phrase,
-          organization_id: input.metadata.organizationId,
-          ticket_id: input.metadata.ticketId,
-          limit: 5
-        })
-      }).then(r => r.json())
+  constructor(initialState: Partial<State>) {
+    this.state = StateSchema.parse({
+      ...initialState,
+      status: 'initializing'
+    })
+  }
 
-      if (searchResponse.error) {
-        console.error('Search error:', searchResponse.error)
-        throw new Error(`Search failed: ${searchResponse.error}`)
-      }
+  // Get the current state
+  getState(): State {
+    return this.state
+  }
 
-      if (!searchResponse.results || !Array.isArray(searchResponse.results)) {
-        console.warn('No results found for phrase:', phrase)
-        results[phrase] = []
-        continue
-      }
+  // Update state safely
+  private async updateState(updates: Partial<State>): Promise<void> {
+    this.state = StateSchema.parse({
+      ...this.state,
+      ...updates
+    })
+  }
 
-      const evaluatedChunks = await Promise.all(
-        searchResponse.results.map(async (result: any) => {
-          if (!result.content) {
-            throw new Error('No content found in search result')
-          }
+  // Extract search phrases
+  private async extractSearchPhrases(): Promise<string[]> {
+    console.log('Extracting search phrases...')
+    const phrases = await searchPhraseExtractor.invoke({
+      inquiry: this.state.originalInquiry
+    })
+    console.log('Extracted phrases:', phrases)
+    return phrases
+  }
 
-          const relevanceChain = RunnableSequence.from([
-            relevancePrompt,
-            relevanceModel,
-            (response) => {
-              if (!response.additional_kwargs?.function_call?.arguments) {
-                throw new Error('No function call arguments found in response')
-              }
-              return JSON.parse(response.additional_kwargs.function_call.arguments)
-            }
-          ])
-
-          const relevance = await relevanceChain.invoke({
-            inquiry: input.originalInquiry,
-            "chunk.content": result.content,
-            "chunk.documentId": result.document_id,
-            "chunk.similarity": result.similarity
-          })
-
-          return {
-            content: result.content,
-            documentId: result.document_id,
-            similarity: result.similarity,
-            isRelevant: relevance.isRelevant,
-            relevanceReason: relevance.reason,
-            confidence: relevance.confidence,
-            keyMatches: relevance.keyMatches
-          }
-        })
-      )
-      
-      results[phrase] = evaluatedChunks
-    }
-
-    return { ...input, results }
-  },
-
-  // Search analysis
-  async (input) => {
-    const analysisResult = await searchPrompt.pipe(searchModel).pipe(
-      (response) => {
-        if (!response.additional_kwargs?.function_call?.arguments) {
-          throw new Error('No function call arguments found in response')
-        }
-        return JSON.parse(response.additional_kwargs.function_call.arguments)
-      }
-    ).invoke({
-      inquiry: input.originalInquiry,
-      searchResults: JSON.stringify(input.results),
-      context: JSON.stringify({
-        analysisId: input.analysisId,
-        metadata: input.metadata
+  // Perform vector search for a single phrase
+  private async searchPhrase(phrase: string): Promise<any[]> {
+    console.log(`Searching for phrase: "${phrase}"`)
+    const response = await fetch(`${supabaseUrl}/functions/v1/search-rag-documents`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${supabaseServiceKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        query: phrase,
+        organization_id: this.state.metadata.organizationId,
+        ticket_id: this.state.metadata.ticketId,
+        limit: 5
       })
     })
 
-    return {
-      searchPhrases: input.searchPhrases,
-      results: input.results,
-      analysis: analysisResult
+    if (!response.ok) {
+      throw new Error(`Search failed for phrase: ${phrase}`)
+    }
+
+    const data = await response.json()
+    if (!data.results) {
+      console.log(`No results found for phrase: "${phrase}"`)
+      return []
+    }
+    console.log(`Found ${data.results.length} results for phrase: "${phrase}"`)
+    return data.results
+  }
+
+  // Process vector search results
+  private processResults(results: any[]): any[] {
+    console.log('Processing raw search results:', {
+      totalResults: results.length,
+      resultIds: results.map(r => r.document_id)
+    })
+
+    if (results.length === 0) {
+      console.log('No results to process')
+      return []
+    }
+
+    // Deduplicate by document_id, keeping highest similarity
+    const uniqueResults = Object.values(
+      results.reduce((acc, curr) => {
+        if (!acc[curr.document_id] || curr.similarity > acc[curr.document_id].similarity) {
+          acc[curr.document_id] = curr
+        }
+        return acc
+      }, {})
+    )
+
+    console.log('Processed results:', {
+      uniqueCount: uniqueResults.length,
+      similarities: uniqueResults.map(r => ({
+        id: r.document_id,
+        similarity: r.similarity,
+        preview: r.content.substring(0, 50) + '...'
+      }))
+    })
+
+    const mappedResults = uniqueResults.map(r => ({
+      content: r.content,
+      documentId: r.document_id,
+      similarity: r.similarity,
+      isRelevant: true
+    }))
+
+    return mappedResults
+  }
+
+  // Execute the vector search process
+  async execute(): Promise<State> {
+    try {
+      // Extract search phrases
+      await this.updateState({ status: 'searching' })
+      const searchPhrases = await this.extractSearchPhrases()
+      await this.updateState({ searchPhrases })
+
+      // Perform searches sequentially to avoid overwhelming the search service
+      console.log('Starting vector search...')
+      const allResults = []
+      for (const phrase of searchPhrases) {
+        console.log(`Processing search phrase: "${phrase}"`)
+        const results = await this.searchPhrase(phrase)
+        console.log(`Results for "${phrase}":`, {
+          count: results.length,
+          similarities: results.map(r => r.similarity)
+        })
+        allResults.push(...results)
+      }
+
+      console.log('All searches completed:', {
+        totalResults: allResults.length,
+        phrases: searchPhrases
+      })
+
+      // Process and store results
+      const processedResults = this.processResults(allResults)
+      
+      if (processedResults.length === 0) {
+        console.log('No results after processing')
+        await this.updateState({
+          status: 'completed',
+          vectorResults: [],
+          error: {
+            message: 'No relevant vector search results found',
+            details: { searchPhrases }
+          }
+        })
+      } else {
+        console.log('Updating state with processed results:', {
+          count: processedResults.length,
+          topSimilarities: processedResults
+            .sort((a, b) => b.similarity - a.similarity)
+            .slice(0, 3)
+            .map(r => ({
+              similarity: r.similarity,
+              preview: r.content.substring(0, 50) + '...'
+            }))
+        })
+        await this.updateState({
+          vectorResults: processedResults,
+          status: 'completed'
+        })
+      }
+
+      console.log('Vector search completed:', {
+        analysisId: this.state.analysisId,
+        resultCount: processedResults.length,
+        status: this.state.status,
+        hasError: !!this.state.error
+      })
+
+      return this.state
+
+    } catch (error) {
+      console.error('Vector search error:', error)
+      await this.updateState({
+        status: 'error',
+        error: {
+          message: error.message,
+          details: error
+        }
+      })
+      throw error
     }
   }
-])
+}
 
-// Export the chain for use in the main coordinator
-export { vectorSearchChain }
-
-// Keep the serve function for standalone testing
+// Serve the endpoint
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -368,29 +255,63 @@ serve(async (req) => {
 
   try {
     const body = await req.json()
-    const result = await vectorSearchChain.invoke(body)
+    
+    // Create and execute the vector search agent
+    const agent = new VectorSearchAgent(body)
+    const result = await agent.execute()
 
+    // Only proceed with ticket processing if we have results
+    if (result.status === 'completed' && result.metadata.ticketId && result.vectorResults?.length > 0) {
+      try {
+        // Import ticket processing dynamically to avoid circular dependencies
+        const { ticketProcessingChain } = await import('../ticket-processing-coordinator/index.ts')
+        
+        console.log('Starting ticket processing with vector results')
+        const processingResult = await ticketProcessingChain.invoke({
+          analysisId: result.analysisId,
+          originalInquiry: result.originalInquiry,
+          results: { all: result.vectorResults },
+          metadata: result.metadata
+        })
+
+        // Return combined results
+        return new Response(
+          JSON.stringify({
+            ...result,
+            processingResult
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+        )
+      } catch (processingError) {
+        console.error('Ticket processing error:', processingError)
+        return new Response(
+          JSON.stringify({
+            ...result,
+            processingError: {
+              message: processingError.message,
+              type: processingError.name
+            }
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+        )
+      }
+    }
+
+    // Return just the vector search results if no ticket processing was needed/possible
     return new Response(
       JSON.stringify(result),
-      {
-        headers: {
-          ...corsHeaders,
-          'Content-Type': 'application/json',
-        },
-        status: 200,
-      },
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
     )
   } catch (error) {
-    console.error('Error:', error)
+    console.error('Agent execution error:', error)
     return new Response(
-      JSON.stringify({ error: error.message }),
-      {
-        headers: {
-          ...corsHeaders,
-          'Content-Type': 'application/json',
-        },
-        status: 500,
-      },
+      JSON.stringify({
+        error: error.message,
+        type: error.name,
+        details: error.cause,
+        status: 'error'
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
     )
   }
 }) 
