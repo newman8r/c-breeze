@@ -233,10 +233,17 @@ const ticketProcessingChain = RunnableSequence.from([
   // Priority determination
   async (input) => {
     console.log('Determining priority...')
-    const priorityResult = await priorityPrompt.pipe(priorityModel).invoke({
+    const priorityResponse = await priorityPrompt.pipe(priorityModel).invoke({
       inquiry: input.originalInquiry,
       vectorSearchResults: JSON.stringify(input.results)
     })
+
+    // Parse function call result
+    if (!priorityResponse.additional_kwargs?.function_call?.arguments) {
+      throw new Error('No priority determination result found')
+    }
+    const priorityResult = JSON.parse(priorityResponse.additional_kwargs.function_call.arguments)
+    console.log('Priority determined:', priorityResult)
 
     return { ...input, priorityResult }
   },
@@ -244,10 +251,17 @@ const ticketProcessingChain = RunnableSequence.from([
   // Tag generation
   async (input) => {
     console.log('Generating tags...')
-    const tagResult = await tagMakerPrompt.pipe(tagMakerModel).invoke({
+    const tagResponse = await tagMakerPrompt.pipe(tagMakerModel).invoke({
       inquiry: input.originalInquiry,
       vectorSearchResults: JSON.stringify(input.results)
     })
+
+    // Parse function call result
+    if (!tagResponse.additional_kwargs?.function_call?.arguments) {
+      throw new Error('No tag generation result found')
+    }
+    const tagResult = JSON.parse(tagResponse.additional_kwargs.function_call.arguments)
+    console.log('Tags generated:', tagResult)
 
     return { ...input, tagResult }
   },
@@ -255,13 +269,21 @@ const ticketProcessingChain = RunnableSequence.from([
   // Assignment determination
   async (input) => {
     console.log('Determining assignment...')
-    const assignmentResult = await assignmentPrompt.pipe(assignmentModel).invoke({
+    const assignmentResponse = await assignmentPrompt.pipe(assignmentModel).invoke({
       inquiry: input.originalInquiry,
       priority: input.priorityResult.priority,
       tags: JSON.stringify(input.tagResult.tags)
     })
 
-    return {
+    // Parse function call result
+    if (!assignmentResponse.additional_kwargs?.function_call?.arguments) {
+      throw new Error('No assignment determination result found')
+    }
+    const assignmentResult = JSON.parse(assignmentResponse.additional_kwargs.function_call.arguments)
+    console.log('Assignment determined:', assignmentResult)
+
+    // Return final processed result
+    const finalResult = {
       analysisId: input.analysisId,
       priority: input.priorityResult.priority,
       priorityReasoning: input.priorityResult.reasoning,
@@ -271,6 +293,9 @@ const ticketProcessingChain = RunnableSequence.from([
       assignmentReasoning: assignmentResult.reasoning,
       metadata: input.metadata
     }
+
+    console.log('Processing completed with results:', finalResult)
+    return finalResult
   }
 ])
 

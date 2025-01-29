@@ -48,6 +48,14 @@ const StateSchema = z.object({
   error: z.object({
     message: z.string(),
     details: z.any()
+  }).optional(),
+  processingResults: z.object({
+    priority: z.string().optional(),
+    priorityReasoning: z.string().optional(),
+    tags: z.array(z.string()).optional(),
+    tagReasoning: z.string().optional(),
+    needsAssignment: z.boolean().optional(),
+    assignmentReasoning: z.string().optional()
   }).optional()
 })
 
@@ -275,37 +283,54 @@ serve(async (req) => {
   try {
     const body = await req.json()
     
-    // Create and execute the vector search agent
+    // Phase 1: Vector Search
+    console.log('Starting Phase 1: Vector Search')
     const agent = new VectorSearchAgent(body)
-    const result = await agent.execute()
+    const vectorResults = await agent.execute()
 
-    // Only proceed with ticket processing if we have results
-    if (result.status === 'completed' && result.metadata.ticketId && result.vectorResults?.length > 0) {
+    // Phase 2: Ticket Processing (only if we have vector results)
+    if (vectorResults.status === 'completed' && 
+        vectorResults.metadata.ticketId && 
+        vectorResults.vectorResults?.length > 0) {
       try {
-        // Import ticket processing dynamically to avoid circular dependencies
+        console.log('Starting Phase 2: Ticket Processing')
         const { ticketProcessingChain } = await import('../ticket-processing-coordinator/index.ts')
         
-        console.log('Starting ticket processing with vector results')
         const processingResult = await ticketProcessingChain.invoke({
-          analysisId: result.analysisId,
-          originalInquiry: result.originalInquiry,
-          results: { all: result.vectorResults },
-          metadata: result.metadata
+          analysisId: vectorResults.analysisId,
+          originalInquiry: vectorResults.originalInquiry,
+          results: { all: vectorResults.vectorResults },
+          metadata: vectorResults.metadata
         })
 
-        // Return combined results
+        console.log('Ticket processing completed:', {
+          priority: processingResult.priority,
+          tags: processingResult.tags,
+          needsAssignment: processingResult.needsAssignment
+        })
+
+        // Combine results
+        const finalResult = {
+          ...vectorResults,
+          ticketProcessing: {
+            priority: processingResult.priority,
+            priorityReasoning: processingResult.priorityReasoning,
+            tags: processingResult.tags,
+            tagReasoning: processingResult.tagReasoning,
+            needsAssignment: processingResult.needsAssignment,
+            assignmentReasoning: processingResult.assignmentReasoning
+          }
+        }
+
         return new Response(
-          JSON.stringify({
-            ...result,
-            processingResult
-          }),
+          JSON.stringify(finalResult),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
         )
       } catch (processingError) {
         console.error('Ticket processing error:', processingError)
         return new Response(
           JSON.stringify({
-            ...result,
+            ...vectorResults,
             processingError: {
               message: processingError.message,
               type: processingError.name
@@ -316,9 +341,9 @@ serve(async (req) => {
       }
     }
 
-    // Return just the vector search results if no ticket processing was needed/possible
+    // Return vector search results if no ticket processing was needed/possible
     return new Response(
-      JSON.stringify(result),
+      JSON.stringify(vectorResults),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
     )
   } catch (error) {
