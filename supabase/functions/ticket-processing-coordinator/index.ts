@@ -242,6 +242,85 @@ async function updateTicketPriority(
   console.log('Successfully updated ticket priority')
 }
 
+// Add function to update ticket tags
+async function updateTicketTags(
+  ticketId: string,
+  tags: string[],
+  organizationId: string
+): Promise<void> {
+  console.log('Updating ticket tags:', { ticketId, tags })
+  
+  // Create Supabase client with service role key
+  const supabaseClient = createClient(
+    Deno.env.get('SUPABASE_URL')!,
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+  )
+
+  // First, remove existing tags
+  const { error: deleteError } = await supabaseClient
+    .from('ticket_tags')
+    .delete()
+    .eq('ticket_id', ticketId)
+
+  if (deleteError) {
+    console.error('Failed to remove existing tags:', deleteError)
+    throw new Error(`Failed to update ticket tags: ${deleteError.message}`)
+  }
+
+  // Then insert new tags
+  if (tags.length > 0) {
+    // First get or create the tags in the tags table
+    for (const tagName of tags) {
+      const { error: tagError } = await supabaseClient
+        .from('tags')
+        .upsert({
+          name: tagName,
+          organization_id: organizationId,
+          type: 'system',
+          is_ai_generated: true
+        }, {
+          onConflict: 'organization_id,name'
+        })
+
+      if (tagError) {
+        console.error('Failed to upsert tag:', tagError)
+        throw new Error(`Failed to upsert tag: ${tagError.message}`)
+      }
+    }
+
+    // Get the tag IDs for the tag names
+    const { data: tagData, error: tagQueryError } = await supabaseClient
+      .from('tags')
+      .select('id')
+      .eq('organization_id', organizationId)
+      .in('name', tags)
+
+    if (tagQueryError) {
+      console.error('Failed to query tags:', tagQueryError)
+      throw new Error(`Failed to query tags: ${tagQueryError.message}`)
+    }
+
+    // Create the ticket_tags entries
+    const tagInserts = tagData.map(tag => ({
+      ticket_id: ticketId,
+      tag_id: tag.id,
+      is_ai_generated: true,
+      created_at: new Date().toISOString()
+    }))
+
+    const { error: insertError } = await supabaseClient
+      .from('ticket_tags')
+      .insert(tagInserts)
+
+    if (insertError) {
+      console.error('Failed to insert new tags:', insertError)
+      throw new Error(`Failed to insert new tags: ${insertError.message}`)
+    }
+  }
+
+  console.log('Successfully updated ticket tags')
+}
+
 // Create the ticket processing chain
 const ticketProcessingChain = RunnableSequence.from([
   // Input validation
@@ -303,6 +382,15 @@ const ticketProcessingChain = RunnableSequence.from([
     }
     const tagResult = JSON.parse(tagResponse.additional_kwargs.function_call.arguments)
     console.log('Tags generated:', tagResult)
+
+    // Update ticket tags if we have a ticket ID
+    if (input.metadata.ticketId) {
+      await updateTicketTags(
+        input.metadata.ticketId,
+        tagResult.tags,
+        input.metadata.organizationId
+      )
+    }
 
     return { ...input, tagResult }
   },
