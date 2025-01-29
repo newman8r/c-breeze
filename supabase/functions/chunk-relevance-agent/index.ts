@@ -62,16 +62,36 @@ Inquiry: {inquiry}
 Document Chunk: {chunk}`]
 ])
 
-// Create the relevance chain
-const relevanceChain = RunnableSequence.from([
-  relevancePrompt,
-  relevanceModel,
-  // Extract the function call arguments and parse them
-  (response) => {
-    if (!response.additional_kwargs?.function_call?.arguments) {
-      throw new Error('No function call arguments found in response')
+// Create the main chain that includes all steps
+const mainChain = RunnableSequence.from([
+  {
+    // Input processing
+    input: (input: { chunk: any, inquiry: string }) => ({
+      chunk: input.chunk.content,
+      inquiry: input.inquiry
+    }),
+    // Relevance evaluation
+    relevanceEvaluation: RunnableSequence.from([
+      relevancePrompt,
+      relevanceModel,
+      // Extract the function call arguments and parse them
+      (response) => {
+        if (!response.additional_kwargs?.function_call?.arguments) {
+          throw new Error('No function call arguments found in response')
+        }
+        return JSON.parse(response.additional_kwargs.function_call.arguments)
+      }
+    ])
+  },
+  // Final output processing
+  async (result) => {
+    const { relevanceEvaluation } = result
+    return {
+      isRelevant: relevanceEvaluation.isRelevant,
+      confidence: relevanceEvaluation.confidence,
+      reason: relevanceEvaluation.reason,
+      keyMatches: relevanceEvaluation.keyMatches
     }
-    return JSON.parse(response.additional_kwargs.function_call.arguments)
   }
 ])
 
@@ -88,8 +108,8 @@ serve(async (req) => {
     }
 
     console.log('Evaluating chunk relevance:', { chunk, inquiry })
-    const result = await relevanceChain.invoke({
-      chunk: chunk.content,
+    const result = await mainChain.invoke({
+      chunk,
       inquiry
     })
     console.log('Relevance evaluation result:', result)

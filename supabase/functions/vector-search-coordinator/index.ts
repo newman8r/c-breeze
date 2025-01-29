@@ -88,19 +88,6 @@ Search Results: {searchResults}
 Context: {context}`]
 ])
 
-// Create the search analysis chain
-const searchChain = RunnableSequence.from([
-  searchPrompt,
-  searchModel,
-  // Extract the function call arguments and parse them
-  (response) => {
-    if (!response.additional_kwargs?.function_call?.arguments) {
-      throw new Error('No function call arguments found in response')
-    }
-    return JSON.parse(response.additional_kwargs.function_call.arguments)
-  }
-])
-
 // Define schemas for request validation
 const RequestSchema = z.object({
   analysisId: z.string().uuid(),
@@ -122,87 +109,49 @@ const RequestSchema = z.object({
   })
 })
 
-// Function to generate search phrases from inquiry
-async function generateSearchPhrases(inquiry: string): Promise<string[]> {
-  const response = await fetch(`${supabaseUrl}/functions/v1/inquiry-cleanup-agent`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${supabaseServiceKey}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ inquiry })
-  })
-
-  if (!response.ok) {
-    throw new Error('Failed to generate search phrases')
-  }
-
-  const { searchPhrases } = await response.json()
-  return searchPhrases
-}
-
-// Function to perform search for a phrase
-async function performSearch(searchPhrase: string, organizationId: string): Promise<any> {
-  const response = await fetch(`${supabaseUrl}/functions/v1/search-rag-documents`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${supabaseServiceKey}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      query: searchPhrase,
-      organization_id: organizationId,
-      limit: 5
-    })
-  })
-
-  if (!response.ok) {
-    throw new Error('Failed to perform search')
-  }
-
-  return response.json()
-}
-
-// Function to evaluate chunk relevance
-async function evaluateChunkRelevance(chunk: any, originalInquiry: string): Promise<any> {
-  const response = await fetch(`${supabaseUrl}/functions/v1/chunk-relevance-agent`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${supabaseServiceKey}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      chunk,
-      inquiry: originalInquiry
-    })
-  })
-
-  if (!response.ok) {
-    throw new Error('Failed to evaluate chunk relevance')
-  }
-
-  return response.json()
-}
-
-serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
-  }
-
-  try {
-    const body = await req.json()
-    const { analysisId, originalInquiry, metadata } = RequestSchema.parse(body)
-
-    // Generate search phrases
+// Create a single chain that includes all steps
+const vectorSearchChain = RunnableSequence.from([
+  // Input processing and validation
+  async (input: { analysisId: string, originalInquiry: string, metadata: any }) => {
+    const { analysisId, originalInquiry, metadata } = RequestSchema.parse(input)
+    return { analysisId, originalInquiry, metadata }
+  },
+  // Search phrase generation
+  async (input) => {
     console.log('Generating search phrases...')
-    const searchPhrases = await generateSearchPhrases(originalInquiry)
-    console.log('Generated search phrases:', searchPhrases)
-
-    // Perform searches and evaluate relevance
+    const response = await fetch(`${supabaseUrl}/functions/v1/inquiry-cleanup-agent`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${supabaseServiceKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ inquiry: input.originalInquiry })
+    })
+  
+    if (!response.ok) {
+      throw new Error('Failed to generate search phrases')
+    }
+  
+    const { searchPhrases } = await response.json()
+    return { ...input, searchPhrases }
+  },
+  // Vector search and relevance evaluation
+  async (input) => {
     const results: Record<string, any[]> = {}
-    for (const phrase of searchPhrases) {
+    for (const phrase of input.searchPhrases) {
       console.log(`Searching for phrase: ${phrase}`)
-      const searchResult = await performSearch(phrase, metadata.organizationId)
+      const searchResult = await fetch(`${supabaseUrl}/functions/v1/search-rag-documents`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${supabaseServiceKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          query: phrase,
+          organization_id: input.metadata.organizationId,
+          limit: 5
+        })
+      }).then(r => r.json())
       
       // Evaluate relevance for each chunk
       const evaluatedChunks = await Promise.all(
@@ -212,7 +161,18 @@ serve(async (req) => {
             documentId: result.document.id,
             similarity: result.similarity
           }
-          const relevance = await evaluateChunkRelevance(chunk, originalInquiry)
+          const relevance = await fetch(`${supabaseUrl}/functions/v1/chunk-relevance-agent`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${supabaseServiceKey}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              chunk,
+              inquiry: input.originalInquiry
+            })
+          }).then(r => r.json())
+          
           return {
             ...chunk,
             isRelevant: relevance.isRelevant,
@@ -223,12 +183,46 @@ serve(async (req) => {
       
       results[phrase] = evaluatedChunks
     }
+    return { ...input, results }
+  },
+  // Search analysis
+  async (input) => {
+    const analysisResult = await searchPrompt.pipe(searchModel).pipe(
+      (response) => {
+        if (!response.additional_kwargs?.function_call?.arguments) {
+          throw new Error('No function call arguments found in response')
+        }
+        return JSON.parse(response.additional_kwargs.function_call.arguments)
+      }
+    ).invoke({
+      inquiry: input.originalInquiry,
+      searchResults: JSON.stringify(input.results),
+      context: JSON.stringify({
+        analysisId: input.analysisId,
+        metadata: input.metadata
+      })
+    })
+    return { ...input, analysis: analysisResult }
+  },
+  // Final output processing
+  (result) => ({
+    searchPhrases: result.searchPhrases,
+    results: result.results,
+    analysis: result.analysis
+  })
+])
+
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders })
+  }
+
+  try {
+    const body = await req.json()
+    const result = await vectorSearchChain.invoke(body)
 
     return new Response(
-      JSON.stringify({
-        searchPhrases,
-        results
-      }),
+      JSON.stringify(result),
       {
         headers: {
           ...corsHeaders,
