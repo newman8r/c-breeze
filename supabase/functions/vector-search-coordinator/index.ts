@@ -155,7 +155,7 @@ class VectorSearchAgent {
   }
 
   // Process vector search results
-  private processResults(results: any[]): any[] {
+  private async processResults(results: any[]): Promise<any[]> {
     console.log('Processing raw search results:', {
       totalResults: results.length,
       resultIds: results.map(r => r.document_id)
@@ -195,80 +195,78 @@ class VectorSearchAgent {
     return mappedResults
   }
 
+  // Add method to update analysis record
+  private async updateAnalysisRecord(
+    analysisId: string,
+    status: 'processing' | 'completed' | 'error',
+    results?: any,
+    errorMessage?: string
+  ) {
+    const { error: updateError } = await supabase
+      .from('ticket_analysis')
+      .update({
+        vector_search_results: results || null,
+        status,
+        error_message: errorMessage || null,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', analysisId)
+
+    if (updateError) {
+      console.error('Error updating analysis record:', updateError)
+      throw new Error(`Failed to update analysis record: ${updateError.message}`)
+    }
+  }
+
   // Execute the vector search process
-  async execute(): Promise<State> {
+  async execute(): Promise<any> {
     try {
+      // Update status to processing
+      await this.updateAnalysisRecord(this.state.analysisId, 'processing')
+
       // Extract search phrases
-      await this.updateState({ status: 'searching' })
       const searchPhrases = await this.extractSearchPhrases()
-      await this.updateState({ searchPhrases })
 
-      // Perform searches sequentially to avoid overwhelming the search service
-      console.log('Starting vector search...')
-      const allResults = []
-      for (const phrase of searchPhrases) {
-        console.log(`Processing search phrase: "${phrase}"`)
-        const results = await this.searchPhrase(phrase)
-        console.log(`Results for "${phrase}":`, {
-          count: results.length,
-          similarities: results.map(r => r.similarity)
-        })
-        allResults.push(...results)
-      }
+      // Perform vector search for each phrase
+      const searchPromises = searchPhrases.map(phrase => 
+        this.searchPhrase(phrase)
+      )
 
-      console.log('All searches completed:', {
-        totalResults: allResults.length,
-        phrases: searchPhrases
-      })
-
-      // Process and store results
-      const processedResults = this.processResults(allResults)
+      const searchResults = await Promise.all(searchPromises)
+      const flatResults = searchResults.flat()
       
-      if (processedResults.length === 0) {
-        console.log('No results after processing')
-        await this.updateState({
-          status: 'completed',
-          vectorResults: [],
-          error: {
-            message: 'No relevant vector search results found',
-            details: { searchPhrases }
-          }
-        })
-      } else {
-        console.log('Updating state with processed results:', {
-          count: processedResults.length,
-          topSimilarities: processedResults
-            .sort((a, b) => b.similarity - a.similarity)
-            .slice(0, 3)
-            .map(r => ({
-              similarity: r.similarity,
-              preview: r.content.substring(0, 50) + '...'
-            }))
-        })
-        await this.updateState({
-          vectorResults: processedResults,
-          status: 'completed'
-        })
-      }
+      // Process results
+      const processedResults = await this.processResults(flatResults)
 
-      console.log('Vector search completed:', {
-        analysisId: this.state.analysisId,
-        resultCount: processedResults.length,
-        status: this.state.status,
-        hasError: !!this.state.error
-      })
-
-      return this.state
-
-    } catch (error) {
-      console.error('Vector search error:', error)
-      await this.updateState({
-        status: 'error',
-        error: {
-          message: error.message,
-          details: error
+      // Update analysis record with results
+      await this.updateAnalysisRecord(
+        this.state.analysisId,
+        'completed',
+        {
+          searchPhrases,
+          results: processedResults
         }
-      })
+      )
+
+      return {
+        analysisId: this.state.analysisId,
+        originalInquiry: this.state.originalInquiry,
+        metadata: this.state.metadata,
+        searchPhrases,
+        vectorResults: processedResults,
+        status: 'completed'
+      }
+    } catch (error) {
+      console.error('Error in vector search:', error)
+      
+      // Update analysis record with error
+      await this.updateAnalysisRecord(
+        this.state.analysisId,
+        'error',
+        null,
+        error.message
+      )
+
       throw error
     }
   }
@@ -303,31 +301,85 @@ serve(async (req) => {
           metadata: vectorResults.metadata
         })
 
-        console.log('Ticket processing completed:', {
-          priority: processingResult.priority,
-          tags: processingResult.tags,
-          needsAssignment: processingResult.needsAssignment
-        })
+        // Update analysis record with processing results
+        const { error: updateError } = await supabase
+          .from('ticket_analysis')
+          .update({
+            processing_results: {
+              priority: processingResult.priority,
+              priorityReasoning: processingResult.priorityReasoning,
+              tags: processingResult.tags,
+              tagReasoning: processingResult.tagReasoning,
+              needsAssignment: processingResult.needsAssignment,
+              assignmentReasoning: processingResult.assignmentReasoning
+            },
+            status: 'processing',
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', vectorResults.analysisId)
 
-        // Combine results
-        const finalResult = {
-          ...vectorResults,
-          ticketProcessing: {
-            priority: processingResult.priority,
-            priorityReasoning: processingResult.priorityReasoning,
-            tags: processingResult.tags,
-            tagReasoning: processingResult.tagReasoning,
-            needsAssignment: processingResult.needsAssignment,
-            assignmentReasoning: processingResult.assignmentReasoning
-          }
+        if (updateError) {
+          throw new Error(`Failed to update analysis with processing results: ${updateError.message}`)
         }
 
+        // Phase 3: Response Generation
+        console.log('Starting Phase 3: Response Generation')
+        const { responseGenerationChain } = await import('../response-generation-coordinator/index.ts')
+        
+        const responseResult = await responseGenerationChain.invoke({
+          ticketProcessingResults: processingResult,
+          vectorSearchResults: {
+            analysisId: vectorResults.analysisId,
+            results: { all: vectorResults.vectorResults },
+            metadata: vectorResults.metadata
+          },
+          originalInquiry: vectorResults.originalInquiry
+        })
+
+        // Update analysis record with final results
+        const { error: finalUpdateError } = await supabase
+          .from('ticket_analysis')
+          .update({
+            response_generation_results: {
+              response: responseResult.response,
+              reasoning: responseResult.reasoning,
+              next_steps: responseResult.next_steps
+            },
+            status: 'completed',
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', vectorResults.analysisId)
+
+        if (finalUpdateError) {
+          throw new Error(`Failed to update analysis with response results: ${finalUpdateError.message}`)
+        }
+
+        // Return combined results
         return new Response(
-          JSON.stringify(finalResult),
+          JSON.stringify({
+            ...vectorResults,
+            ticketProcessing: processingResult,
+            responseGeneration: responseResult
+          }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
         )
       } catch (processingError) {
         console.error('Ticket processing error:', processingError)
+        
+        // Update analysis record with error
+        const { error: updateError } = await supabase
+          .from('ticket_analysis')
+          .update({
+            status: 'error',
+            error_message: processingError.message,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', vectorResults.analysisId)
+
+        if (updateError) {
+          console.error('Error updating analysis status:', updateError)
+        }
+
         return new Response(
           JSON.stringify({
             ...vectorResults,

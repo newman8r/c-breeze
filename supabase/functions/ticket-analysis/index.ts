@@ -522,7 +522,32 @@ async function createTicket(
   return response.json()
 }
 
-// Function to update ticket with vector search results
+// Add function to create initial analysis record
+async function createAnalysisRecord(
+  analysisId: string,
+  organizationId: string,
+  ticketId: string
+): Promise<any> {
+  const { data, error } = await supabase
+    .from('ticket_analysis')
+    .insert({
+      id: analysisId,
+      organization_id: organizationId,
+      ticket_id: ticketId,
+      status: 'processing'
+    })
+    .select()
+    .single()
+
+  if (error) {
+    console.error('Error creating analysis record:', error)
+    throw new Error(`Failed to create analysis record: ${error.message}`)
+  }
+
+  return data
+}
+
+// Update the updateTicket function to use the new table
 const updateTicket = async (state: any) => {
   const { analysisId, vectorSearchResults, ticketCreation } = state
   
@@ -541,62 +566,30 @@ const updateTicket = async (state: any) => {
   }
 
   try {
-    // First, verify the record exists
-    const { data: existingRecord, error: checkError } = await supabase
-      .from('ticket_analysis')
-      .select('id, ticket_id')
-      .eq('id', analysisId)
-      .single()
-
-    if (checkError) {
-      console.error('Error checking ticket analysis record:', checkError)
-      throw new Error(`Failed to find ticket analysis record: ${checkError.message}`)
-    }
-
-    if (!existingRecord) {
-      throw new Error(`No ticket analysis record found with ID: ${analysisId}`)
-    }
-
-    console.log('Found existing record:', existingRecord)
-
-    // Prepare update payload
-    const updatePayload = {
-      ticket_id: ticketCreation.id,
-      vector_search_results: vectorSearchResults,
-      updated_at: new Date().toISOString(),
-      status: 'completed'
-    }
-
-    console.log('Updating with payload:', updatePayload)
-
-    // Perform the update
+    // Update the analysis record
     const { data: updatedRecord, error: updateError } = await supabase
       .from('ticket_analysis')
-      .update(updatePayload)
+      .update({
+        vector_search_results: vectorSearchResults,
+        status: vectorSearchResults ? 'completed' : 'error',
+        error_message: !vectorSearchResults ? 'Failed to get vector search results' : null,
+        updated_at: new Date().toISOString()
+      })
       .eq('id', analysisId)
       .select()
       .single()
 
     if (updateError) {
-      console.error('Error updating ticket:', updateError)
-      throw new Error(`Failed to update ticket: ${updateError.message}`)
+      console.error('Error updating analysis record:', updateError)
+      throw new Error(`Failed to update analysis record: ${updateError.message}`)
     }
 
-    if (!updatedRecord) {
-      throw new Error('Update succeeded but no record was returned')
-    }
-
-    console.log('Ticket update successful:', {
-      analysisId,
-      ticketId: ticketCreation.id,
-      status: 'completed',
-      updatedRecord
-    })
+    console.log('Analysis record updated:', updatedRecord)
 
     return {
       ...state,
-      status: 'completed',
-      ticketAnalysis: updatedRecord
+      status: updatedRecord.status,
+      analysisRecord: updatedRecord
     }
   } catch (error) {
     console.error('Detailed update error:', error)
@@ -606,7 +599,7 @@ const updateTicket = async (state: any) => {
 
 // Create the main analysis chain
 const mainAnalysisChain = RunnableSequence.from([
-  // Phase 1: Initial Analysis
+  // Phase 1: Initial Setup and Analysis Record Creation
   async (input: { customerInquiry: string, customerEmail: string, customerName: string, organizationId: string }) => {
     // Input validation
     if (!input.customerInquiry) throw new Error('Missing required parameter: customerInquiry')
@@ -614,13 +607,47 @@ const mainAnalysisChain = RunnableSequence.from([
     if (!input.customerEmail) throw new Error('Missing required parameter: customerEmail')
     if (!input.customerName) throw new Error('Missing required parameter: customerName')
 
-    // Initialize state
-    const state = {
-      analysisId: crypto.randomUUID(),
-      startTime: new Date().toISOString(),
-      ...input
-    }
+    // Initialize state with analysis ID
+    const analysisId = crypto.randomUUID()
+    const startTime = new Date().toISOString()
 
+    // Create initial ticket
+    const ticketResult = await createTicket(
+      input.organizationId,
+      input.customerInquiry,
+      input.customerInquiry,
+      'medium', // Default priority, will be updated by processing
+      'general',
+      input.customerEmail,
+      input.customerName,
+      {
+        analysisId,
+        startTime,
+        processedAt: startTime
+      }
+    )
+
+    // Create analysis record
+    await createAnalysisRecord(analysisId, input.organizationId, ticketResult.ticket.id)
+
+    // Initialize state
+    return {
+      analysisId,
+      startTime,
+      customerInquiry: input.customerInquiry,
+      customerEmail: input.customerEmail,
+      customerName: input.customerName,
+      organizationId: input.organizationId,
+      ticketCreation: {
+        id: ticketResult.ticket.id,
+        status: ticketResult.ticket.status,
+        createdAt: ticketResult.ticket.created_at
+      }
+    }
+  },
+
+  // Phase 2: Language Analysis
+  async (input) => {
     // Language detection
     const languageResult = await languageChain.invoke({
       text: input.customerInquiry
@@ -628,7 +655,7 @@ const mainAnalysisChain = RunnableSequence.from([
 
     // Add language analysis to state
     return {
-      ...state,
+      ...input,
       languageAnalysis: {
         code: languageResult.languageCode,
         confidence: languageResult.confidence,
@@ -638,7 +665,7 @@ const mainAnalysisChain = RunnableSequence.from([
     }
   },
 
-  // Phase 2: Validity Check
+  // Phase 3: Validity Check
   async (input) => {
     // Perform validity check
     const validityResult = await validityChain.invoke({
@@ -661,64 +688,25 @@ const mainAnalysisChain = RunnableSequence.from([
     }
   },
 
-  // Phase 3: Handle Invalid Inquiries or Create Ticket
-  async (input) => {
-    if (!input.validityCheck.isValid) {
-      // Handle invalid inquiry
-      const errorResult = await errorChain.invoke({
-        languageCode: input.languageAnalysis.code,
-        inquiry: input.customerInquiry,
-        translation: input.languageAnalysis.translation.needed ? input.languageAnalysis.translation.text : undefined,
-        validityResult: input.validityCheck.isValid,
-        category: input.validityCheck.category,
-        reason: input.validityCheck.reason
-      })
-
-      return {
-        ...input,
-        error: {
-          type: 'invalid_inquiry',
-          message: input.validityCheck.reason,
-          response: input.languageAnalysis.code === 'en' ? 
-            errorResult.responseMessage : 
-            errorResult.translatedResponse || errorResult.responseMessage,
-          occurredAt: new Date().toISOString()
-        }
-      }
-    }
-
-    // Create initial ticket
-    const ticketResult = await createTicket(
-      input.organizationId,
-      input.customerInquiry,
-      input.customerInquiry + 
-        (input.languageAnalysis.translation.needed ? 
-          `\n\nTranslation: ${input.languageAnalysis.translation.text}` : ''),
-      'medium',
-      'general',
-      input.customerEmail,
-      input.customerName,
-      {
-        analysisId: input.analysisId,
-        languageAnalysis: input.languageAnalysis,
-        validityAnalysis: input.validityCheck,
-        processedAt: new Date().toISOString()
-      }
-    )
-
-    return {
-      ...input,
-      ticketCreation: {
-        id: ticketResult.ticket.id,
-        status: ticketResult.ticket.status,
-        createdAt: ticketResult.ticket.created_at
-      }
-    }
-  },
-
   // Phase 4: Vector Search and Documentation Analysis
   async (input) => {
-    if (input.error) return input // Skip if we had an error earlier
+    if (input.error) {
+      // Update analysis record with error
+      const { error: updateError } = await supabase
+        .from('ticket_analysis')
+        .update({
+          status: 'error',
+          error_message: input.error.message,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', input.analysisId)
+      
+      if (updateError) {
+        console.error('Error updating analysis status:', updateError)
+      }
+      
+      return input
+    }
 
     try {
       if (!input.ticketCreation?.id) {
@@ -742,10 +730,19 @@ const mainAnalysisChain = RunnableSequence.from([
         }
       )
 
-      console.log('Vector search completed:', {
-        analysisId: input.analysisId,
-        hasResults: !!searchResults
-      })
+      // Update analysis record with vector search results
+      const { error: updateError } = await supabase
+        .from('ticket_analysis')
+        .update({
+          vector_search_results: searchResults,
+          status: 'processing', // Still need ticket processing
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', input.analysisId)
+
+      if (updateError) {
+        throw new Error(`Failed to update analysis with vector results: ${updateError.message}`)
+      }
 
       return {
         ...input,
@@ -753,6 +750,21 @@ const mainAnalysisChain = RunnableSequence.from([
       }
     } catch (error) {
       console.error('Vector search error:', error)
+      
+      // Update analysis record with error
+      const { error: updateError } = await supabase
+        .from('ticket_analysis')
+        .update({
+          status: 'error',
+          error_message: error.message,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', input.analysisId)
+      
+      if (updateError) {
+        console.error('Error updating analysis status:', updateError)
+      }
+
       return {
         ...input,
         error: {

@@ -177,15 +177,17 @@ Please determine if this ticket should be assigned to a human agent.`]
 const RequestSchema = z.object({
   analysisId: z.string().uuid(),
   originalInquiry: z.string(),
-  results: z.record(z.array(z.object({
-    content: z.string(),
-    documentId: z.string(),
-    similarity: z.number(),
-    isRelevant: z.boolean(),
-    relevanceReason: z.string().optional(),
-    confidence: z.number().optional(),
-    keyMatches: z.array(z.string()).optional()
-  }))).optional(),
+  results: z.object({
+    all: z.array(z.object({
+      content: z.string(),
+      documentId: z.string(),
+      similarity: z.number(),
+      isRelevant: z.boolean(),
+      relevanceReason: z.string().optional(),
+      confidence: z.number().optional(),
+      keyMatches: z.array(z.string()).optional()
+    }))
+  }),
   metadata: z.object({
     organizationId: z.string().uuid(),
     ticketId: z.string().uuid().optional(),
@@ -203,6 +205,33 @@ const RequestSchema = z.object({
     }).optional()
   })
 }).strict()
+
+// Add function to update analysis record
+async function updateAnalysisRecord(
+  analysisId: string,
+  updates: {
+    processing_results?: any,
+    status?: 'processing' | 'completed' | 'error',
+    error_message?: string | null
+  }
+): Promise<void> {
+  console.log('Updating analysis record:', { analysisId, ...updates })
+  
+  const { error: updateError } = await supabase
+    .from('ticket_analysis')
+    .update({
+      ...updates,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', analysisId)
+
+  if (updateError) {
+    console.error('Failed to update analysis record:', updateError)
+    throw new Error(`Failed to update analysis record: ${updateError.message}`)
+  }
+
+  console.log('Successfully updated analysis record')
+}
 
 // Add function to update ticket priority
 async function updateTicketPriority(
@@ -326,6 +355,12 @@ const ticketProcessingChain = RunnableSequence.from([
       analysisId: validated.analysisId,
       metadata: validated.metadata
     })
+
+    // Update analysis record to processing
+    await updateAnalysisRecord(validated.analysisId, {
+      status: 'processing'
+    })
+
     return validated
   },
 
@@ -351,6 +386,14 @@ const ticketProcessingChain = RunnableSequence.from([
         input.metadata.organizationId
       )
     }
+
+    // Update analysis record with partial results
+    await updateAnalysisRecord(input.analysisId, {
+      processing_results: {
+        priority: priorityResult.priority,
+        priorityReasoning: priorityResult.reasoning
+      }
+    })
 
     return { ...input, priorityResult }
   },
@@ -378,6 +421,16 @@ const ticketProcessingChain = RunnableSequence.from([
       )
     }
 
+    // Update analysis record with tag results
+    await updateAnalysisRecord(input.analysisId, {
+      processing_results: {
+        priority: input.priorityResult.priority,
+        priorityReasoning: input.priorityResult.reasoning,
+        tags: tagResult.tags,
+        tagReasoning: tagResult.reasoning
+      }
+    })
+
     return { ...input, tagResult }
   },
 
@@ -397,7 +450,7 @@ const ticketProcessingChain = RunnableSequence.from([
     const assignmentResult = JSON.parse(assignmentResponse.additional_kwargs.function_call.arguments)
     console.log('Assignment determined:', assignmentResult)
 
-    // Return final processed result
+    // Prepare final results
     const finalResult = {
       analysisId: input.analysisId,
       priority: input.priorityResult.priority,
@@ -408,6 +461,19 @@ const ticketProcessingChain = RunnableSequence.from([
       assignmentReasoning: assignmentResult.reasoning,
       metadata: input.metadata
     }
+
+    // Update analysis record with complete results
+    await updateAnalysisRecord(input.analysisId, {
+      processing_results: {
+        priority: finalResult.priority,
+        priorityReasoning: finalResult.priorityReasoning,
+        tags: finalResult.tags,
+        tagReasoning: finalResult.tagReasoning,
+        needsAssignment: finalResult.needsAssignment,
+        assignmentReasoning: finalResult.assignmentReasoning
+      },
+      status: 'completed'
+    })
 
     console.log('Processing completed with results:', finalResult)
     return finalResult
@@ -439,6 +505,20 @@ serve(async (req) => {
     )
   } catch (error) {
     console.error('Error:', error)
+
+    // Update analysis record with error if we have an analysis ID
+    try {
+      const body = await req.json()
+      if (body.analysisId) {
+        await updateAnalysisRecord(body.analysisId, {
+          status: 'error',
+          error_message: error.message
+        })
+      }
+    } catch (updateError) {
+      console.error('Failed to update analysis record with error:', updateError)
+    }
+
     return new Response(
       JSON.stringify({ error: error.message }),
       {
