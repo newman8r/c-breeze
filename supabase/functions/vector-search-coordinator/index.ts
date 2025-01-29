@@ -56,11 +56,15 @@ type State = z.infer<typeof StateSchema>
 // Create the search phrase extractor
 const searchPhraseExtractor = RunnableSequence.from([
   ChatPromptTemplate.fromMessages([
-    ["system", "Extract 2-3 key search phrases from the inquiry. Focus on technical terms, error messages, and specific features."],
+    ["system", "Extract 2-3 key search phrases from the inquiry. Each phrase should be 2-4 words focused on technical terms, error messages, or specific features. Return each phrase on a new line without quotes or punctuation."],
     ["human", "{inquiry}"]
   ]),
   model,
-  (output) => output.content.split('\n').filter(Boolean).map(p => p.trim())
+  (output) => output.content
+    .split('\n')
+    .filter(Boolean)
+    .map(p => p.trim())
+    .map(p => p.replace(/["',]/g, '')) // Remove quotes and commas
 ])
 
 // Vector Search Agent
@@ -93,8 +97,14 @@ class VectorSearchAgent {
     const phrases = await searchPhraseExtractor.invoke({
       inquiry: this.state.originalInquiry
     })
-    console.log('Extracted phrases:', phrases)
-    return phrases
+    
+    // Clean up and validate phrases
+    const cleanPhrases = phrases
+      .filter(p => p.length > 0)
+      .map(p => p.toLowerCase().trim())
+    
+    console.log('Extracted search phrases:', cleanPhrases)
+    return cleanPhrases
   }
 
   // Perform vector search for a single phrase
@@ -107,10 +117,11 @@ class VectorSearchAgent {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        query: phrase,
+        query: phrase.trim(),
         organization_id: this.state.metadata.organizationId,
         ticket_id: this.state.metadata.ticketId,
-        limit: 5
+        limit: 5,
+        similarity_threshold: 0.5 // Add minimum similarity threshold
       })
     })
 
@@ -123,7 +134,15 @@ class VectorSearchAgent {
       console.log(`No results found for phrase: "${phrase}"`)
       return []
     }
-    console.log(`Found ${data.results.length} results for phrase: "${phrase}"`)
+
+    // Log more details about the results
+    console.log(`Found ${data.results.length} results for phrase: "${phrase}"`, {
+      similarities: data.results.map(r => ({
+        similarity: r.similarity,
+        preview: r.content.substring(0, 50) + '...'
+      }))
+    })
+    
     return data.results
   }
 
