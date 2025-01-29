@@ -81,27 +81,7 @@ export default function CustomerPortalContainer({ company }: CustomerPortalConta
       if (signUpError) throw signUpError
       if (!authData.user) throw new Error('No user data returned')
 
-      // 2. Create customer and ticket
-      const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/create-customer-ticket`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`,
-        },
-        body: JSON.stringify({
-          email,
-          description,
-          organization_id: organization.id,
-          user_id: authData.user.id
-        }),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to create ticket');
-      }
-
-      // 3. Sign in to get session
+      // 2. Sign in to get session
       const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password
@@ -110,8 +90,28 @@ export default function CustomerPortalContainer({ company }: CustomerPortalConta
       if (signInError) throw signInError
       if (!signInData.session) throw new Error('No session returned from sign in')
 
-      // 4. Redirect to dashboard
-      router.push(`/c/dashboard?company=${organization.slug}`);
+      // 3. Call ticket analysis agent
+      const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/ticket-analysis`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${signInData.session.access_token}`,
+        },
+        body: JSON.stringify({
+          customerInquiry: description,
+          customerEmail: email,
+          customerName: email.split('@')[0], // Use email prefix as name for now
+          organizationId: organization.id
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to create ticket');
+      }
+
+      // 4. Redirect to dashboard with pending state
+      router.push(`/c/dashboard?company=${organization.slug}&pendingTicket=true`);
     } catch (err: any) {
       console.error('Error creating ticket:', err);
       setError(err.message || 'Failed to create ticket. Please try again.');

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 import { getFunctionUrl } from '@/lib/supabase';
+import { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import styles from './CustomerDashboard.module.css';
 import TicketRating from '@/components/tickets/TicketRating'
 
@@ -23,6 +24,16 @@ interface Ticket {
   }>;
 }
 
+interface TicketAnalysisPayload {
+  new: {
+    id: string;
+    ticket_id: string;
+    status: 'pending' | 'processing' | 'completed' | 'error';
+    created_at: string;
+    updated_at: string;
+  };
+}
+
 interface CustomerDashboardProps {
   company: string;
 }
@@ -37,9 +48,23 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
   const [newTicketMessage, setNewTicketMessage] = useState('');
   const [expandedTickets, setExpandedTickets] = useState<Record<string, boolean>>({});
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [hasPendingTicket, setHasPendingTicket] = useState(false);
   
   // Create a single Supabase client instance using the browser client
   const supabase = getSupabaseBrowserClient();
+
+  useEffect(() => {
+    // Check URL for pending ticket parameter
+    const urlParams = new URLSearchParams(window.location.search);
+    const pendingTicket = urlParams.get('pendingTicket') === 'true';
+    setHasPendingTicket(pendingTicket);
+
+    // Remove the parameter from URL
+    if (pendingTicket) {
+      urlParams.delete('pendingTicket');
+      window.history.replaceState({}, '', `${window.location.pathname}?${urlParams.toString()}`);
+    }
+  }, []);
 
   useEffect(() => {
     async function fetchTickets() {
@@ -75,7 +100,7 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
         }), {});
         setExpandedTickets(initialExpandedState);
 
-        // Set up realtime subscription for ticket messages
+        // Set up realtime subscription for tickets and analysis
         const channel = supabase
           .channel('customer-tickets')
           .on(
@@ -85,8 +110,8 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
               schema: 'public',
               table: 'tickets'
             },
-            async () => {
-              console.log('New ticket received');
+            async (payload) => {
+              console.log('New ticket received:', payload);
               // Refresh tickets to get the latest data
               const refreshResponse = await fetch(getFunctionUrl('get-customer-tickets'), {
                 headers: {
@@ -96,6 +121,10 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
               if (refreshResponse.ok) {
                 const refreshData = await refreshResponse.json();
                 setTickets(refreshData.tickets);
+                // Clear pending state if we have the new ticket
+                if (hasPendingTicket) {
+                  setHasPendingTicket(false);
+                }
               }
             }
           )
@@ -112,7 +141,7 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
               setTickets(currentTickets => 
                 currentTickets.map(ticket => 
                   ticket.id === payload.new.id 
-                    ? { ...ticket, ...payload.new }  // Preserve all fields from the update
+                    ? { ...ticket, ...payload.new }
                     : ticket
                 )
               );
@@ -136,6 +165,34 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
               if (refreshResponse.ok) {
                 const refreshData = await refreshResponse.json();
                 setTickets(refreshData.tickets);
+              }
+            }
+          )
+          .on(
+            'postgres_changes',
+            {
+              event: '*',
+              schema: 'public',
+              table: 'ticket_analysis'
+            },
+            async (payload: RealtimePostgresChangesPayload<{
+              status: string;
+              [key: string]: any;
+            }>) => {
+              console.log('Ticket analysis update:', payload);
+              // If analysis is completed, refresh tickets
+              if (payload.new.status === 'completed') {
+                const refreshResponse = await fetch(getFunctionUrl('get-customer-tickets'), {
+                  headers: {
+                    Authorization: `Bearer ${session.access_token}`,
+                  },
+                });
+                if (refreshResponse.ok) {
+                  const refreshData = await refreshResponse.json();
+                  setTickets(refreshData.tickets);
+                  // Clear pending state
+                  setHasPendingTicket(false);
+                }
               }
             }
           )
@@ -461,6 +518,16 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
       </header>
 
       <main className={styles.main}>
+        {hasPendingTicket && (
+          <div className={styles.pendingTicket}>
+            <div className={styles.pendingMessage}>
+              <h3>🤖 AI Agent Processing Your Request</h3>
+              <p>Our AI agent is analyzing your inquiry and preparing a response. This usually takes less than a minute.</p>
+              <div className={styles.loadingSpinner}></div>
+            </div>
+          </div>
+        )}
+
         {showNewTicketForm && (
           <div className={styles.newTicketForm}>
             <h2>Create New Ticket 🎫</h2>
