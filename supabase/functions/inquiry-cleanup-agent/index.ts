@@ -64,9 +64,14 @@ Always explain your reasoning for the chosen search phrases.`],
 
 // Create the cleanup chain
 const cleanupChain = RunnableSequence.from([
+  // Input processing
+  (input: { inquiry: string }) => ({
+    inquiry: input.inquiry
+  }),
+  // Search phrase generation
   cleanupPrompt,
   cleanupModel,
-  // Extract the function call arguments and parse them
+  // Extract function call arguments
   (response) => {
     if (!response.additional_kwargs?.function_call?.arguments) {
       throw new Error('No function call arguments found in response')
@@ -75,6 +80,10 @@ const cleanupChain = RunnableSequence.from([
   }
 ])
 
+// Export the chain for use in the vector search coordinator
+export { cleanupChain }
+
+// Keep the serve function for standalone testing
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -82,29 +91,38 @@ serve(async (req) => {
 
   try {
     const { inquiry } = await req.json()
-    console.log('Processing inquiry:', inquiry)
+    
+    if (!inquiry) {
+      throw new Error('Inquiry is required')
+    }
 
+    console.log('Processing inquiry:', inquiry)
     const result = await cleanupChain.invoke({
       inquiry
     })
-
     console.log('Extracted search phrases:', result)
 
     return new Response(
       JSON.stringify(result),
       {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json',
+        },
         status: 200,
-      }
+      },
     )
   } catch (error) {
     console.error('Error:', error)
     return new Response(
       JSON.stringify({ error: error.message }),
       {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json',
+        },
         status: 500,
-      }
+      },
     )
   }
 }) 

@@ -62,39 +62,29 @@ Inquiry: {inquiry}
 Document Chunk: {chunk}`]
 ])
 
-// Create the main chain that includes all steps
-const mainChain = RunnableSequence.from([
-  {
-    // Input processing
-    input: (input: { chunk: any, inquiry: string }) => ({
-      chunk: input.chunk.content,
-      inquiry: input.inquiry
-    }),
-    // Relevance evaluation
-    relevanceEvaluation: RunnableSequence.from([
-      relevancePrompt,
-      relevanceModel,
-      // Extract the function call arguments and parse them
-      (response) => {
-        if (!response.additional_kwargs?.function_call?.arguments) {
-          throw new Error('No function call arguments found in response')
-        }
-        return JSON.parse(response.additional_kwargs.function_call.arguments)
-      }
-    ])
-  },
-  // Final output processing
-  async (result) => {
-    const { relevanceEvaluation } = result
-    return {
-      isRelevant: relevanceEvaluation.isRelevant,
-      confidence: relevanceEvaluation.confidence,
-      reason: relevanceEvaluation.reason,
-      keyMatches: relevanceEvaluation.keyMatches
+// Create the relevance evaluation chain
+const relevanceChain = RunnableSequence.from([
+  // Input processing
+  (input: { chunk: any, inquiry: string }) => ({
+    chunk: input.chunk.content,
+    inquiry: input.inquiry
+  }),
+  // Relevance evaluation
+  relevancePrompt,
+  relevanceModel,
+  // Extract function call arguments
+  (response) => {
+    if (!response.additional_kwargs?.function_call?.arguments) {
+      throw new Error('No function call arguments found in response')
     }
+    return JSON.parse(response.additional_kwargs.function_call.arguments)
   }
 ])
 
+// Export the chain for use in the vector search coordinator
+export { relevanceChain }
+
+// Keep the serve function for standalone testing
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -108,7 +98,7 @@ serve(async (req) => {
     }
 
     console.log('Evaluating chunk relevance:', { chunk, inquiry })
-    const result = await mainChain.invoke({
+    const result = await relevanceChain.invoke({
       chunk,
       inquiry
     })

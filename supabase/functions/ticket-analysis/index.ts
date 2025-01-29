@@ -522,7 +522,281 @@ async function createTicket(
   return response.json()
 }
 
-// Remove the test endpoint and restore the full workflow
+// Function to update ticket with vector search results
+const updateTicket = async (state: any) => {
+  const { analysisId, vectorSearchResults, ticketCreation } = state
+  
+  console.log('Update Ticket State:', {
+    analysisId,
+    ticketId: ticketCreation?.id,
+    hasVectorResults: !!vectorSearchResults
+  })
+  
+  if (!analysisId) {
+    throw new Error('No analysis ID provided for ticket update')
+  }
+
+  if (!ticketCreation?.id) {
+    throw new Error('No ticket ID found in state')
+  }
+
+  try {
+    // First, verify the record exists
+    const { data: existingRecord, error: checkError } = await supabase
+      .from('ticket_analysis')
+      .select('id, ticket_id')
+      .eq('id', analysisId)
+      .single()
+
+    if (checkError) {
+      console.error('Error checking ticket analysis record:', checkError)
+      throw new Error(`Failed to find ticket analysis record: ${checkError.message}`)
+    }
+
+    if (!existingRecord) {
+      throw new Error(`No ticket analysis record found with ID: ${analysisId}`)
+    }
+
+    console.log('Found existing record:', existingRecord)
+
+    // Prepare update payload
+    const updatePayload = {
+      ticket_id: ticketCreation.id,
+      vector_search_results: vectorSearchResults,
+      updated_at: new Date().toISOString(),
+      status: 'completed'
+    }
+
+    console.log('Updating with payload:', updatePayload)
+
+    // Perform the update
+    const { data: updatedRecord, error: updateError } = await supabase
+      .from('ticket_analysis')
+      .update(updatePayload)
+      .eq('id', analysisId)
+      .select()
+      .single()
+
+    if (updateError) {
+      console.error('Error updating ticket:', updateError)
+      throw new Error(`Failed to update ticket: ${updateError.message}`)
+    }
+
+    if (!updatedRecord) {
+      throw new Error('Update succeeded but no record was returned')
+    }
+
+    console.log('Ticket update successful:', {
+      analysisId,
+      ticketId: ticketCreation.id,
+      status: 'completed',
+      updatedRecord
+    })
+
+    return {
+      ...state,
+      status: 'completed',
+      ticketAnalysis: updatedRecord
+    }
+  } catch (error) {
+    console.error('Detailed update error:', error)
+    throw error
+  }
+}
+
+// Create the main analysis chain
+const mainAnalysisChain = RunnableSequence.from([
+  // Phase 1: Initial Analysis
+  async (input: { customerInquiry: string, customerEmail: string, customerName: string, organizationId: string }) => {
+    // Input validation
+    if (!input.customerInquiry) throw new Error('Missing required parameter: customerInquiry')
+    if (!input.organizationId) throw new Error('Missing required parameter: organizationId')
+    if (!input.customerEmail) throw new Error('Missing required parameter: customerEmail')
+    if (!input.customerName) throw new Error('Missing required parameter: customerName')
+
+    // Initialize state
+    const state = {
+      analysisId: crypto.randomUUID(),
+      startTime: new Date().toISOString(),
+      ...input
+    }
+
+    // Language detection
+    const languageResult = await languageChain.invoke({
+      text: input.customerInquiry
+    })
+
+    // Add language analysis to state
+    return {
+      ...state,
+      languageAnalysis: {
+        code: languageResult.languageCode,
+        confidence: languageResult.confidence,
+        detectedAt: new Date().toISOString(),
+        translation: languageResult.translation
+      }
+    }
+  },
+
+  // Phase 2: Validity Check
+  async (input) => {
+    // Perform validity check
+    const validityResult = await validityChain.invoke({
+      inquiry: input.customerInquiry,
+      languageCode: input.languageAnalysis.code,
+      translation: input.languageAnalysis.translation.needed ? 
+        `English translation: ${input.languageAnalysis.translation.text}` : 
+        'No translation needed'
+    })
+
+    // Add validity check to state
+    return {
+      ...input,
+      validityCheck: {
+        isValid: validityResult.isValid,
+        reason: validityResult.reason,
+        category: validityResult.category,
+        confidence: validityResult.confidence
+      }
+    }
+  },
+
+  // Phase 3: Handle Invalid Inquiries or Create Ticket
+  async (input) => {
+    if (!input.validityCheck.isValid) {
+      // Handle invalid inquiry
+      const errorResult = await errorChain.invoke({
+        languageCode: input.languageAnalysis.code,
+        inquiry: input.customerInquiry,
+        translation: input.languageAnalysis.translation.needed ? input.languageAnalysis.translation.text : undefined,
+        validityResult: input.validityCheck.isValid,
+        category: input.validityCheck.category,
+        reason: input.validityCheck.reason
+      })
+
+      return {
+        ...input,
+        error: {
+          type: 'invalid_inquiry',
+          message: input.validityCheck.reason,
+          response: input.languageAnalysis.code === 'en' ? 
+            errorResult.responseMessage : 
+            errorResult.translatedResponse || errorResult.responseMessage,
+          occurredAt: new Date().toISOString()
+        }
+      }
+    }
+
+    // Create initial ticket
+    const ticketResult = await createTicket(
+      input.organizationId,
+      input.customerInquiry,
+      input.customerInquiry + 
+        (input.languageAnalysis.translation.needed ? 
+          `\n\nTranslation: ${input.languageAnalysis.translation.text}` : ''),
+      'medium',
+      'general',
+      input.customerEmail,
+      input.customerName,
+      {
+        analysisId: input.analysisId,
+        languageAnalysis: input.languageAnalysis,
+        validityAnalysis: input.validityCheck,
+        processedAt: new Date().toISOString()
+      }
+    )
+
+    return {
+      ...input,
+      ticketCreation: {
+        id: ticketResult.ticket.id,
+        status: ticketResult.ticket.status,
+        createdAt: ticketResult.ticket.created_at
+      }
+    }
+  },
+
+  // Phase 4: Vector Search and Documentation Analysis
+  async (input) => {
+    if (input.error) return input // Skip if we had an error earlier
+
+    try {
+      if (!input.ticketCreation?.id) {
+        throw new Error('Missing ticket ID for vector search')
+      }
+
+      console.log('Starting vector search with state:', {
+        analysisId: input.analysisId,
+        ticketId: input.ticketCreation.id,
+        organizationId: input.organizationId
+      })
+      
+      const searchResults = await performVectorSearch(
+        input.analysisId,
+        input.customerInquiry,
+        input.organizationId,
+        {
+          ticketId: input.ticketCreation.id,
+          language: input.languageAnalysis,
+          validity: input.validityCheck
+        }
+      )
+
+      console.log('Vector search completed:', {
+        analysisId: input.analysisId,
+        hasResults: !!searchResults
+      })
+
+      return {
+        ...input,
+        vectorSearchResults: searchResults
+      }
+    } catch (error) {
+      console.error('Vector search error:', error)
+      return {
+        ...input,
+        error: {
+          type: 'vector_search_error',
+          message: error.message,
+          occurredAt: new Date().toISOString()
+        }
+      }
+    }
+  },
+
+  // Phase 5: Final State Processing
+  (result) => ({
+    success: true,
+    state: {
+      analysisId: result.analysisId,
+      startTime: result.startTime,
+      customerInquiry: {
+        content: result.customerInquiry,
+        email: result.customerEmail,
+        name: result.customerName,
+        metadata: {
+          timestamp: result.startTime
+        }
+      },
+      languageAnalysis: {
+        code: result.languageAnalysis.code,
+        confidence: result.languageAnalysis.confidence,
+        detectedAt: result.languageAnalysis.detectedAt,
+        translation: result.languageAnalysis.translation
+      },
+      validityAnalysis: {
+        isValid: result.validityCheck.isValid,
+        reason: result.validityCheck.reason,
+        analyzedAt: new Date().toISOString()
+      },
+      ticketCreation: result.ticketCreation,
+      vectorSearchResults: result.vectorSearchResults,
+      error: result.error
+    }
+  })
+])
+
+// Serve the endpoint
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -530,188 +804,10 @@ serve(async (req) => {
 
   try {
     const body = await req.json()
-    console.log('Received request body:', body)
-
-    const { customerInquiry, customerEmail, customerName, organizationId } = body
-
-    if (!customerInquiry) {
-      throw new Error('Missing required parameter: customerInquiry')
-    }
-
-    if (!organizationId) {
-      throw new Error('Missing required parameter: organizationId')
-    }
-
-    if (!customerEmail) {
-      throw new Error('Missing required parameter: customerEmail')
-    }
-
-    if (!customerName) {
-      throw new Error('Missing required parameter: customerName')
-    }
-
-    // Initialize analysis state
-    const initialState: z.infer<typeof CoordinatorStateSchema> = {
-      analysisId: crypto.randomUUID(),
-      startTime: new Date().toISOString(),
-      customerInquiry: {
-        content: customerInquiry,
-        email: customerEmail,
-        name: customerName,
-        metadata: {
-          timestamp: new Date().toISOString()
-        }
-      }
-    }
-
-    // Step 1: Language Detection
-    console.log('Step 1: Detecting language...')
-    const languageResult = await languageChain.invoke({
-      text: customerInquiry
-    })
-    console.log('Language detection result:', languageResult)
-
-    // Update state with language analysis
-    const stateWithLanguage = {
-      ...initialState,
-      languageAnalysis: {
-        code: languageResult.languageCode,
-        confidence: languageResult.confidence,
-        detectedAt: new Date().toISOString(),
-        translation: {
-          needed: languageResult.translation.needed,
-          text: languageResult.translation.text
-        }
-      }
-    }
-
-    // Step 2: Validity Check
-    console.log('Step 2: Checking inquiry validity...')
-    const validityResult = await validityChain.invoke({
-      inquiry: customerInquiry,
-      languageCode: languageResult.languageCode,
-      translation: languageResult.translation.needed ? 
-        `English translation: ${languageResult.translation.text}` : 
-        'No translation needed'
-    })
-    console.log('Validity check result:', validityResult)
-
-    // Update state with validity analysis
-    const stateWithValidity = {
-      ...stateWithLanguage,
-      validityAnalysis: {
-        isValid: validityResult.isValid,
-        reason: validityResult.reason,
-        analyzedAt: new Date().toISOString()
-      }
-    }
-
-    // Step 3: Handle Invalid Inquiries
-    if (!validityResult.isValid) {
-      console.log('Step 3a: Generating error response for invalid inquiry...')
-      const errorResult = await errorChain.invoke({
-        languageCode: languageResult.languageCode,
-        inquiry: customerInquiry,
-        translation: languageResult.translation.needed ? languageResult.translation.text : undefined,
-        validityResult: validityResult.isValid,
-        category: validityResult.category,
-        reason: validityResult.reason
-      })
-      console.log('Error response:', errorResult)
-
-      return new Response(
-        JSON.stringify({
-          success: true,
-          state: {
-            ...stateWithValidity,
-            error: {
-              type: 'invalid_inquiry',
-              message: validityResult.reason,
-              response: languageResult.languageCode === 'en' ? 
-                errorResult.responseMessage : 
-                errorResult.translatedResponse || errorResult.responseMessage,
-              occurredAt: new Date().toISOString()
-            }
-          }
-        }),
-        {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 200,
-        }
-      )
-    }
-
-    // Step 4: Vector Search for Valid Inquiries
-    console.log('Step 4: Performing vector search...')
-    let stateWithSearch = { ...stateWithValidity }
-    try {
-      const searchResults = await performVectorSearch(
-        stateWithValidity.analysisId,
-        customerInquiry,
-        organizationId,
-        {
-          language: stateWithValidity.languageAnalysis,
-          validity: stateWithValidity.validityAnalysis
-        }
-      )
-      console.log('Vector search results:', searchResults)
-      stateWithSearch.vectorSearchResults = searchResults
-    } catch (error) {
-      console.error('Vector search error:', error)
-      // Continue without vector search results
-    }
-
-    // Step 5: Coordinator for Final Processing
-    console.log('Step 5: Running coordinator for final processing...')
-    const finalState = await coordinatorChain.invoke({
-      input: JSON.stringify(stateWithSearch),
-      agent_scratchpad: []
-    })
-    console.log('Final state:', finalState)
-
-    // Step 6: Create Ticket
-    if (!finalState.error && !finalState.ticketCreation) {
-      console.log('Step 6: Creating support ticket...')
-      try {
-        const ticketResult = await createTicket(
-          organizationId,
-          finalState.customerInquiry.content,
-          finalState.customerInquiry.content + 
-            (finalState.languageAnalysis?.translation?.needed ? 
-              `\n\nTranslation: ${finalState.languageAnalysis.translation.text}` : '') +
-            (finalState.vectorSearchResults ? '\n\nRelevant Documentation:\n' + 
-              JSON.stringify(finalState.vectorSearchResults, null, 2) : ''),
-          'medium',
-          'general',
-          finalState.customerInquiry.email,
-          finalState.customerInquiry.name,
-          {
-            analysisId: finalState.analysisId,
-            languageAnalysis: finalState.languageAnalysis,
-            validityAnalysis: finalState.validityAnalysis,
-            vectorSearchResults: finalState.vectorSearchResults,
-            originalInquiry: finalState.customerInquiry.content,
-            processedAt: new Date().toISOString()
-          }
-        )
-        finalState.ticketCreation = {
-          id: ticketResult.ticket.id,
-          status: ticketResult.ticket.status,
-          createdAt: ticketResult.ticket.created_at
-        }
-      } catch (error) {
-        console.error('Ticket creation error:', error)
-        finalState.error = {
-          type: 'ticket_creation_failed',
-          message: error.message,
-          response: 'Failed to create support ticket',
-          occurredAt: new Date().toISOString()
-        }
-      }
-    }
+    const result = await mainAnalysisChain.invoke(body)
 
     return new Response(
-      JSON.stringify({ success: true, state: finalState }),
+      JSON.stringify(result),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200,
