@@ -61,7 +61,6 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
   const [error, setError] = useState<string | null>(null);
   const [newMessage, setNewMessage] = useState<Record<string, string>>({});
   const [showNewTicketForm, setShowNewTicketForm] = useState(false);
-  const [newTicketTitle, setNewTicketTitle] = useState('');
   const [newTicketMessage, setNewTicketMessage] = useState('');
   const [expandedTickets, setExpandedTickets] = useState<Record<string, boolean>>({});
   const [userEmail, setUserEmail] = useState<string | null>(null);
@@ -320,38 +319,45 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
         return;
       }
 
-      // Create the ticket
-      const { data: ticketData, error: ticketError } = await supabase
-        .from('tickets')
-        .insert({
-          title: newTicketTitle,
-          status: 'open',
-          priority: 'medium'
-        })
-        .select()
-        .single();
-
-      if (ticketError) throw ticketError;
-
-      // Create initial message
-      const { data: messageData, error: messageError } = await supabase
-        .from('ticket_messages')
-        .insert({
-          ticket_id: ticketData.id,
-          content: newTicketMessage,
-          sender_type: 'customer'
-        })
-        .select()
-        .single();
-
-      if (messageError) throw messageError;
-
-      // Clear form and hide it
-      setNewTicketTitle('');
-      setNewTicketMessage('');
+      // Show pending state
+      setHasPendingTicket(true);
       setShowNewTicketForm(false);
 
-      // Refresh tickets to get the latest data
+      // Get organization ID from an existing ticket or fetch it from the user's profile
+      let organizationId;
+      if (tickets.length > 0) {
+        organizationId = tickets[0].organization_id;
+      } else {
+        const { data: customer } = await supabase
+          .from('customers')
+          .select('organization_id')
+          .eq('email', session.user.email)
+          .single();
+        
+        if (!customer) {
+          throw new Error('Could not determine organization');
+        }
+        organizationId = customer.organization_id;
+      }
+
+      // Call ticket-analysis function
+      const analysisResponse = await supabase.functions.invoke('ticket-analysis', {
+        body: {
+          customerInquiry: newTicketMessage,
+          customerEmail: session.user.email,
+          customerName: session.user.email?.split('@')[0], // Use email prefix as name
+          organizationId
+        }
+      });
+
+      if (analysisResponse.error) {
+        throw new Error(analysisResponse.error.message || 'Failed to create ticket');
+      }
+
+      // Clear form
+      setNewTicketMessage('');
+      
+      // Refresh tickets to get the new ticket
       const ticketsResponse = await fetch(getFunctionUrl('get-customer-tickets'), {
         headers: {
           Authorization: `Bearer ${session.access_token}`
@@ -365,21 +371,10 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
       const ticketsData = await ticketsResponse.json();
       setTickets(ticketsData.tickets);
 
-      // Trigger initial analysis
-      const analysisResponse = await supabase.functions.invoke('conversation-analysis-coordinator', {
-        body: {
-          ticketId: ticketData.id,
-          organizationId: ticketData.organization_id,
-          newMessageId: messageData.id
-        }
-      });
-
-      if (analysisResponse.error) {
-        console.error('Analysis error:', analysisResponse.error);
-      }
     } catch (err) {
       console.error('Error creating ticket:', err);
       setError(err instanceof Error ? err.message : 'An error occurred');
+      setHasPendingTicket(false);
     }
   };
 
@@ -559,32 +554,33 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
 
         {showNewTicketForm && (
           <div className={styles.newTicketForm}>
-            <h2>Create New Ticket 🎫</h2>
-            <input
-              type="text"
-              placeholder="What's your question about?"
-              value={newTicketTitle}
-              onChange={(e) => setNewTicketTitle(e.target.value)}
-              className={styles.titleInput}
-            />
+            <h2>Create New Support Ticket 🎫</h2>
+            <p className={styles.formDescription}>
+              Describe your question or issue below. Our AI assistant will respond in less than a minute.
+            </p>
             <textarea
-              placeholder="Describe your question or issue..."
+              placeholder="How can we help you today?"
               value={newTicketMessage}
               onChange={(e) => setNewTicketMessage(e.target.value)}
               className={styles.messageInput}
+              rows={4}
             />
             <div className={styles.formControls}>
               <button 
                 className={styles.cancelButton}
-                onClick={() => setShowNewTicketForm(false)}
+                onClick={() => {
+                  setShowNewTicketForm(false);
+                  setNewTicketMessage('');
+                }}
               >
                 Cancel
               </button>
               <button 
                 className={styles.submitButton}
                 onClick={handleCreateTicket}
+                disabled={!newTicketMessage.trim()}
               >
-                Create Ticket 🚀
+                Submit Inquiry 🚀
               </button>
             </div>
           </div>
