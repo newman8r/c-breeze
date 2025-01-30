@@ -2,7 +2,43 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "@supabase/supabase-js"
 import { corsHeaders } from "../_shared/cors.ts"
 import { z } from "zod"
-import { Database } from "../../../types/database.types.ts"
+
+// Define the types we need
+interface Database {
+  public: {
+    Tables: {
+      ticket_messages: {
+        Row: {
+          id: string;
+          ticket_id: string;
+          content: string;
+          sender_type: string;
+          created_at: string;
+          metadata?: Record<string, any>;
+        };
+      };
+      ticket_analysis: {
+        Row: {
+          id: string;
+          ticket_id: string;
+          status: 'pending' | 'processing' | 'completed' | 'error';
+          vector_search_results?: Record<string, any>;
+          processing_results?: Record<string, any>;
+          response_generation_results?: Record<string, any>;
+          created_at: string;
+          updated_at: string;
+        };
+      };
+      employees: {
+        Row: {
+          id: string;
+          name: string;
+          role: string;
+        };
+      };
+    };
+  };
+}
 
 // Initialize Supabase client
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!
@@ -50,6 +86,9 @@ serve(async (req) => {
       throw new Error('Missing authorization header')
     }
 
+    // Extract the JWT (remove 'Bearer ' if present)
+    const jwt = authHeader.replace('Bearer ', '')
+
     // Create a Supabase client with the user's JWT
     const userClient = createClient<Database>(
       supabaseUrl,
@@ -57,7 +96,7 @@ serve(async (req) => {
       {
         global: {
           headers: {
-            Authorization: authHeader
+            Authorization: `Bearer ${jwt}`
           }
         }
       }
@@ -69,25 +108,50 @@ serve(async (req) => {
       throw new Error('Unauthorized')
     }
 
+    console.log('Getting customer data for user:', user.email)
+
+    // Get customer data for this user using service role client
+    const { data: customerData, error: customerError } = await supabase
+      .from('customers')
+      .select('id, organization_id')
+      .eq('email', user.email)
+      .single()
+
+    if (customerError || !customerData) {
+      console.error('Customer not found:', customerError)
+      throw new Error('Customer not found')
+    }
+
     const { ticketId, organizationId } = await req.json()
     
     // Validate request
     const validatedInput = RequestSchema.parse({ ticketId, organizationId })
 
-    // Verify user has access to the ticket
-    const { data: ticket, error: ticketError } = await userClient
+    console.log('Checking ticket access:', {
+      ticketId: validatedInput.ticketId,
+      organizationId: validatedInput.organizationId,
+      customerId: customerData.id,
+      customerOrgId: customerData.organization_id
+    })
+
+    // Verify user has access to the ticket using service role client
+    const { data: ticket, error: ticketError } = await supabase
       .from('tickets')
       .select('id, customer_id')
       .eq('id', validatedInput.ticketId)
       .eq('organization_id', validatedInput.organizationId)
+      .eq('customer_id', customerData.id)
       .single()
 
+    console.log('Ticket query result:', { ticket, error: ticketError })
+
     if (ticketError || !ticket) {
+      console.error('Ticket access error:', { ticketError })
       throw new Error('Ticket not found or access denied')
     }
 
-    // Get message history
-    const { data: messages, error: messagesError } = await userClient
+    // Get message history using service role client
+    const { data: messages, error: messagesError } = await supabase
       .from('ticket_messages')
       .select('*')
       .eq('ticket_id', validatedInput.ticketId)
@@ -97,8 +161,8 @@ serve(async (req) => {
       throw new Error(`Failed to fetch messages: ${messagesError.message}`)
     }
 
-    // Get ticket analysis
-    const { data: analysis, error: analysisError } = await userClient
+    // Get ticket analysis using service role client
+    const { data: analysis, error: analysisError } = await supabase
       .from('ticket_analysis')
       .select('*')
       .eq('ticket_id', validatedInput.ticketId)
@@ -108,8 +172,8 @@ serve(async (req) => {
       throw new Error(`Failed to fetch analysis: ${analysisError.message}`)
     }
 
-    // Get employees
-    const { data: employees, error: employeesError } = await userClient
+    // Get employees using service role client
+    const { data: employees, error: employeesError } = await supabase
       .from('employees')
       .select('id, name, role')
       .eq('organization_id', validatedInput.organizationId)

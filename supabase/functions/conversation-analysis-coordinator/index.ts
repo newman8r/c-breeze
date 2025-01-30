@@ -376,8 +376,8 @@ serve(async (req) => {
 
     console.log('Getting customer data for user:', user.email)
 
-    // Get customer data for this user
-    const { data: customerData, error: customerError } = await userClient
+    // Get customer data for this user using service role client
+    const { data: customerData, error: customerError } = await supabase
       .from('customers')
       .select('id, organization_id')
       .eq('email', user.email)
@@ -395,8 +395,8 @@ serve(async (req) => {
       customerOrgId: customerData.organization_id
     })
 
-    // Verify user has access to the ticket
-    const { data: ticket, error: ticketError } = await userClient
+    // Verify user has access to the ticket (using service role client)
+    const { data: ticket, error: ticketError } = await supabase
       .from('tickets')
       .select('id, customer_id')
       .eq('id', validatedInput.ticketId)
