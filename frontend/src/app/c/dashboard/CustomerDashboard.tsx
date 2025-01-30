@@ -128,19 +128,22 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
               table: 'tickets'
             },
             async (payload) => {
-              console.log('New ticket received:', payload);
-              // Refresh tickets to get the latest data
-              const refreshResponse = await fetch(getFunctionUrl('get-customer-tickets'), {
-                headers: {
-                  Authorization: `Bearer ${session.access_token}`
-                }
-              });
-              if (refreshResponse.ok) {
-                const refreshData = await refreshResponse.json();
-                setTickets(refreshData.tickets);
-                // Clear pending state if we have the new ticket
-                if (hasPendingTicket) {
-                  setHasPendingTicket(false);
+              console.log('New ticket created - payload:', payload);
+              
+              // Hide the processing card
+              setHasPendingTicket(false);
+              
+              // Refresh tickets list
+              const { data: { session } } = await supabase.auth.getSession();
+              if (session) {
+                const refreshResponse = await fetch(getFunctionUrl('get-customer-tickets'), {
+                  headers: {
+                    Authorization: `Bearer ${session.access_token}`
+                  }
+                });
+                if (refreshResponse.ok) {
+                  const refreshData = await refreshResponse.json();
+                  setTickets(refreshData.tickets);
                 }
               }
             }
@@ -175,6 +178,10 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
             },
             async (payload) => {
               console.log('New message received:', payload);
+              
+              // Also hide the processing card here as a fallback
+              setHasPendingTicket(false);
+              
               // Refresh tickets to get the latest data
               const refreshResponse = await fetch(getFunctionUrl('get-customer-tickets'), {
                 headers: {
@@ -212,9 +219,13 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
               }
             }
           )
-          .subscribe();
+          .subscribe((status) => {
+            console.log('Subscription status:', status);
+          });
 
+        // Cleanup function
         return () => {
+          console.log('Cleaning up subscription');
           channel.unsubscribe();
         };
       } catch (err) {
@@ -374,7 +385,10 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
     } catch (err) {
       console.error('Error creating ticket:', err);
       setError(err instanceof Error ? err.message : 'An error occurred');
+      // Reset all states on error
       setHasPendingTicket(false);
+      setShowNewTicketForm(false);
+      setNewTicketMessage('');
     }
   };
 
@@ -543,11 +557,20 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
 
       <main className={styles.main}>
         {hasPendingTicket && (
-          <div className={styles.pendingTicket}>
-            <div className={styles.pendingMessage}>
-              <h3>🤖 AI Agent Processing Your Request</h3>
-              <p>Our AI agent is analyzing your inquiry and preparing a response. This usually takes less than a minute.</p>
-              <div className={styles.loadingSpinner}></div>
+          <div className={styles.ticketCard}>
+            <div className={styles.processingCard}>
+              <div className={styles.robotAnimation}>
+                <div className={styles.robotHead}></div>
+                <div className={styles.robotBody}>
+                  <div className={styles.processingDots}>
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                  </div>
+                </div>
+              </div>
+              <h3>Processing Your Request</h3>
+              <p>Our AI assistant is analyzing your inquiry. You'll see a new ticket appear here in less than a minute.</p>
             </div>
           </div>
         )}
