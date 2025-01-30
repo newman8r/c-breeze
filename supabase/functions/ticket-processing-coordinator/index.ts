@@ -472,7 +472,7 @@ const ticketProcessingChain = RunnableSequence.from([
         needsAssignment: finalResult.needsAssignment,
         assignmentReasoning: finalResult.assignmentReasoning
       },
-      status: 'completed'
+      status: 'processing'
     })
 
     console.log('Processing completed with results:', finalResult)

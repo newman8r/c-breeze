@@ -336,24 +336,6 @@ serve(async (req) => {
           originalInquiry: vectorResults.originalInquiry
         })
 
-        // Update analysis record with final results
-        const { error: finalUpdateError } = await supabase
-          .from('ticket_analysis')
-          .update({
-            response_generation_results: {
-              response: responseResult.response,
-              reasoning: responseResult.reasoning,
-              next_steps: responseResult.next_steps
-            },
-            status: 'completed',
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', vectorResults.analysisId)
-
-        if (finalUpdateError) {
-          throw new Error(`Failed to update analysis with response results: ${finalUpdateError.message}`)
-        }
-
         // Return combined results
         return new Response(
           JSON.stringify({

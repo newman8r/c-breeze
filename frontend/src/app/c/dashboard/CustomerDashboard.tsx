@@ -29,6 +29,10 @@ interface TicketAnalysisPayload {
     id: string;
     ticket_id: string;
     status: 'pending' | 'processing' | 'completed' | 'error';
+    response_generation_results?: {
+      response: string;
+      [key: string]: any;
+    };
     created_at: string;
     updated_at: string;
   };
@@ -175,13 +179,30 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
               schema: 'public',
               table: 'ticket_analysis'
             },
-            async (payload: RealtimePostgresChangesPayload<{
-              status: string;
-              [key: string]: any;
-            }>) => {
+            async (payload: RealtimePostgresChangesPayload<TicketAnalysisPayload['new']> & { new: TicketAnalysisPayload['new'] }) => {
               console.log('Ticket analysis update:', payload);
               // If analysis is completed, refresh tickets
               if (payload.new.status === 'completed') {
+                const { data: { session } } = await supabase.auth.getSession();
+                if (!session) return;
+
+                // Create ticket message with the AI response
+                if (payload.new.response_generation_results?.response) {
+                  await fetch(getFunctionUrl('create_ticket_message'), {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      Authorization: `Bearer ${session.access_token}`,
+                    },
+                    body: JSON.stringify({
+                      ticket_id: payload.new.ticket_id,
+                      content: payload.new.response_generation_results.response,
+                      is_private: false,
+                      origin: 'ai'
+                    }),
+                  });
+                }
+
                 const refreshResponse = await fetch(getFunctionUrl('get-customer-tickets'), {
                   headers: {
                     Authorization: `Bearer ${session.access_token}`,

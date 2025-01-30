@@ -117,6 +117,12 @@ const RequestSchema = z.object({
 const responseGenerationChain = RunnableSequence.from([
   // Input validation
   async (input) => {
+    console.log('Starting response generation coordinator with input:', {
+      analysisId: input.ticketProcessingResults.analysisId,
+      ticketId: input.ticketProcessingResults.metadata.ticketId,
+      hasVectorResults: !!input.vectorSearchResults?.results
+    })
+
     console.log('Starting response generation, validating input...')
     const validated = RequestSchema.parse(input)
     
@@ -155,6 +161,77 @@ const responseGenerationChain = RunnableSequence.from([
     }
     const responseResult = JSON.parse(responseGenerated.additional_kwargs.function_call.arguments)
     console.log('Response generated with next steps:', responseResult.next_steps)
+
+    // Update analysis record with response and completed status
+    console.log('Initializing Supabase client for status update...')
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    )
+
+    console.log('Attempting to update ticket_analysis record:', {
+      analysisId: input.ticketProcessingResults.analysisId,
+      status: 'completed',
+      hasResponse: !!responseResult.response
+    })
+
+    // First get the existing record
+    const { data: existingRecord, error: fetchError } = await supabase
+      .from('ticket_analysis')
+      .select('vector_search_results')
+      .eq('id', input.ticketProcessingResults.analysisId)
+      .single()
+
+    if (fetchError) {
+      console.error('Failed to fetch existing record:', fetchError)
+      throw new Error(`Failed to fetch existing record: ${fetchError.message}`)
+    }
+
+    // Update the analysis record
+    const { data: updateData, error: updateError } = await supabase
+      .from('ticket_analysis')
+      .update({
+        response_generation_results: {
+          response: responseResult.response,
+          reasoning: responseResult.reasoning,
+          next_steps: responseResult.next_steps
+        },
+        status: 'completed',
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', input.ticketProcessingResults.analysisId)
+      .select()
+
+    if (updateError) {
+      console.error('Failed to update ticket_analysis:', updateError)
+      throw new Error(`Failed to update analysis with response results: ${updateError.message}`)
+    }
+
+    // Create the ticket message
+    const { error: messageError } = await supabase
+      .from('ticket_messages')
+      .insert({
+        ticket_id: input.ticketProcessingResults.metadata.ticketId,
+        organization_id: input.ticketProcessingResults.metadata.organizationId,
+        content: responseResult.response,
+        sender_type: 'ai',
+        metadata: {
+          analysis_id: input.ticketProcessingResults.analysisId,
+          reasoning: responseResult.reasoning,
+          next_steps: responseResult.next_steps
+        }
+      })
+
+    if (messageError) {
+      console.error('Failed to create ticket message:', messageError)
+      throw new Error(`Failed to create ticket message: ${messageError.message}`)
+    }
+
+    console.log('Successfully updated ticket_analysis and created message:', {
+      analysisId: input.ticketProcessingResults.analysisId,
+      newStatus: 'completed',
+      updateData
+    })
 
     // Return final result
     return {
