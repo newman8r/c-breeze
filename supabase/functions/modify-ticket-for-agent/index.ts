@@ -71,7 +71,7 @@ serve(async (req) => {
     }
 
     // Log the audit event
-    await logAuditEvent({
+    await logAuditEvent(supabase, {
       organization_id: ticketBefore.organization_id,
       actor_type: 'ai',
       action_type: 'update',
@@ -79,7 +79,8 @@ serve(async (req) => {
       resource_type: 'ticket',
       resource_id: requestBody.ticket_id,
       details_before: ticketBefore,
-      details_after: ticket
+      details_after: ticket,
+      status: 'success'
     })
 
     return new Response(

@@ -99,8 +99,8 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
         // Call our edge function to get tickets
         const response = await fetch(getFunctionUrl('get-customer-tickets'), {
           headers: {
-            Authorization: `Bearer ${session.access_token}`,
-          },
+            Authorization: `Bearer ${session.access_token}`
+          }
         });
 
         if (!response.ok) {
@@ -132,8 +132,8 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
               // Refresh tickets to get the latest data
               const refreshResponse = await fetch(getFunctionUrl('get-customer-tickets'), {
                 headers: {
-                  Authorization: `Bearer ${session.access_token}`,
-                },
+                  Authorization: `Bearer ${session.access_token}`
+                }
               });
               if (refreshResponse.ok) {
                 const refreshData = await refreshResponse.json();
@@ -153,15 +153,17 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
               table: 'tickets'
             },
             async (payload) => {
-              console.log('Ticket update received:', payload);
-              // Update ticket in the UI without a full refresh
-              setTickets(currentTickets => 
-                currentTickets.map(ticket => 
-                  ticket.id === payload.new.id 
-                    ? { ...ticket, ...payload.new }
-                    : ticket
-                )
-              );
+              console.log('Ticket updated:', payload);
+              // Refresh tickets to get the latest data
+              const refreshResponse = await fetch(getFunctionUrl('get-customer-tickets'), {
+                headers: {
+                  Authorization: `Bearer ${session.access_token}`
+                }
+              });
+              if (refreshResponse.ok) {
+                const refreshData = await refreshResponse.json();
+                setTickets(refreshData.tickets);
+              }
             }
           )
           .on(
@@ -173,160 +175,175 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
             },
             async (payload) => {
               console.log('New message received:', payload);
-              // Refresh tickets to get the latest messages
+              // Refresh tickets to get the latest data
               const refreshResponse = await fetch(getFunctionUrl('get-customer-tickets'), {
                 headers: {
-                  Authorization: `Bearer ${session.access_token}`,
-                },
+                  Authorization: `Bearer ${session.access_token}`
+                }
               });
               if (refreshResponse.ok) {
                 const refreshData = await refreshResponse.json();
                 setTickets(refreshData.tickets);
+                // Clear typing indicator for this ticket
+                setTypingIndicators(prev => ({
+                  ...prev,
+                  [payload.new.ticket_id]: false
+                }));
+              }
+            }
+          )
+          .on(
+            'postgres_changes',
+            {
+              event: 'INSERT',
+              schema: 'public',
+              table: 'ticket_analysis'
+            },
+            (payload: TicketAnalysisPayload) => {
+              console.log('Analysis update received:', payload);
+              // Show typing indicator for AI response
+              if (payload.new.status === 'processing') {
+                setTypingIndicators(prev => ({
+                  ...prev,
+                  [payload.new.ticket_id]: true
+                }));
               }
             }
           )
           .subscribe();
 
-        setLoading(false);
-
-        // Cleanup subscription on unmount
         return () => {
-          void supabase.removeChannel(channel);
+          channel.unsubscribe();
         };
-
       } catch (err) {
         console.error('Error fetching tickets:', err);
-        setError(err instanceof Error ? err.message : 'Failed to fetch tickets');
+        setError(err instanceof Error ? err.message : 'An error occurred');
+      } finally {
         setLoading(false);
       }
     }
 
     fetchTickets();
-  }, []);
+  }, [supabase]);
 
-  const handleSendMessage = async (ticketId: string) => {
+  const handleSubmitMessage = async (ticketId: string) => {
     try {
-      if (!newMessage[ticketId]?.trim()) {
-        setError('Message cannot be empty');
+      const message = newMessage[ticketId];
+      if (!message?.trim()) return;
+
+      // Get current session
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setError('Not authenticated');
         return;
       }
 
-      // Show typing indicator immediately when sending message
-      setTypingIndicators(prev => ({ ...prev, [ticketId]: true }));
-
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session) {
-        throw new Error('Not authenticated');
-      }
-
-      const response = await fetch(getFunctionUrl('create_ticket_message'), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({
+      // Create the message
+      const { error: messageError } = await supabase
+        .from('ticket_messages')
+        .insert({
           ticket_id: ticketId,
-          content: newMessage[ticketId],
-          is_private: false,
-          origin: 'ticket'
-        }),
-      });
+          content: message,
+          sender_type: 'customer'
+        });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error('Error response:', errorData);
-        throw new Error(errorData.error || 'Failed to send message');
-      }
+      if (messageError) throw messageError;
 
-      const data = await response.json();
-      console.log('Message sent successfully:', data);
+      // Clear the input
+      setNewMessage(prev => ({
+        ...prev,
+        [ticketId]: ''
+      }));
 
-      // Clear message input
-      setNewMessage({ ...newMessage, [ticketId]: '' });
-      setError(null);
-
-      // Trigger conversation analysis
-      const analysisResponse = await supabase.functions.invoke('conversation-analysis-coordinator', {
-        body: {
-          ticketId,
-          organizationId: data.message.organization_id,
-          newMessageId: data.message.id
-        }
-      });
-
-      if (analysisResponse.error) {
-        console.error('Analysis error:', analysisResponse.error);
-      }
-
-      // Refresh tickets to get the latest messages
-      const refreshResponse = await fetch(getFunctionUrl('get-customer-tickets'), {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-      });
-      if (refreshResponse.ok) {
-        const refreshData = await refreshResponse.json();
-        setTickets(refreshData.tickets);
-      }
-
-      // Clear typing indicator after a delay to simulate response time
-      setTimeout(() => {
-        setTypingIndicators(prev => ({ ...prev, [ticketId]: false }));
-      }, 2000);
-
-    } catch (err) {
-      console.error('Error in handleSendMessage:', err);
-      setError(err instanceof Error ? err.message : 'Failed to send message');
-      // Clear typing indicator in case of error
-      setTypingIndicators(prev => ({ ...prev, [ticketId]: false }));
-    }
-  };
-
-  const handleCreateTicket = async () => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session) {
-        throw new Error('Not authenticated');
-      }
-
-      const response = await fetch(getFunctionUrl('create-customer-ticket'), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({
-          title: newTicketTitle,
-          description: newTicketMessage,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to create ticket');
-      }
-
-      // Refresh tickets
+      // Refresh tickets to get the latest data
       const ticketsResponse = await fetch(getFunctionUrl('get-customer-tickets'), {
         headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
+          Authorization: `Bearer ${session.access_token}`
+        }
       });
 
       if (!ticketsResponse.ok) {
         throw new Error('Failed to refresh tickets');
       }
 
-      const data = await ticketsResponse.json();
-      setTickets(data.tickets);
-    setShowNewTicketForm(false);
-    setNewTicketTitle('');
-    setNewTicketMessage('');
-      
+      const ticketsData = await ticketsResponse.json();
+      setTickets(ticketsData.tickets);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create ticket');
+      console.error('Error submitting message:', err);
+      setError(err instanceof Error ? err.message : 'An error occurred');
+    }
+  };
+
+  const handleCreateTicket = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      // Get current session
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setError('Not authenticated');
+        return;
+      }
+
+      // Create the ticket
+      const { data: ticketData, error: ticketError } = await supabase
+        .from('tickets')
+        .insert({
+          title: newTicketTitle,
+          status: 'open',
+          priority: 'medium'
+        })
+        .select()
+        .single();
+
+      if (ticketError) throw ticketError;
+
+      // Create initial message
+      const { data: messageData, error: messageError } = await supabase
+        .from('ticket_messages')
+        .insert({
+          ticket_id: ticketData.id,
+          content: newTicketMessage,
+          sender_type: 'customer'
+        })
+        .select()
+        .single();
+
+      if (messageError) throw messageError;
+
+      // Clear form and hide it
+      setNewTicketTitle('');
+      setNewTicketMessage('');
+      setShowNewTicketForm(false);
+
+      // Refresh tickets to get the latest data
+      const ticketsResponse = await fetch(getFunctionUrl('get-customer-tickets'), {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`
+        }
+      });
+
+      if (!ticketsResponse.ok) {
+        throw new Error('Failed to refresh tickets');
+      }
+
+      const ticketsData = await ticketsResponse.json();
+      setTickets(ticketsData.tickets);
+
+      // Trigger initial analysis
+      const analysisResponse = await supabase.functions.invoke('conversation-analysis-coordinator', {
+        body: {
+          ticketId: ticketData.id,
+          organizationId: ticketData.organization_id,
+          newMessageId: messageData.id
+        }
+      });
+
+      if (analysisResponse.error) {
+        console.error('Analysis error:', analysisResponse.error);
+      }
+    } catch (err) {
+      console.error('Error creating ticket:', err);
+      setError(err instanceof Error ? err.message : 'An error occurred');
     }
   };
 
@@ -357,8 +374,8 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
       // Refresh tickets
       const ticketsResponse = await fetch(getFunctionUrl('get-customer-tickets'), {
         headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
+          Authorization: `Bearer ${session.access_token}`
+        }
       });
 
       if (!ticketsResponse.ok) {
@@ -665,7 +682,7 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
                           </label>
                           <button
                             className={styles.sendButton}
-                            onClick={() => handleSendMessage(ticket.id)}
+                            onClick={() => handleSubmitMessage(ticket.id)}
                           >
                             Send 📤
                           </button>
