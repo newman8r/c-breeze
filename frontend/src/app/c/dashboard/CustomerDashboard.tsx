@@ -3,9 +3,9 @@
 import { useState, useEffect } from 'react';
 import { getSupabaseBrowserClient } from '@/lib/supabase-browser';
 import { getFunctionUrl } from '@/lib/supabase';
-import { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import styles from './CustomerDashboard.module.css';
 import TicketRating from '@/components/tickets/TicketRating'
+import { RealtimeChannel } from '@supabase/supabase-js';
 
 interface Ticket {
   id: string;
@@ -38,6 +38,18 @@ interface TicketAnalysisPayload {
   };
 }
 
+interface AnalysisPayload {
+  new: {
+    status: 'pending' | 'processing' | 'completed' | 'error';
+    ticket_id: string;
+  };
+}
+
+interface AnalysisRecord {
+  status: 'pending' | 'processing' | 'completed' | 'error';
+  ticket_id: string;
+}
+
 interface CustomerDashboardProps {
   company: string;
 }
@@ -53,6 +65,7 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
   const [expandedTickets, setExpandedTickets] = useState<Record<string, boolean>>({});
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [hasPendingTicket, setHasPendingTicket] = useState(false);
+  const [typingIndicators, setTypingIndicators] = useState<Record<string, boolean>>({});
   
   // Create a single Supabase client instance using the browser client
   const supabase = getSupabaseBrowserClient();
@@ -104,7 +117,7 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
         }), {});
         setExpandedTickets(initialExpandedState);
 
-        // Set up realtime subscription for tickets and analysis
+        // Set up realtime subscription for tickets and messages
         const channel = supabase
           .channel('customer-tickets')
           .on(
@@ -172,99 +185,24 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
               }
             }
           )
-          .on(
-            'postgres_changes',
-            {
-              event: '*',
-              schema: 'public',
-              table: 'ticket_analysis'
-            },
-            async (payload: RealtimePostgresChangesPayload<TicketAnalysisPayload['new']> & { new: TicketAnalysisPayload['new'] }) => {
-              console.log('Ticket analysis update:', payload);
-              // If analysis is completed, refresh tickets
-              if (payload.new.status === 'completed') {
-                const { data: { session } } = await supabase.auth.getSession();
-                if (!session) return;
-
-                // Create ticket message with the AI response
-                if (payload.new.response_generation_results?.response) {
-                  await fetch(getFunctionUrl('create_ticket_message'), {
-                    method: 'POST',
-                    headers: {
-                      'Content-Type': 'application/json',
-                      Authorization: `Bearer ${session.access_token}`,
-                    },
-                    body: JSON.stringify({
-                      ticket_id: payload.new.ticket_id,
-                      content: payload.new.response_generation_results.response,
-                      is_private: false,
-                      origin: 'ai'
-                    }),
-                  });
-                }
-
-                const refreshResponse = await fetch(getFunctionUrl('get-customer-tickets'), {
-                  headers: {
-                    Authorization: `Bearer ${session.access_token}`,
-                  },
-                });
-                if (refreshResponse.ok) {
-                  const refreshData = await refreshResponse.json();
-                  setTickets(refreshData.tickets);
-                  // Clear pending state
-                  setHasPendingTicket(false);
-                }
-              }
-            }
-          )
           .subscribe();
+
+        setLoading(false);
 
         // Cleanup subscription on unmount
         return () => {
-          supabase.removeChannel(channel);
+          void supabase.removeChannel(channel);
         };
-        
+
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'An error occurred');
-      } finally {
+        console.error('Error fetching tickets:', err);
+        setError(err instanceof Error ? err.message : 'Failed to fetch tickets');
         setLoading(false);
       }
     }
 
     fetchTickets();
   }, []);
-
-  useEffect(() => {
-    const fetchCustomerTickets = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        if (!session) {
-          console.error('No session available');
-          return;
-        }
-
-        console.log('Fetching customer tickets...');
-        const response = await fetch(getFunctionUrl('get-customer-tickets'), {
-          headers: {
-            Authorization: `Bearer ${session.access_token}`,
-          },
-        });
-
-        if (!response.ok) {
-          throw new Error(`Failed to fetch tickets: ${response.status}`);
-        }
-
-        const data = await response.json();
-        console.log('Customer tickets response:', data);
-        
-      } catch (error) {
-        console.error('Error fetching customer tickets:', error);
-      }
-    };
-
-    fetchCustomerTickets();
-  }, []); // Run once on mount
 
   const handleSendMessage = async (ticketId: string) => {
     try {
@@ -273,13 +211,15 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
         return;
       }
 
+      // Show typing indicator immediately when sending message
+      setTypingIndicators(prev => ({ ...prev, [ticketId]: true }));
+
       const { data: { session } } = await supabase.auth.getSession();
       
       if (!session) {
         throw new Error('Not authenticated');
       }
 
-      console.log('Sending message for ticket:', ticketId);
       const response = await fetch(getFunctionUrl('create_ticket_message'), {
         method: 'POST',
         headers: {
@@ -303,29 +243,44 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
       const data = await response.json();
       console.log('Message sent successfully:', data);
 
-      // Refresh tickets to show new message
-      console.log('Refreshing tickets...');
-      const ticketsResponse = await fetch(getFunctionUrl('get-customer-tickets'), {
+      // Clear message input
+      setNewMessage({ ...newMessage, [ticketId]: '' });
+      setError(null);
+
+      // Trigger conversation analysis
+      const analysisResponse = await supabase.functions.invoke('conversation-analysis-coordinator', {
+        body: {
+          ticketId,
+          organizationId: data.message.organization_id,
+          newMessageId: data.message.id
+        }
+      });
+
+      if (analysisResponse.error) {
+        console.error('Analysis error:', analysisResponse.error);
+      }
+
+      // Refresh tickets to get the latest messages
+      const refreshResponse = await fetch(getFunctionUrl('get-customer-tickets'), {
         headers: {
           Authorization: `Bearer ${session.access_token}`,
         },
       });
-
-      if (!ticketsResponse.ok) {
-        const errorData = await ticketsResponse.json();
-        console.error('Error refreshing tickets:', errorData);
-        throw new Error('Failed to refresh tickets');
+      if (refreshResponse.ok) {
+        const refreshData = await refreshResponse.json();
+        setTickets(refreshData.tickets);
       }
 
-      const ticketsData = await ticketsResponse.json();
-      console.log('Tickets refreshed:', ticketsData);
-      setTickets(ticketsData.tickets);
-      setNewMessage({ ...newMessage, [ticketId]: '' });
-      setError(null); // Clear any existing errors
-      
+      // Clear typing indicator after a delay to simulate response time
+      setTimeout(() => {
+        setTypingIndicators(prev => ({ ...prev, [ticketId]: false }));
+      }, 2000);
+
     } catch (err) {
       console.error('Error in handleSendMessage:', err);
       setError(err instanceof Error ? err.message : 'Failed to send message');
+      // Clear typing indicator in case of error
+      setTypingIndicators(prev => ({ ...prev, [ticketId]: false }));
     }
   };
 
@@ -669,6 +624,21 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
                         </div>
                       </div>
                     ))}
+                    {typingIndicators[ticket.id] && (
+                      <div className={`${styles.message} ${styles.agentMessage}`}>
+                        <div className={styles.messageAvatar}>
+                          🤖
+                        </div>
+                        <div className={styles.messageContentWrapper}>
+                          <div className={styles.messageSender}>AI Assistant</div>
+                          <div className={styles.messageContent}>
+                            <div className={styles.typingIndicator}>
+                              <span>•</span><span>•</span><span>•</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {ticket.status === 'open' && (

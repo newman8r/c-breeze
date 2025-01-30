@@ -745,6 +745,7 @@ export type Database = {
           created_by: string | null
           description: string | null
           id: string
+          is_ai_generated: boolean
           name: string
           organization_id: string
           type: Database["public"]["Enums"]["tag_type"]
@@ -756,6 +757,7 @@ export type Database = {
           created_by?: string | null
           description?: string | null
           id?: string
+          is_ai_generated?: boolean
           name: string
           organization_id: string
           type?: Database["public"]["Enums"]["tag_type"]
@@ -767,6 +769,7 @@ export type Database = {
           created_by?: string | null
           description?: string | null
           id?: string
+          is_ai_generated?: boolean
           name?: string
           organization_id?: string
           type?: Database["public"]["Enums"]["tag_type"]
@@ -778,6 +781,60 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ticket_analysis: {
+        Row: {
+          created_at: string | null
+          error_message: string | null
+          id: string
+          organization_id: string
+          processing_results: Json | null
+          response_generation_results: Json | null
+          status: Database["public"]["Enums"]["ticket_analysis_status"]
+          ticket_id: string
+          updated_at: string | null
+          vector_search_results: Json | null
+        }
+        Insert: {
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          organization_id: string
+          processing_results?: Json | null
+          response_generation_results?: Json | null
+          status?: Database["public"]["Enums"]["ticket_analysis_status"]
+          ticket_id: string
+          updated_at?: string | null
+          vector_search_results?: Json | null
+        }
+        Update: {
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          organization_id?: string
+          processing_results?: Json | null
+          response_generation_results?: Json | null
+          status?: Database["public"]["Enums"]["ticket_analysis_status"]
+          ticket_id?: string
+          updated_at?: string | null
+          vector_search_results?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ticket_analysis_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ticket_analysis_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets"
             referencedColumns: ["id"]
           },
         ]
@@ -859,18 +916,21 @@ export type Database = {
         Row: {
           created_at: string
           created_by: string | null
+          is_ai_generated: boolean
           tag_id: string
           ticket_id: string
         }
         Insert: {
           created_at?: string
           created_by?: string | null
+          is_ai_generated?: boolean
           tag_id: string
           ticket_id: string
         }
         Update: {
           created_at?: string
           created_by?: string | null
+          is_ai_generated?: boolean
           tag_id?: string
           ticket_id?: string
         }
@@ -1408,6 +1468,7 @@ export type Database = {
         | "document"
       severity_level: "info" | "warning" | "error" | "critical"
       tag_type: "system" | "custom"
+      ticket_analysis_status: "pending" | "processing" | "completed" | "error"
       user_role: "customer" | "employee" | "admin"
       vector_store_status:
         | "not_built"

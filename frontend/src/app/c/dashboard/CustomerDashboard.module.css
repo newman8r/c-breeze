@@ -549,4 +549,37 @@
   .ticketDate {
     font-size: 0.8rem;
   }
+}
+
+/* Typing indicator */
+.typingIndicator {
+  display: flex;
+  gap: 4px;
+  padding: 8px;
+}
+
+.typingIndicator span {
+  width: 8px;
+  height: 8px;
+  background: #4A90E2;
+  border-radius: 50%;
+  display: inline-block;
+  animation: bounce 1.4s infinite ease-in-out;
+}
+
+.typingIndicator span:nth-child(1) {
+  animation-delay: -0.32s;
+}
+
+.typingIndicator span:nth-child(2) {
+  animation-delay: -0.16s;
+}
+
+@keyframes bounce {
+  0%, 80%, 100% { 
+    transform: scale(0);
+  }
+  40% { 
+    transform: scale(1.0);
+  }
 } 
