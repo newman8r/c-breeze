@@ -185,11 +185,13 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
               if (refreshResponse.ok) {
                 const refreshData = await refreshResponse.json();
                 setTickets(refreshData.tickets);
-                // Clear typing indicator for this ticket
-                setTypingIndicators(prev => ({
-                  ...prev,
-                  [payload.new.ticket_id]: false
-                }));
+                // Only clear typing indicator if it's an AI message
+                if (payload.new.sender_type === 'ai') {
+                  setTypingIndicators(prev => ({
+                    ...prev,
+                    [payload.new.ticket_id]: false
+                  }));
+                }
               }
             }
           )
@@ -265,6 +267,12 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
         [ticketId]: ''
       }));
 
+      // Show typing indicator
+      setTypingIndicators(prev => ({
+        ...prev,
+        [ticketId]: true
+      }));
+
       // Trigger conversation analysis
       const analysisResponse = await supabase.functions.invoke('conversation-analysis-coordinator', {
         body: {
@@ -276,6 +284,11 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
 
       if (analysisResponse.error) {
         console.error('Analysis error:', analysisResponse.error);
+        // Clear typing indicator if there's an error
+        setTypingIndicators(prev => ({
+          ...prev,
+          [ticketId]: false
+        }));
       }
 
       // Refresh tickets to get the latest data
