@@ -266,25 +266,33 @@ const analysisChain = RunnableSequence.from([
         })
       })
     } else if (result.action === 'assign_human') {
-      // Randomly select an employee
-      const employees = input.context.employees
-      const randomEmployee = employees[Math.floor(Math.random() * employees.length)]
+      // Get valid employees (filter out null names)
+      const validEmployees = input.context.employees.filter(emp => emp && emp.id && emp.name)
       
-      // Update ticket assignment
-      await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/modify-ticket`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          ticketId: input.ticketId,
-          assignedTo: randomEmployee.id
+      if (validEmployees.length === 0) {
+        console.log('No valid employees found for assignment, continuing conversation')
+        result.action = 'continue_conversation'
+        result.reasoning += '\nNo available employees found for assignment. Continuing the conversation.'
+      } else {
+        // Randomly select an employee from valid employees
+        const randomEmployee = validEmployees[Math.floor(Math.random() * validEmployees.length)]
+        
+        // Update ticket assignment
+        await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/modify-ticket`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            ticketId: input.ticketId,
+            assignedTo: randomEmployee.id
+          })
         })
-      })
 
-      result.assignedEmployeeId = randomEmployee.id
-      result.assignedEmployeeName = randomEmployee.name
+        result.assignedEmployeeId = randomEmployee.id
+        result.assignedEmployeeName = randomEmployee.name
+      }
     }
 
     return {

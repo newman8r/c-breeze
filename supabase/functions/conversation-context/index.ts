@@ -58,20 +58,20 @@ const ResponseSchema = z.object({
     content: z.string(),
     sender_type: z.enum(['employee', 'customer', 'system', 'ai']),
     created_at: z.string(),
-    metadata: z.record(z.any()).optional()
-  })),
+    metadata: z.record(z.any()).optional().nullable()
+  })).default([]),
   ticketAnalysis: z.object({
     id: z.string().uuid(),
     status: z.enum(['pending', 'processing', 'completed', 'error']),
-    vector_search_results: z.record(z.any()).optional(),
-    processing_results: z.record(z.any()).optional(),
-    response_generation_results: z.record(z.any()).optional()
+    vector_search_results: z.record(z.any()).optional().nullable(),
+    processing_results: z.record(z.any()).optional().nullable(),
+    response_generation_results: z.record(z.any()).optional().nullable()
   }).nullable(),
   employees: z.array(z.object({
     id: z.string().uuid(),
-    name: z.string(),
-    role: z.string()
-  }))
+    name: z.string().min(1),
+    role: z.string().min(1)
+  })).default([])
 })
 
 serve(async (req) => {
@@ -183,11 +183,24 @@ serve(async (req) => {
       throw new Error(`Failed to fetch employees: ${employeesError.message}`)
     }
 
-    // Validate and return response
+    console.log('Employees query result:', { employees })
+
+    // Filter out employees with null values and ensure required fields
+    const validEmployees = (employees || []).filter(emp => 
+      emp && emp.id && emp.name && emp.role
+    ).map(emp => ({
+      id: emp.id,
+      name: emp.name || '',  // Provide default empty string if null
+      role: emp.role || ''   // Provide default empty string if null
+    }))
+
+    console.log('Validated employees:', { validEmployees })
+
+    // Update the response schema to be more lenient
     const response = ResponseSchema.parse({
-      messageHistory: messages,
-      ticketAnalysis: analysis,
-      employees: employees
+      messageHistory: messages || [],
+      ticketAnalysis: analysis || null,
+      employees: validEmployees
     })
 
     return new Response(
