@@ -50,11 +50,16 @@ const model = new ChatOpenAI({
   temperature: 0
 })
 
-// Define request schema
-const RequestSchema = z.object({
+// Define base request schema
+const BaseRequestSchema = z.object({
   ticketId: z.string().uuid(),
   organizationId: z.string().uuid(),
   newMessageId: z.string().uuid()
+})
+
+// Define the internal chain input schema that includes customerId
+const ChainInputSchema = BaseRequestSchema.extend({
+  customerId: z.string().uuid()
 })
 
 // Define conversation context schema
@@ -206,19 +211,39 @@ const responseModel = model.bind({
 // Create the analysis chain
 const analysisChain = RunnableSequence.from([
   // Input validation and context fetching
-  async (input: z.infer<typeof RequestSchema>) => {
+  async (input: z.infer<typeof ChainInputSchema>) => {
     console.log('Starting conversation analysis for ticket:', input.ticketId)
 
-    // Fetch conversation context using the user's JWT
+    // First verify ticket access using get-ticket-for-agent
+    const ticketResponse = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/get-ticket-for-agent`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        ticket_id: input.ticketId,
+        organization_id: input.organizationId,
+        customer_id: input.customerId
+      })
+    })
+
+    if (!ticketResponse.ok) {
+      const error = await ticketResponse.json()
+      throw new Error(error.error || 'Failed to verify ticket access')
+    }
+
+    // Then fetch conversation context
     const contextResponse = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/conversation-context`, {
       method: 'POST',
       headers: {
-        'Authorization': input.userJWT, // Pass through the user's JWT
+        'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
         ticketId: input.ticketId,
-        organizationId: input.organizationId
+        organizationId: input.organizationId,
+        customerId: input.customerId
       })
     })
 
@@ -252,19 +277,30 @@ const analysisChain = RunnableSequence.from([
 
     // Handle different actions
     if (result.action === 'close_ticket') {
-      // Update ticket status
-      await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/api-update-ticket-status`, {
+      console.log('Closing ticket:', input.ticketId)
+      // Update ticket status using modify-ticket-for-agent
+      const updateResponse = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/modify-ticket-for-agent`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          ticketId: input.ticketId,
+          ticket_id: input.ticketId,
           status: 'closed',
-          satisfactionRating: result.satisfactionRating
+          satisfaction_rating: result.satisfactionRating
         })
       })
+
+      if (!updateResponse.ok) {
+        const errorData = await updateResponse.json()
+        console.error('Failed to close ticket:', errorData)
+        // Don't throw error, but log it and continue
+        result.action = 'continue_conversation'
+        result.reasoning += '\nAttempted to close the ticket but encountered an error. Continuing the conversation.'
+      } else {
+        console.log('Successfully closed ticket')
+      }
     } else if (result.action === 'assign_human') {
       // Get valid employees (filter out null names)
       const validEmployees = input.context.employees.filter(emp => emp && emp.id && emp.name)
@@ -277,21 +313,30 @@ const analysisChain = RunnableSequence.from([
         // Randomly select an employee from valid employees
         const randomEmployee = validEmployees[Math.floor(Math.random() * validEmployees.length)]
         
-        // Update ticket assignment
-        await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/modify-ticket`, {
+        console.log('Assigning ticket to employee:', randomEmployee.name)
+        // Update ticket assignment using modify-ticket-for-agent
+        const assignResponse = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/modify-ticket-for-agent`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            ticketId: input.ticketId,
-            assignedTo: randomEmployee.id
+            ticket_id: input.ticketId,
+            assigned_to: randomEmployee.id
           })
         })
 
-        result.assignedEmployeeId = randomEmployee.id
-        result.assignedEmployeeName = randomEmployee.name
+        if (!assignResponse.ok) {
+          const errorData = await assignResponse.json()
+          console.error('Failed to assign ticket:', errorData)
+          result.action = 'continue_conversation'
+          result.reasoning += '\nAttempted to assign the ticket but encountered an error. Continuing the conversation.'
+        } else {
+          console.log('Successfully assigned ticket')
+          result.assignedEmployeeId = randomEmployee.id
+          result.assignedEmployeeName = randomEmployee.name
+        }
       }
     }
 
@@ -379,12 +424,13 @@ serve(async (req) => {
       throw new Error('Unauthorized')
     }
 
+    // Parse and validate the base request
     const body = await req.json()
-    const validatedInput = RequestSchema.parse(body)
+    const validatedInput = BaseRequestSchema.parse(body)
 
     console.log('Getting customer data for user:', user.email)
 
-    // Get customer data for this user using service role client
+    // Get customer data using service role client
     const { data: customerData, error: customerError } = await supabase
       .from('customers')
       .select('id, organization_id')
@@ -396,34 +442,16 @@ serve(async (req) => {
       throw new Error('Customer not found')
     }
 
-    console.log('Checking ticket access:', {
+    // Create and validate the chain input with customer data
+    const chainInput = ChainInputSchema.parse({
       ticketId: validatedInput.ticketId,
       organizationId: validatedInput.organizationId,
-      customerId: customerData.id,
-      customerOrgId: customerData.organization_id
+      newMessageId: validatedInput.newMessageId,
+      customerId: customerData.id
     })
 
-    // Verify user has access to the ticket (using service role client)
-    const { data: ticket, error: ticketError } = await supabase
-      .from('tickets')
-      .select('id, customer_id')
-      .eq('id', validatedInput.ticketId)
-      .eq('organization_id', validatedInput.organizationId)
-      .eq('customer_id', customerData.id)
-      .single()
-
-    console.log('Ticket query result:', { ticket, error: ticketError })
-
-    if (ticketError || !ticket) {
-      console.error('Ticket access error:', { ticketError })
-      throw new Error('Ticket not found or access denied')
-    }
-
-    // Add the JWT to the input for use in the chain
-    const result = await analysisChain.invoke({
-      ...validatedInput,
-      userJWT
-    })
+    // Run the analysis chain with the validated input
+    const result = await analysisChain.invoke(chainInput)
 
     return new Response(
       JSON.stringify(result),

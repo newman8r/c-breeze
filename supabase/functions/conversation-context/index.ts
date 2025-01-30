@@ -48,7 +48,8 @@ const supabase = createClient<Database>(supabaseUrl, supabaseServiceKey)
 // Define request schema
 const RequestSchema = z.object({
   ticketId: z.string().uuid(),
-  organizationId: z.string().uuid()
+  organizationId: z.string().uuid(),
+  customerId: z.string().uuid()
 })
 
 // Define response schema
@@ -80,80 +81,24 @@ serve(async (req) => {
   }
 
   try {
-    // Get the JWT token from the Authorization header
+    // Verify service role key
     const authHeader = req.headers.get('Authorization')
-    if (!authHeader) {
-      throw new Error('Missing authorization header')
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      throw new Error('Service role key is required')
+    }
+    const serviceKey = authHeader.replace('Bearer ', '')
+    if (serviceKey !== Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')) {
+      throw new Error('Invalid service role key')
     }
 
-    // Extract the JWT (remove 'Bearer ' if present)
-    const jwt = authHeader.replace('Bearer ', '')
+    // Get and validate request body
+    const body = await req.json()
+    const validatedInput = RequestSchema.parse(body)
 
-    // Create a Supabase client with the user's JWT
-    const userClient = createClient<Database>(
-      supabaseUrl,
-      Deno.env.get('SUPABASE_ANON_KEY')!,
-      {
-        global: {
-          headers: {
-            Authorization: `Bearer ${jwt}`
-          }
-        }
-      }
-    )
-
-    // Get user data
-    const { data: { user }, error: userError } = await userClient.auth.getUser()
-    if (userError || !user) {
-      throw new Error('Unauthorized')
-    }
-
-    console.log('Getting customer data for user:', user.email)
-
-    // Get customer data for this user using service role client
-    const { data: customerData, error: customerError } = await supabase
-      .from('customers')
-      .select('id, organization_id')
-      .eq('email', user.email)
-      .single()
-
-    if (customerError || !customerData) {
-      console.error('Customer not found:', customerError)
-      throw new Error('Customer not found')
-    }
-
-    const { ticketId, organizationId } = await req.json()
-    
-    // Validate request
-    const validatedInput = RequestSchema.parse({ ticketId, organizationId })
-
-    console.log('Checking ticket access:', {
-      ticketId: validatedInput.ticketId,
-      organizationId: validatedInput.organizationId,
-      customerId: customerData.id,
-      customerOrgId: customerData.organization_id
-    })
-
-    // Verify user has access to the ticket using service role client
-    const { data: ticket, error: ticketError } = await supabase
-      .from('tickets')
-      .select('id, customer_id')
-      .eq('id', validatedInput.ticketId)
-      .eq('organization_id', validatedInput.organizationId)
-      .eq('customer_id', customerData.id)
-      .single()
-
-    console.log('Ticket query result:', { ticket, error: ticketError })
-
-    if (ticketError || !ticket) {
-      console.error('Ticket access error:', { ticketError })
-      throw new Error('Ticket not found or access denied')
-    }
-
-    // Get message history using service role client
+    // Get ticket messages
     const { data: messages, error: messagesError } = await supabase
       .from('ticket_messages')
-      .select('*')
+      .select('id, content, sender_type, created_at, metadata')
       .eq('ticket_id', validatedInput.ticketId)
       .order('created_at', { ascending: true })
 
@@ -161,50 +106,44 @@ serve(async (req) => {
       throw new Error(`Failed to fetch messages: ${messagesError.message}`)
     }
 
-    // Get ticket analysis using service role client
+    // Get latest ticket analysis
     const { data: analysis, error: analysisError } = await supabase
       .from('ticket_analysis')
       .select('*')
       .eq('ticket_id', validatedInput.ticketId)
+      .order('created_at', { ascending: false })
+      .limit(1)
       .single()
 
     if (analysisError && analysisError.code !== 'PGRST116') { // Ignore not found error
       throw new Error(`Failed to fetch analysis: ${analysisError.message}`)
     }
 
-    // Get employees using service role client
+    // Get employees for the organization
     const { data: employees, error: employeesError } = await supabase
       .from('employees')
       .select('id, name, role')
       .eq('organization_id', validatedInput.organizationId)
-      .eq('status', 'active')
 
     if (employeesError) {
       throw new Error(`Failed to fetch employees: ${employeesError.message}`)
     }
 
-    console.log('Employees query result:', { employees })
-
-    // Filter out employees with null values and ensure required fields
-    const validEmployees = (employees || []).filter(emp => 
-      emp && emp.id && emp.name && emp.role
-    ).map(emp => ({
-      id: emp.id,
-      name: emp.name || '',  // Provide default empty string if null
-      role: emp.role || ''   // Provide default empty string if null
-    }))
-
-    console.log('Validated employees:', { validEmployees })
-
-    // Update the response schema to be more lenient
-    const response = ResponseSchema.parse({
-      messageHistory: messages || [],
-      ticketAnalysis: analysis || null,
-      employees: validEmployees
-    })
+    // Filter out invalid employees before validation
+    const validEmployees = (employees || [])
+      .filter(emp => emp && emp.id && emp.name && emp.role)
+      .map(emp => ({
+        id: emp.id,
+        name: emp.name,
+        role: emp.role
+      }))
 
     return new Response(
-      JSON.stringify(response),
+      JSON.stringify({
+        messageHistory: messages,
+        ticketAnalysis: analysis || null,
+        employees: validEmployees
+      }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200 
@@ -217,7 +156,7 @@ serve(async (req) => {
       JSON.stringify({ error: error.message }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: error.message === 'Unauthorized' || error.message === 'Ticket not found or access denied' ? 403 : 500 
+        status: error.message.includes('service role key') ? 403 : 500
       }
     )
   }
