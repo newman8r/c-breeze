@@ -16,6 +16,7 @@ interface Ticket {
   created_at: string;
   updated_at: string;
   satisfaction_rating: number | null;
+  organization_id: string;
   ticket_messages: Array<{
     id: string;
     content: string;
@@ -238,14 +239,23 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
         return;
       }
 
+      // Find the ticket to get its organization_id
+      const ticket = tickets.find(t => t.id === ticketId);
+      if (!ticket) {
+        throw new Error('Ticket not found');
+      }
+
       // Create the message
-      const { error: messageError } = await supabase
+      const { data: messageData, error: messageError } = await supabase
         .from('ticket_messages')
         .insert({
           ticket_id: ticketId,
           content: message,
-          sender_type: 'customer'
-        });
+          sender_type: 'customer',
+          organization_id: ticket.organization_id
+        })
+        .select()
+        .single();
 
       if (messageError) throw messageError;
 
@@ -254,6 +264,19 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
         ...prev,
         [ticketId]: ''
       }));
+
+      // Trigger conversation analysis
+      const analysisResponse = await supabase.functions.invoke('conversation-analysis-coordinator', {
+        body: {
+          ticketId,
+          organizationId: ticket.organization_id,
+          newMessageId: messageData.id
+        }
+      });
+
+      if (analysisResponse.error) {
+        console.error('Analysis error:', analysisResponse.error);
+      }
 
       // Refresh tickets to get the latest data
       const ticketsResponse = await fetch(getFunctionUrl('get-customer-tickets'), {
