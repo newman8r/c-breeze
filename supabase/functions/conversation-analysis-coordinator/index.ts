@@ -404,13 +404,56 @@ const analysisChain = RunnableSequence.from([
   }
 ])
 
-// Serve the endpoint
-serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
-  }
+interface TicketData {
+  id: string
+  organization_id: string
+  customer_id: string
+  status: string
+  priority: string
+  ai_enabled: boolean
+  assigned_to?: string
+  satisfaction_rating?: number
+}
 
+serve(async (req) => {
   try {
+    // Handle CORS
+    if (req.method === 'OPTIONS') {
+      return new Response('ok', { headers: corsHeaders })
+    }
+
+    // Clone the request for multiple body reads
+    const reqClone = req.clone()
+
+    // Parse the request body
+    const { ticketId, messageId, organizationId } = await reqClone.json()
+
+    // Get the ticket details first to check AI enabled status
+    const { data: ticket, error: ticketError } = await supabase
+      .from('tickets')
+      .select('ai_enabled, organization_id, customer_id')
+      .eq('id', ticketId)
+      .single()
+
+    if (ticketError) {
+      throw new Error(`Failed to fetch ticket: ${ticketError.message}`)
+    }
+
+    // If AI is disabled for this ticket, return early
+    if (!ticket.ai_enabled) {
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: 'AI responses are disabled for this ticket',
+          aiDisabled: true
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200
+        }
+      )
+    }
+
     // Get the JWT token from the Authorization header
     const userJWT = req.headers.get('Authorization')
     if (!userJWT) {

@@ -953,6 +953,7 @@ export type Database = {
       }
       tickets: {
         Row: {
+          ai_enabled: boolean
           ai_metadata: Json | null
           assigned_to: string | null
           category: string | null
@@ -973,6 +974,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          ai_enabled?: boolean
           ai_metadata?: Json | null
           assigned_to?: string | null
           category?: string | null
@@ -993,6 +995,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          ai_enabled?: boolean
           ai_metadata?: Json | null
           assigned_to?: string | null
           category?: string | null

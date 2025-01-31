@@ -101,6 +101,11 @@ const createTicketTool = {
       customerName: {
         type: 'string',
         description: 'Name of the customer making the inquiry'
+      },
+      aiEnabled: {
+        type: 'boolean',
+        description: 'Whether AI responses should be enabled for this ticket',
+        default: true
       }
     },
     required: ['title', 'description', 'customerEmail', 'customerName']
@@ -498,7 +503,8 @@ async function createTicket(
   category: string,
   customerEmail: string,
   customerName: string,
-  aiMetadata: any
+  aiMetadata: any,
+  aiEnabled: boolean = true // Default to true for backward compatibility
 ): Promise<any> {
   const response = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/create-ai-ticket`, {
     method: 'POST',
@@ -514,7 +520,8 @@ async function createTicket(
       category,
       customerEmail,
       customerName,
-      aiMetadata
+      aiMetadata,
+      ai_enabled: aiEnabled // Use snake_case for consistency with database
     })
   })
 
@@ -628,7 +635,8 @@ const mainAnalysisChain = RunnableSequence.from([
         analysisId,
         startTime,
         processedAt: startTime
-      }
+      },
+      true
     )
 
     // Create analysis record

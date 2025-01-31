@@ -34,6 +34,7 @@ interface Ticket {
   category?: string
   tags: Tag[]
   satisfaction_rating: number | null
+  ai_enabled: boolean
   customer?: {
     name: string
     email: string
@@ -131,6 +132,7 @@ async function modifyTicket(updates: {
   status?: string
   priority?: string
   assigned_employee_id?: string | null
+  ai_enabled?: boolean
 }) {
   try {
     console.log('Sending request with updates:', updates)
@@ -572,6 +574,7 @@ export const FullScreenTicket = ({ ticket: initialTicket, onClose }: FullScreenT
           organization_id,
           customer_id,
           satisfaction_rating,
+          ai_enabled,
           customer:customers(
             id,
             name,
@@ -601,7 +604,9 @@ export const FullScreenTicket = ({ ticket: initialTicket, onClose }: FullScreenT
         // Transform ticket_tags to match the Ticket interface
         const transformedTicket: Ticket = {
           ...updatedTicket,
-          tags: (updatedTicket.ticket_tags || []).map((tt: { tag: Tag }) => tt.tag)
+          tags: (updatedTicket.ticket_tags || []).map((tt: { tag: Tag }) => tt.tag),
+          customer: updatedTicket.customer,
+          assigned_employee: updatedTicket.assigned_employee
         }
         setTicket(transformedTicket)
       }
@@ -629,6 +634,7 @@ export const FullScreenTicket = ({ ticket: initialTicket, onClose }: FullScreenT
             organization_id,
             customer_id,
             satisfaction_rating,
+            ai_enabled,
             customer:customers(
               id,
               name,
@@ -746,6 +752,23 @@ export const FullScreenTicket = ({ ticket: initialTicket, onClose }: FullScreenT
     } catch (error: any) {
       console.error('Error removing tag:', error)
       setTagError(error.message || 'Failed to remove tag')
+    }
+  }
+
+  const handleAiToggle = async () => {
+    try {
+      await modifyTicket({
+        ticket_id: ticket.id,
+        ai_enabled: !ticket.ai_enabled
+      })
+      // Update ticket state
+      setTicket(prev => ({
+        ...prev,
+        ai_enabled: !prev.ai_enabled
+      }))
+    } catch (error) {
+      console.error('Failed to update AI setting:', error)
+      // You might want to show an error message to the user here
     }
   }
 
@@ -1313,6 +1336,28 @@ export const FullScreenTicket = ({ ticket: initialTicket, onClose }: FullScreenT
                   <span>👤</span>
                   <span>Assign</span>
                 </button>
+              </div>
+              
+              {/* AI Toggle */}
+              <div className="mt-4 pt-4 border-t border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-[#2C5282]">AI Assistant</p>
+                    <p className="text-sm text-gray-600">Enable AI responses for this ticket</p>
+                  </div>
+                  <button
+                    onClick={handleAiToggle}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      ticket.ai_enabled ? 'bg-[#4A90E2]' : 'bg-gray-200'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        ticket.ai_enabled ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
               </div>
             </div>
 

@@ -266,13 +266,58 @@ const responseGenerationChain = RunnableSequence.from([
 export { responseGenerationChain }
 
 // Keep the serve function for standalone testing
-serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
-  }
+interface TicketData {
+  id: string
+  organization_id: string
+  customer_id: string
+  status: string
+  priority: string
+  ai_enabled: boolean
+  assigned_to?: string
+  satisfaction_rating?: number
+}
 
+serve(async (req) => {
   try {
-    const body = await req.json()
+    // Handle CORS
+    if (req.method === 'OPTIONS') {
+      return new Response('ok', { headers: corsHeaders })
+    }
+
+    // Clone the request for multiple body reads
+    const reqClone = req.clone()
+
+    // Parse the request body
+    const { ticketId, messageId, organizationId } = await reqClone.json()
+
+    // Get the ticket details first to check AI enabled status
+    const { data: ticket, error: ticketError } = await supabase
+      .from('tickets')
+      .select('ai_enabled, organization_id, customer_id')
+      .eq('id', ticketId)
+      .single()
+
+    if (ticketError) {
+      throw new Error(`Failed to fetch ticket: ${ticketError.message}`)
+    }
+
+    // If AI is disabled for this ticket, return early
+    if (!ticket.ai_enabled) {
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: 'AI responses are disabled for this ticket',
+          aiDisabled: true
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200
+        }
+      )
+    }
+
+    // Continue with existing logic...
+    const body = await reqClone.json()
     const result = await responseGenerationChain.invoke(body)
 
     return new Response(

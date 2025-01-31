@@ -18,6 +18,7 @@ interface ModifyTicketRequest {
   priority?: string
   assigned_to?: string | null
   satisfaction_rating?: number | null
+  ai_enabled?: boolean
 }
 
 interface AuditLogEntry {
@@ -132,6 +133,12 @@ serve(async (req) => {
       }
     }
 
+    // Handle AI enabled toggle
+    if (requestBody.ai_enabled !== undefined) {
+      console.log('Updating AI enabled to:', requestBody.ai_enabled)
+      updates.ai_enabled = requestBody.ai_enabled
+    }
+
     // Handle satisfaction rating change
     if (requestBody.satisfaction_rating !== undefined) {
       console.log('Updating satisfaction rating to:', requestBody.satisfaction_rating)
@@ -145,73 +152,44 @@ serve(async (req) => {
 
     console.log('Final updates object:', updates)
 
-    // Update the ticket
-    const { data: updatedTicket, error: updateError } = await supabaseClient
-      .from('tickets')
-      .update(updates)
-      .eq('id', requestBody.ticket_id)
-      .select()
-      .single()
+    // Only proceed with update if there are changes
+    if (Object.keys(updates).length > 0) {
+      const { data: updatedTicket, error: updateError } = await supabaseClient
+        .from('tickets')
+        .update(updates)
+        .eq('id', requestBody.ticket_id)
+        .select()
+        .single()
 
-    if (updateError) {
-      console.error('Error updating ticket:', updateError)
-      throw updateError
-    }
-
-    // Create audit log entry
-    const changes: Record<string, { from: any; to: any }> = {}
-    Object.keys(updates).forEach(key => {
-      if (currentTicket[key] !== updatedTicket[key]) {
-        changes[key] = {
-          from: currentTicket[key],
-          to: updatedTicket[key]
-        }
+      if (updateError) {
+        console.error('Error updating ticket:', updateError)
+        throw updateError
       }
-    })
 
-    // Get organization ID from the ticket
-    const { data: ticketOrg } = await supabaseClient
-      .from('tickets')
-      .select('organization_id')
-      .eq('id', requestBody.ticket_id)
-      .single()
+      // Log the audit event
+      await logAuditEvent(supabaseClient, {
+        organization_id: currentTicket.organization_id,
+        actor_id: user.id,
+        actor_type: 'employee',
+        action_type: 'update',
+        action_description: 'Modified ticket',
+        resource_type: 'ticket',
+        resource_id: requestBody.ticket_id,
+        details_before: currentTicket,
+        details_after: updatedTicket,
+        status: 'success'
+      })
 
-    // Get client IP address
-    const clientIp = req.headers.get('x-forwarded-for') || 
-                    req.headers.get('x-real-ip') || 
-                    req.headers.get('cf-connecting-ip')
-
-    console.log('Logging ticket modification to audit log...')
-    const { success: auditSuccess, error: auditError } = await logAuditEvent(supabaseClient, {
-      organization_id: ticketOrg.organization_id,
-      actor_id: user.id,
-      actor_type: 'employee',
-      action_type: 'update',
-      resource_type: 'ticket',
-      resource_id: requestBody.ticket_id,
-      action_description: `Modified ticket: ${Object.keys(changes).join(', ')}`,
-      action_meta: changes,
-      details_before: currentTicket,
-      details_after: updatedTicket,
-      severity: 'info',
-      status: 'success',
-      client_ip: clientIp
-    })
-
-    if (!auditSuccess) {
-      console.error('Failed to log audit event:', auditError)
-      // Don't throw error here - we don't want to fail the ticket update if audit logging fails
+      return new Response(
+        JSON.stringify(updatedTicket),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
     } else {
-      console.log('Successfully created audit log entry')
+      return new Response(
+        JSON.stringify(currentTicket),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
     }
-
-    return new Response(
-      JSON.stringify({ data: updatedTicket, message: 'Ticket updated successfully' }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200,
-      }
-    )
 
   } catch (error) {
     console.error('Function error:', error)
