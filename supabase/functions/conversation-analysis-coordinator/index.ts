@@ -314,40 +314,105 @@ const analysisChain = RunnableSequence.from([
         console.log('Successfully closed ticket')
       }
     } else if (result.action === 'assign_human') {
+      console.log('Assigning ticket to human agent...')
+      
+      // Log the context to see what we're getting
+      console.log('Context employees:', input.context.employees)
+      console.log('Organization ID:', input.organizationId)
+      
       // Get valid employees (filter out null names)
-      const validEmployees = input.context.employees.filter(emp => emp && emp.id && emp.name)
+      const validEmployees = input.context.employees.filter(emp => {
+        console.log('Checking employee:', emp)
+        const isValid = emp && emp.id && emp.name
+        console.log('Is valid employee?', isValid)
+        return isValid
+      })
+      
+      console.log('Valid employees found:', validEmployees.length)
       
       if (validEmployees.length === 0) {
         console.log('No valid employees found for assignment, continuing conversation')
         result.action = 'continue_conversation'
         result.reasoning += '\nNo available employees found for assignment. Continuing the conversation.'
       } else {
-        // Randomly select an employee from valid employees
-        const randomEmployee = validEmployees[Math.floor(Math.random() * validEmployees.length)]
+        // Simple random selection for now
+        const selectedEmployee = validEmployees[Math.floor(Math.random() * validEmployees.length)]
         
-        console.log('Assigning ticket to employee:', randomEmployee.name)
-        // Update ticket assignment using modify-ticket-for-agent
+        console.log('Selected employee for assignment:', selectedEmployee)
+        
+        // Update ticket assignment and disable AI
+        const assignPayload = {
+          ticket_id: input.ticketId,
+          assigned_to: selectedEmployee.id,
+          ai_enabled: false // Disable AI when assigning to human
+        }
+        console.log('Sending assignment payload:', assignPayload)
+        
         const assignResponse = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/modify-ticket-for-agent`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify({
-            ticket_id: input.ticketId,
-            assigned_to: randomEmployee.id
-          })
+          body: JSON.stringify(assignPayload)
+        })
+
+        const assignResponseData = await assignResponse.json()
+        console.log('Assignment response:', {
+          ok: assignResponse.ok,
+          status: assignResponse.status,
+          data: assignResponseData
         })
 
         if (!assignResponse.ok) {
-          const errorData = await assignResponse.json()
-          console.error('Failed to assign ticket:', errorData)
+          console.error('Failed to assign ticket:', assignResponseData)
           result.action = 'continue_conversation'
           result.reasoning += '\nAttempted to assign the ticket but encountered an error. Continuing the conversation.'
         } else {
           console.log('Successfully assigned ticket')
-          result.assignedEmployeeId = randomEmployee.id
-          result.assignedEmployeeName = randomEmployee.name
+          result.assignedEmployeeId = selectedEmployee.id
+          result.assignedEmployeeName = selectedEmployee.name
+          
+          // Add a note about the handoff
+          const handoffNote = `This ticket has been assigned to ${selectedEmployee.name}. They will review the conversation and assist you further.`
+          
+          // Create a system message about the handoff
+          const { data: noteData, error: noteError } = await supabase
+            .from('ticket_messages')
+            .insert({
+              ticket_id: input.ticketId,
+              organization_id: input.organizationId,
+              content: handoffNote,
+              sender_type: 'system',
+              metadata: {
+                event_type: 'human_handoff',
+                assigned_to: {
+                  id: selectedEmployee.id,
+                  name: selectedEmployee.name
+                }
+              }
+            })
+            .select()
+            .single()
+
+          if (noteError) {
+            console.error('Failed to create handoff note:', noteError)
+            // Don't throw error, just log it
+          } else {
+            console.log('Created handoff note:', noteData)
+          }
+
+          // Verify the AI status was updated
+          const { data: updatedTicket, error: verifyError } = await supabase
+            .from('tickets')
+            .select('ai_enabled, assigned_to')
+            .eq('id', input.ticketId)
+            .single()
+
+          console.log('Ticket status after assignment:', updatedTicket)
+          if (verifyError) {
+            console.error('Failed to verify ticket update:', verifyError)
+          }
         }
       }
     }

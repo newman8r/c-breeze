@@ -32,7 +32,8 @@ interface Database {
       employees: {
         Row: {
           id: string;
-          name: string;
+          first_name: string;
+          last_name: string;
           role: string;
         };
       };
@@ -120,23 +121,34 @@ serve(async (req) => {
     }
 
     // Get employees for the organization
+    console.log('Fetching employees for organization:', validatedInput.organizationId)
     const { data: employees, error: employeesError } = await supabase
       .from('employees')
-      .select('id, name, role')
+      .select('id, first_name, last_name, role')
       .eq('organization_id', validatedInput.organizationId)
 
     if (employeesError) {
+      console.error('Error fetching employees:', employeesError)
       throw new Error(`Failed to fetch employees: ${employeesError.message}`)
     }
 
+    console.log('Raw employees data:', employees)
+
     // Filter out invalid employees before validation
     const validEmployees = (employees || [])
-      .filter(emp => emp && emp.id && emp.name && emp.role)
+      .filter(emp => {
+        console.log('Checking employee validity:', emp)
+        const isValid = emp && emp.id && (emp.first_name || emp.last_name) && emp.role
+        console.log('Is valid?', isValid, 'id:', emp?.id, 'first_name:', emp?.first_name, 'last_name:', emp?.last_name, 'role:', emp?.role)
+        return isValid
+      })
       .map(emp => ({
         id: emp.id,
-        name: emp.name,
+        name: [emp.first_name, emp.last_name].filter(Boolean).join(' ') || 'Unknown',
         role: emp.role
       }))
+
+    console.log('Valid employees after filtering:', validEmployees)
 
     return new Response(
       JSON.stringify({
