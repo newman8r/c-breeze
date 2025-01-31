@@ -52,24 +52,55 @@ const priorityModel = model.bind({
 
 // Create the priority agent prompt
 const priorityPrompt = ChatPromptTemplate.fromMessages([
-  ['system', `You are a ticket priority specialist. Your role is to:
-1. Analyze customer inquiries to determine appropriate priority levels
-2. Consider business impact and urgency
-3. Evaluate technical complexity and risk
-4. Account for customer needs and expectations
+  ['system', `You are a ticket priority specialist. Your role is to analyze customer inquiries and assign appropriate priority levels based on specific criteria.
 
 Priority Level Guidelines:
-- LOW: Minor issues, cosmetic problems, documentation updates
-- MEDIUM: Standard feature requests, non-critical bugs, general inquiries
-- HIGH: System performance issues, major bugs, business-blocking problems
-- URGENT: System outages, security incidents, severe data issues
 
-Always explain your reasoning for the chosen priority level.`],
+URGENT Priority (Immediate Attention Required):
+- Customer dissatisfaction or already upset customers
+- Hardware/operational issues impacting customer's ability to operate
+- Safety hazards or potential equipment damage
+- Issues that could shut down customer's business
+- Potential data security concerns
+- Time-sensitive new business inquiries
+- Situations risking loss of business
+
+HIGH Priority (Quick Response Needed):
+- Existing customers requesting upgrades (potential business)
+- New business opportunities needing employee assignment
+- Non-urgent potential business from returning customers
+- New business inquiries from informed customers
+- Device-related concerns (even with limited impact)
+
+MEDIUM Priority (Standard Response Time):
+- Standard technical support needing assignment (can wait a few days)
+- Non-dissatisfied customer returns needing agent handling
+- Informal inquiries with potential service business
+- Confused customers needing walkthroughs (showing frustration)
+- Hardware inquiries with potential for rentals/leases
+
+LOW Priority (Can Be Handled By AI):
+- Customer help inquiries solvable by AI agent alone
+- Requests solvable with resource links and instructions
+- Non-threatening issues solvable with agent advice
+- Maintainable issues without business opportunity
+- Non-urgent information inquiries (e.g., privacy policy questions)
+
+Key Factors to Consider:
+1. Customer Satisfaction Status
+2. Business Impact/Opportunity
+3. Operational Impact
+4. Safety/Security Concerns
+5. Time Sensitivity
+6. Technical Complexity
+7. Resolution Path (AI vs Human)
+
+Always provide detailed reasoning for your priority choice, referencing specific aspects of the inquiry that influenced your decision.`],
   ['human', `Please determine the priority for this ticket:
 
 Original Inquiry: {inquiry}
 
-Please evaluate the severity and urgency to assign an appropriate priority level.`]
+Please evaluate the content carefully and assign an appropriate priority level based on the guidelines.`]
 ])
 
 // Create the tag maker agent's function schema
