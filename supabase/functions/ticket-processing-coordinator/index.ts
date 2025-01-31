@@ -62,45 +62,75 @@ URGENT Priority (Immediate Attention Required):
 - Safety hazards or potential equipment damage
 - Issues that could shut down customer's business
 - Potential data security concerns
-- Time-sensitive new business inquiries
+- Time-sensitive new business inquiries for multiple units/systems
+- Large-scale business opportunities needing immediate response
 - Situations risking loss of business
 
 HIGH Priority (Quick Response Needed):
-- Existing customers requesting upgrades (potential business)
-- New business opportunities needing employee assignment
-- Non-urgent potential business from returning customers
-- New business inquiries from informed customers
-- Device-related concerns (even with limited impact)
+*** ANY inquiry involving multiple units or systems must be HIGH priority ***
+- ANY mention of multiple device purchases or leases
+- ANY inquiry about bulk orders or volume pricing
+- ANY business expansion involving multiple systems
+- ANY fleet or group device management inquiries
+- ANY multi-location deployment discussions
+- Enterprise or business-wide solution inquiries
+- Returning customers discussing multiple purchases
+- New lease or contract discussions for multiple items
+- ANY upgrade opportunities involving more than one system
 
 MEDIUM Priority (Standard Response Time):
-- Standard technical support needing assignment (can wait a few days)
-- Non-dissatisfied customer returns needing agent handling
-- Informal inquiries with potential service business
-- Confused customers needing walkthroughs (showing frustration)
-- Hardware inquiries with potential for rentals/leases
+- Single unit purchases or leases
+- Individual device support with potential upgrade
+- One-off service requests
+- Single system maintenance inquiries
+- Individual user training requests
+- Basic service extension for single systems
+- Follow-up configuration for individual devices
+- Small-scale, single-unit opportunities
 
 LOW Priority (Can Be Handled By AI):
-- Customer help inquiries solvable by AI agent alone
-- Requests solvable with resource links and instructions
-- Non-threatening issues solvable with agent advice
-- Maintainable issues without business opportunity
-- Non-urgent information inquiries (e.g., privacy policy questions)
+- General product information requests
+- Basic how-to questions
+- Documentation requests
+- Account management queries
+- Non-business-related inquiries
+- Password resets or access issues
+- General feedback or suggestions
 
-Key Factors to Consider:
-1. Customer Satisfaction Status
-2. Business Impact/Opportunity
-3. Operational Impact
-4. Safety/Security Concerns
-5. Time Sensitivity
-6. Technical Complexity
-7. Resolution Path (AI vs Human)
+Key Business Opportunity Indicators:
+1. Quantity is CRITICAL:
+   - If inquiry mentions ANY of these, rate as HIGH:
+     * Multiple units
+     * Bulk purchases
+     * Fleet management
+     * Multi-location deployment
+     * Company-wide solutions
+     * Volume pricing
+     * Multiple system upgrades
 
-Always provide detailed reasoning for your priority choice, referencing specific aspects of the inquiry that influenced your decision.`],
+2. Customer Type/Size:
+   - HIGH: Enterprise, multi-location business
+   - MEDIUM: Single location business
+   - LOW: Individual user
+
+3. Purchase Timeline:
+   - HIGH: Immediate or short-term purchase intent
+   - MEDIUM: Medium-term consideration
+   - LOW: No clear purchase timeline
+
+4. Business Impact:
+   - HIGH: Multiple users/departments affected
+   - MEDIUM: Single department/location impact
+   - LOW: Individual user impact
+
+IMPORTANT: The mention of multiple units or systems ALWAYS overrides other factors and makes the ticket HIGH priority, regardless of other circumstances.
+
+Always provide detailed reasoning for your priority choice, with specific emphasis on quantity and scale of potential business opportunity.`],
   ['human', `Please determine the priority for this ticket:
 
 Original Inquiry: {inquiry}
 
-Please evaluate the content carefully and assign an appropriate priority level based on the guidelines.`]
+Please evaluate the content carefully and assign an appropriate priority level based on the guidelines, remembering that ANY mention of multiple units automatically makes it HIGH priority.`]
 ])
 
 // Create the tag maker agent's function schema
