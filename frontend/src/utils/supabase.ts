@@ -116,24 +116,17 @@ export const getRecentOrganizationTickets = async (organizationId: string) => {
         }
       : null;
 
-    // Transform ticket_tags to match the expected structure
-    const ticket_tags = (ticket.ticket_tags || []).map(tt => {
-      const tagData = tt.tag[0] || tt.tag; // Handle both array and single object cases
+    // Transform ticket_tags to match the Tag interface
+    const tags = (ticket.ticket_tags || []).map(tt => {
+      const tagData = tt.tag[0] || tt.tag;
       return {
-        tag: {
-          id: tagData.id as string,
-          name: tagData.name as string,
-          color: tagData.color as string
-        }
+        id: tagData.id as string,
+        name: tagData.name as string,
+        color: tagData.color as string,
+        description: '', // Required by Tag interface
+        type: 'custom' as const // Required by Tag interface
       };
     });
-
-    // Create UI tags array
-    const tags = ticket_tags.map(tt => ({
-      ...tt.tag,
-      description: '',
-      type: 'custom' as const
-    }));
 
     return {
       id: ticket.id as string,
@@ -148,13 +141,15 @@ export const getRecentOrganizationTickets = async (organizationId: string) => {
       satisfaction_rating: ticket.satisfaction_rating as number | null,
       ai_enabled: ticket.ai_enabled ?? true,
       customer: {
-        id: customer.id as string,
         name: customer.name as string,
         email: customer.email as string
       },
-      assigned_employee,
-      ticket_tags,
-      tags,
+      assigned_employee: assigned_employee ? {
+        id: assigned_employee.id,
+        first_name: assigned_employee.first_name,
+        last_name: assigned_employee.last_name
+      } : null,
+      tags
     };
   });
   
