@@ -60,7 +60,9 @@ serve(async (req) => {
         priority: requestBody.priority,
         assigned_to: requestBody.assigned_to,
         satisfaction_rating: requestBody.satisfaction_rating,
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
+        // Disable AI when assigning to a human
+        ai_enabled: requestBody.assigned_to ? false : undefined
       })
       .eq('id', requestBody.ticket_id)
       .select()

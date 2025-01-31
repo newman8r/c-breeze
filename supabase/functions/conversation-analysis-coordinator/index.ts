@@ -372,6 +372,34 @@ const analysisChain = RunnableSequence.from([
           console.log('Successfully assigned ticket')
           result.assignedEmployeeId = selectedEmployee.id
           result.assignedEmployeeName = selectedEmployee.name
+
+          // Verify the AI status was updated
+          const { data: updatedTicket, error: verifyError } = await supabase
+            .from('tickets')
+            .select('ai_enabled, assigned_to')
+            .eq('id', input.ticketId)
+            .single()
+
+          console.log('Ticket status after assignment:', updatedTicket)
+          
+          // If AI is still enabled, try to disable it directly
+          if (updatedTicket?.ai_enabled) {
+            console.log('AI still enabled after assignment, attempting direct update')
+            const { error: updateError } = await supabase
+              .from('tickets')
+              .update({ ai_enabled: false })
+              .eq('id', input.ticketId)
+
+            if (updateError) {
+              console.error('Failed to disable AI directly:', updateError)
+            } else {
+              console.log('Successfully disabled AI directly')
+            }
+          }
+
+          if (verifyError) {
+            console.error('Failed to verify ticket update:', verifyError)
+          }
           
           // Add a note about the handoff
           const handoffNote = `This ticket has been assigned to ${selectedEmployee.name}. They will review the conversation and assist you further.`
@@ -386,10 +414,8 @@ const analysisChain = RunnableSequence.from([
               sender_type: 'system',
               metadata: {
                 event_type: 'human_handoff',
-                assigned_to: {
-                  id: selectedEmployee.id,
-                  name: selectedEmployee.name
-                }
+                assigned_to: selectedEmployee.id,
+                ai_disabled: true
               }
             })
             .select()
@@ -397,21 +423,8 @@ const analysisChain = RunnableSequence.from([
 
           if (noteError) {
             console.error('Failed to create handoff note:', noteError)
-            // Don't throw error, just log it
           } else {
             console.log('Created handoff note:', noteData)
-          }
-
-          // Verify the AI status was updated
-          const { data: updatedTicket, error: verifyError } = await supabase
-            .from('tickets')
-            .select('ai_enabled, assigned_to')
-            .eq('id', input.ticketId)
-            .single()
-
-          console.log('Ticket status after assignment:', updatedTicket)
-          if (verifyError) {
-            console.error('Failed to verify ticket update:', verifyError)
           }
         }
       }
