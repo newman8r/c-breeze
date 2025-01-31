@@ -15,7 +15,6 @@ import TicketFeed from '@/components/tickets/TicketFeed'
 import { Ticket, SelectedTicket, CreateTicketForm } from '@/types/ticket'
 import { FullScreenKnowledgeBase } from '@/components/knowledge/FullScreenKnowledgeBase'
 import type { Ticket as DashboardTicket } from '@/types/ticket'
-import type { FullScreenTicketProps } from '@/components/tickets/FullScreenTicket'
 
 // Types for our data
 interface Profile {
