@@ -100,19 +100,38 @@ export const getRecentOrganizationTickets = async (organizationId: string) => {
   }
   
   // Transform the tickets to include tags array and fix customer/employee relations
-  const transformedTickets = tickets.map(ticket => ({
-    ...ticket,
-    // Take first item from customer array since it's a single relation
-    customer: Array.isArray(ticket.customer) && ticket.customer.length > 0 ? ticket.customer[0] : null,
-    // Take first item from assigned_employee array since it's a single relation
-    assigned_employee: Array.isArray(ticket.assigned_employee) && ticket.assigned_employee.length > 0 ? ticket.assigned_employee[0] : null,
-    // Transform tags as before
-    tags: (ticket.ticket_tags || []).map((tt: { tag: any }) => ({
-      ...tt.tag,
-      description: '', // Add required fields from Tag interface
-      type: 'custom' as const // Add required fields from Tag interface
-    }))
-  }))
+  const transformedTickets = tickets.map(ticket => {
+    // Get the customer object
+    const customer = Array.isArray(ticket.customer) && ticket.customer.length > 0 
+      ? ticket.customer[0] 
+      : { id: '', name: '', email: '' };  // Provide default values to match interface
+
+    // Get the assigned employee object
+    const assigned_employee = Array.isArray(ticket.assigned_employee) && ticket.assigned_employee.length > 0 
+      ? ticket.assigned_employee[0] 
+      : null;
+
+    return {
+      id: ticket.id,
+      title: ticket.title,
+      description: ticket.description,
+      status: ticket.status,
+      priority: ticket.priority,
+      created_at: ticket.created_at,
+      updated_at: ticket.updated_at,
+      organization_id: ticket.organization_id,
+      customer_id: ticket.customer_id,
+      satisfaction_rating: ticket.satisfaction_rating,
+      customer,
+      assigned_employee,
+      ticket_tags: ticket.ticket_tags || [],
+      tags: (ticket.ticket_tags || []).map((tt: { tag: any }) => ({
+        ...tt.tag,
+        description: '', // Add required fields from Tag interface
+        type: 'custom' as const // Add required fields from Tag interface
+      }))
+    };
+  });
   
   console.log('Fetched and transformed tickets:', transformedTickets)
   return transformedTickets
