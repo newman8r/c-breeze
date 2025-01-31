@@ -460,23 +460,32 @@ const coordinatorPrompt = ChatPromptTemplate.fromMessages([
 - Using emojis to enhance (not decorate) meaning
 
 When creating support tickets:
-1. Write titles that are clear and action-oriented
+1. Write titles that are customer-friendly and descriptive:
+   - 3-7 words maximum
+   - Focus on the customer's need or issue
+   - Use clear, non-technical language
+   - Avoid internal/employee-facing details
+   - Make it easy for customers to identify their ticket
+
 2. Keep descriptions concise and direct
 3. Use natural language, not corporate speak
 4. Include translations if needed (but keep them equally conversational)
 
-Examples of good responses:
-✅ "Your login is locked - let's get you back in 🔐"
-✅ "Found the billing error! Here's what happened..."
-✅ "Quick fix for your image upload issue 🖼️"
+Examples of good titles:
+✅ "Reset Password for Login"
+✅ "Billing Statement Missing"
+✅ "Can't Upload Profile Picture"
+✅ "Questions About Premium Plan"
+✅ "Device Not Connecting"
 
-Examples to avoid:
-❌ "Thank you for submitting a ticket regarding..."
-❌ "We have received your inquiry about..."
-❌ "Dear valued customer..."
-❌ "Please be advised that..."
+Examples of bad titles:
+❌ "New customer inquiry about product features"
+❌ "Potential business opportunity needs employee review"
+❌ "Customer requesting information - assign to sales"
+❌ "Technical issue needs investigation by support team"
+❌ "Follow up required - customer satisfaction priority"
 
-Remember: Write like you're messaging a colleague - professional but direct and natural.`],
+Remember: Titles should help customers quickly identify their issue when viewing their tickets.`],
   new MessagesPlaceholder('agent_scratchpad'),
   ['human', '{input}']
 ])
@@ -608,6 +617,78 @@ const updateTicket = async (state: any) => {
   }
 }
 
+// Add title generation schema
+const titleGeneratorSchema = {
+  name: 'generate_ticket_title',
+  description: 'Generate a customer-friendly title for a support ticket',
+  parameters: {
+    type: 'object',
+    properties: {
+      title: {
+        type: 'string',
+        description: 'A clear, concise title (3-7 words) that describes the customer inquiry from the customer\'s perspective'
+      },
+      reasoning: {
+        type: 'string',
+        description: 'Explanation of why this title was chosen'
+      }
+    },
+    required: ['title', 'reasoning']
+  }
+} as const
+
+// Initialize title generator model
+const titleModel = model.bind({
+  functions: [titleGeneratorSchema],
+  function_call: { name: 'generate_ticket_title' }
+})
+
+// Create title generator prompt
+const titlePrompt = ChatPromptTemplate.fromMessages([
+  ['system', `You are a ticket title specialist. Your role is to create customer-friendly titles for support tickets.
+
+Guidelines for titles:
+- Use 3-7 words maximum
+- Focus on the customer's need or issue
+- Use clear, non-technical language
+- Avoid internal/employee-facing details
+- Make it easy for customers to identify their ticket
+
+Examples of good titles:
+✅ "Reset Password for Login"
+✅ "Billing Statement Missing"
+✅ "Can't Upload Profile Picture"
+✅ "Questions About Premium Plan"
+✅ "Device Not Connecting"
+
+Examples of bad titles:
+❌ "New customer inquiry about product features"
+❌ "Potential business opportunity needs employee review"
+❌ "Customer requesting information - assign to sales"
+❌ "Technical issue needs investigation by support team"
+❌ "Follow up required - customer satisfaction priority"
+
+Remember: Titles should help customers quickly identify their issue when viewing their tickets.`],
+  ['human', `Please generate a customer-friendly title for this inquiry:
+
+{inquiry}
+
+Generate a title that the customer would easily recognize as their issue.`]
+])
+
+// Create the title generation chain
+const titleChain = RunnableSequence.from([
+  titlePrompt,
+  titleModel,
+  // Extract the function call arguments and parse them
+  (response) => {
+    if (!response.additional_kwargs?.function_call?.arguments) {
+      throw new Error('No function call arguments found in response')
+    }
+    return JSON.parse(response.additional_kwargs.function_call.arguments)
+  }
+])
+
 // Create the main analysis chain
 const mainAnalysisChain = RunnableSequence.from([
   // Phase 1: Initial Setup and Analysis Record Creation
@@ -622,10 +703,15 @@ const mainAnalysisChain = RunnableSequence.from([
     const analysisId = crypto.randomUUID()
     const startTime = new Date().toISOString()
 
+    // Generate a customer-friendly title
+    const titleResult = await titleChain.invoke({
+      inquiry: input.customerInquiry
+    })
+
     // Create initial ticket
     const ticketResult = await createTicket(
       input.organizationId,
-      input.customerInquiry,
+      titleResult.title,
       input.customerInquiry,
       'medium', // Default priority, will be updated by processing
       'general',
@@ -634,7 +720,8 @@ const mainAnalysisChain = RunnableSequence.from([
       {
         analysisId,
         startTime,
-        processedAt: startTime
+        processedAt: startTime,
+        titleReasoning: titleResult.reasoning
       },
       true
     )
