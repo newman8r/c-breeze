@@ -144,6 +144,12 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
                 if (refreshResponse.ok) {
                   const refreshData = await refreshResponse.json();
                   setTickets(refreshData.tickets);
+                  
+                  // Automatically expand the new ticket
+                  setExpandedTickets(prev => ({
+                    ...prev,
+                    [payload.new.id]: true
+                  }));
                 }
               }
             }
