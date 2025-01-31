@@ -1238,7 +1238,15 @@ export default function DashboardPage() {
           const foundTicket = tickets.find(t => t.id === selectedTicket.id);
           return foundTicket ? (
             <FullScreenTicket
-              ticket={foundTicket}
+              ticket={{
+                ...foundTicket,
+                tags: foundTicket.ticket_tags?.map(tt => ({
+                  ...tt.tag,
+                  description: '',
+                  type: 'custom' as const
+                })) || [],
+                ai_enabled: false
+              }}
               onClose={() => setSelectedTicket({ id: '', isOpen: false })}
             />
           ) : null;
