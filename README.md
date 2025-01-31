@@ -18,6 +18,16 @@
 - Real-time database connection status
 - User dashboard and profile
 - 3 ticketing feed views to give you a birds eye view
+- RAG document storage/retrieval
+- Multi Agent system
+- AI ticket classification
+- AI ticket triage
+- AI ticket resolution
+- AI ticket prioritization
+- AI ticket assignment
+- tracking with custom tags in langsmith
+- toggle AI agents for any ticket
+
 
 ## Tech Stack
 

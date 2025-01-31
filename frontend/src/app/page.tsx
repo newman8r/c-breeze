@@ -3,6 +3,9 @@
 import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { useUser } from '@/contexts/UserContext'
+import { useEffect } from 'react'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { useRouter } from 'next/navigation'
 
 // Feature section interface for type safety
 interface FeatureSection {
@@ -156,6 +159,34 @@ const BauhausShape = ({ shape, color, className = '' }: BauhausShapeProps) => {
  */
 export default function Home() {
   const { user, loading } = useUser()
+  const supabase = createClientComponentClient()
+  const router = useRouter()
+
+  useEffect(() => {
+    const clearSession = async () => {
+      try {
+        // Only clear if there's actually a user session
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session) {
+          // Sign out the user
+          await supabase.auth.signOut()
+          
+          // Clear any local storage items
+          localStorage.clear()
+          
+          // Clear any session storage items
+          sessionStorage.clear()
+          
+          // Force reload to ensure clean state
+          router.refresh()
+        }
+      } catch (error) {
+        console.error('Error clearing session:', error)
+      }
+    }
+
+    clearSession()
+  }, [supabase, router])
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#E0F2F7] via-[#4A90E2]/10 to-[#F7F3E3] relative overflow-hidden">

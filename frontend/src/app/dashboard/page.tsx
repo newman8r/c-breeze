@@ -13,7 +13,6 @@ import FullScreenTicket from '@/components/tickets/FullScreenTicket'
 import styles from './dashboard.module.css'
 import TicketFeed from '@/components/tickets/TicketFeed'
 import { Ticket, SelectedTicket, CreateTicketForm } from '@/types/ticket'
-import { FullScreenKnowledgeBase } from '@/components/knowledge/FullScreenKnowledgeBase'
 
 // Types for our data
 interface Profile {
@@ -361,6 +360,18 @@ const cardVariants = {
   visible: { opacity: 1, y: 0 }
 }
 
+// Add the container variants definition
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      delayChildren: 0.3,
+      staggerChildren: 0.2
+    }
+  }
+}
+
 /**
  * Dashboard Page Component
  * 
@@ -373,7 +384,6 @@ export default function DashboardPage() {
   const [userProfile, setUserProfile] = useState<Profile | null>(null)
   const [tickets, setTickets] = useState<Ticket[]>([])
   const [ticketsLoading, setTicketsLoading] = useState(true)
-  const [isCopilotMinimized, setIsCopilotMinimized] = useState(false)
   const { role, isRootAdmin, organizationId } = useRole()
   const [expandedTickets, setExpandedTickets] = useState<ExpandedStates>({});
   const [zoomLevel, setZoomLevel] = useState<1 | 2 | 3>(2);
@@ -388,7 +398,6 @@ export default function DashboardPage() {
   const [selectedTicket, setSelectedTicket] = useState<SelectedTicket>({ id: '', isOpen: false });
   const [isStatusOpen, setIsStatusOpen] = useState(false);
   const [isPriorityOpen, setIsPriorityOpen] = useState(false);
-  const [showKnowledgeBase, setShowKnowledgeBase] = useState(false);
   const [satisfactionStats, setSatisfactionStats] = useState<SatisfactionStats>({
     last24Hours: null,
     lastWeek: null,
@@ -669,11 +678,12 @@ export default function DashboardPage() {
           </motion.div>
         </div>
 
-        {/* Quick Stats Grid */}
+        {/* Quick Stats Grid with containerVariants */}
         <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
+          className="grid grid-cols-4 gap-4"
+          variants={containerVariants}
+          initial="hidden"
+          animate="visible"
         >
           <div className="ocean-card relative overflow-hidden">
             <BauhausShape color="#FF7676" type="circle" />
@@ -804,299 +814,7 @@ export default function DashboardPage() {
               </div>
             </div>
           </motion.div>
-
-          {/* Knowledge Base Card */}
-          <motion.div
-            className="ocean-card col-span-2"
-            variants={cardVariants}
-          >
-            <div className="flex justify-between items-start mb-4">
-              <div>
-                <h3 className="text-xl font-bold text-[#2C5282] mb-2">Knowledge Base</h3>
-                <p className="text-[#4A5568]">AI-powered documentation and resources</p>
-              </div>
-              <button 
-                onClick={() => setShowKnowledgeBase(true)}
-                className={`${styles.waveButton} px-4 py-2`}
-              >
-                View All
-              </button>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4 mb-6">
-              <div className="bg-white/50 p-4 rounded-lg">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[#4A5568] font-medium">Total Documents</span>
-                  <span className="text-2xl">📄</span>
-                </div>
-                <p className="text-2xl font-bold text-[#2C5282]">24</p>
-                <p className="text-sm text-[#4A5568]">Across 5 categories</p>
-              </div>
-              <div className="bg-white/50 p-4 rounded-lg">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[#4A5568] font-medium">AI Usage</span>
-                  <span className="text-2xl">🤖</span>
-                </div>
-                <p className="text-2xl font-bold text-[#2C5282]">89%</p>
-                <p className="text-sm text-[#4A5568]">Response accuracy</p>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <div className="flex items-center justify-between p-3 bg-white/30 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <span className="text-xl">📘</span>
-                  <div>
-                    <p className="font-medium text-[#2C5282]">Getting Started Guide</p>
-                    <p className="text-sm text-[#4A5568]">Used in 156 AI responses</p>
-                  </div>
-                </div>
-                <div className="text-sm text-[#4A5568]">Updated 2d ago</div>
-              </div>
-              <div className="flex items-center justify-between p-3 bg-white/30 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <span className="text-xl">📗</span>
-                  <div>
-                    <p className="font-medium text-[#2C5282]">API Documentation</p>
-                    <p className="text-sm text-[#4A5568]">Used in 89 AI responses</p>
-                  </div>
-                </div>
-                <div className="text-sm text-[#4A5568]">Updated 5d ago</div>
-              </div>
-              <div className="flex items-center justify-between p-3 bg-white/30 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <span className="text-xl">📙</span>
-                  <div>
-                    <p className="font-medium text-[#2C5282]">Troubleshooting Guide</p>
-                    <p className="text-sm text-[#4A5568]">Used in 234 AI responses</p>
-                  </div>
-                </div>
-                <div className="text-sm text-[#4A5568]">Updated 1w ago</div>
-              </div>
-            </div>
-          </motion.div>
-
-          {/* Trending Topics */}
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5 }}
-            className="ocean-card col-span-2"
-          >
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold text-[#2C5282]">Trending Topics</h2>
-              <Link href="/trends" className="text-[#4A90E2] hover:text-[#2C5282] transition-colors">
-                View Analysis →
-              </Link>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              {mockStats.trends.topics.map((topic, index) => (
-                <div key={index} className="p-4 bg-white/50 rounded-lg hover:bg-white/70 transition-colors">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-medium text-[#2C5282]">{topic.topic}</h3>
-                      {topic.trend === 'up' && (
-                        <span className="text-[#FF7676]">↑</span>
-                      )}
-                      {topic.trend === 'down' && (
-                        <span className="text-[#50C878]">↓</span>
-                      )}
-                      {topic.trend === 'stable' && (
-                        <span className="text-[#4A90E2]">→</span>
-                      )}
-                    </div>
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium
-                      ${topic.sentiment === 'positive' ? 'bg-[#50C878]/10 text-[#50C878]' :
-                        topic.sentiment === 'negative' ? 'bg-[#FF7676]/10 text-[#FF7676]' :
-                        'bg-[#4A90E2]/10 text-[#4A90E2]'}`}
-                    >
-                      {topic.count} issues
-                    </span>
-                  </div>
-                  <div className="flex flex-wrap gap-2 mb-2">
-                    {topic.keywords.map((keyword, kidx) => (
-                      <span 
-                        key={kidx}
-                        className="px-2 py-1 bg-white/50 rounded-full text-xs text-[#4A5568]"
-                      >
-                        {keyword}
-                      </span>
-                    ))}
-                  </div>
-                  <div className="text-xs text-[#4A5568] mt-2">
-                    Trending {topic.timeframe}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </motion.div>
-
-          {/* AI Agents */}
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.6 }}
-            className="ocean-card col-span-2"
-          >
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold text-[#2C5282]">AI Support Agents</h2>
-              <Link href="/ai-agents" className="text-[#4A90E2] hover:text-[#2C5282] transition-colors">
-                Manage Agents →
-              </Link>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="p-4 bg-white/50 rounded-lg">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-8 h-8 rounded-full bg-[#4A90E2]/20 flex items-center justify-center">
-                    🤖
-                  </div>
-                  <div>
-                    <h3 className="font-medium text-[#2C5282]">Technical Support AI</h3>
-                    <p className="text-xs text-[#4A5568]">Active</p>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-[#4A5568]">Tickets Handled</span>
-                    <span className="text-[#2C5282] font-medium">127</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-[#4A5568]">Avg Response Time</span>
-                    <span className="text-[#2C5282] font-medium">30s</span>
-                  </div>
-                </div>
-              </div>
-              <div className="p-4 bg-white/50 rounded-lg">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-8 h-8 rounded-full bg-[#50C878]/20 flex items-center justify-center">
-                    🤖
-                  </div>
-                  <div>
-                    <h3 className="font-medium text-[#2C5282]">Billing Support AI</h3>
-                    <p className="text-xs text-[#4A5568]">Active</p>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-[#4A5568]">Tickets Handled</span>
-                    <span className="text-[#2C5282] font-medium">89</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-[#4A5568]">Avg Response Time</span>
-                    <span className="text-[#2C5282] font-medium">45s</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </motion.div>
         </div>
-
-        {/* AI Copilot Chat */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.6 }}
-          className="fixed bottom-6 right-6 z-50"
-        >
-          <motion.div
-            className={`ocean-card transition-all duration-300 ease-in-out bg-gradient-to-r from-[#E0F2F7] to-[#F7F3E3] ${
-              isCopilotMinimized ? 'py-2 px-4' : 'w-96'
-            }`}
-            animate={{
-              height: isCopilotMinimized ? '40px' : '400px',
-              width: isCopilotMinimized ? '180px' : '384px',
-            }}
-            transition={{
-              type: "spring",
-              stiffness: 300,
-              damping: 30
-            }}
-          >
-            <div className={`flex justify-between items-center ${!isCopilotMinimized && 'mb-4'}`}>
-              <motion.div 
-                className="flex items-center gap-2"
-                animate={{ 
-                  width: isCopilotMinimized ? 'auto' : '100%'
-                }}
-              >
-                <span className="text-xl">🤖</span>
-                <h3 className="text-[#2C5282] whitespace-nowrap flex items-center">
-                  <span className={isCopilotMinimized ? 'text-sm font-medium' : 'text-lg font-bold'}>
-                    AI Copilot
-                  </span>
-                  {isCopilotMinimized && (
-                    <span className="ml-2 text-xs font-normal text-[#4A5568] opacity-75">
-                      Ready
-                    </span>
-                  )}
-                </h3>
-              </motion.div>
-              <button 
-                onClick={() => setIsCopilotMinimized(!isCopilotMinimized)}
-                className="text-[#4A5568] hover:text-[#2C5282] transition-colors p-1 rounded-full hover:bg-white/50"
-              >
-                <span className="sr-only">
-                  {isCopilotMinimized ? 'Expand' : 'Minimize'}
-                </span>
-                <motion.svg 
-                  className={`${isCopilotMinimized ? 'w-4 h-4' : 'w-5 h-5'}`}
-                  fill="none" 
-                  stroke="currentColor" 
-                  viewBox="0 0 24 24"
-                  animate={{ 
-                    rotate: isCopilotMinimized ? 180 : 0 
-                  }}
-                >
-                  <path 
-                    strokeLinecap="round" 
-                    strokeLinejoin="round" 
-                    strokeWidth={2} 
-                    d="M19 9l-7 7-7-7" 
-                  />
-                </motion.svg>
-              </button>
-            </div>
-            
-            <motion.div
-              animate={{
-                height: isCopilotMinimized ? 0 : 'auto',
-                opacity: isCopilotMinimized ? 0 : 1
-              }}
-              transition={{
-                duration: 0.2,
-                opacity: { duration: 0.15 }
-              }}
-              className="overflow-hidden"
-            >
-              <div className="h-64 overflow-y-auto mb-4 space-y-4">
-                {mockStats.aiChat.map((message: ChatMessage, index: number) => (
-                  <div key={index} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[80%] p-3 rounded-lg ${
-                      message.role === 'user' 
-                        ? 'bg-[#4A90E2] text-white ml-4' 
-                        : 'bg-white/60 text-[#4A5568] mr-4'
-                    }`}>
-                      <p className="whitespace-pre-line">{message.message}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  placeholder="Ask anything..."
-                  className="flex-1 px-4 py-2 rounded-lg border border-[#4A90E2]/20 
-                           focus:outline-none focus:ring-2 focus:ring-[#4A90E2]/40
-                           bg-white/50 backdrop-blur-sm"
-                />
-                <button className={`${styles.waveButton} px-4 py-2`}>
-                  Send
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        </motion.div>
 
         {/* Add Create Ticket Modal */}
         {isCreateTicketOpen && (
@@ -1251,13 +969,6 @@ export default function DashboardPage() {
             />
           ) : null;
         })()}
-
-        {/* Knowledge Base Modal */}
-        <AnimatePresence>
-          {showKnowledgeBase && (
-            <FullScreenKnowledgeBase onClose={() => setShowKnowledgeBase(false)} />
-          )}
-        </AnimatePresence>
       </div>
     </div>
   )
