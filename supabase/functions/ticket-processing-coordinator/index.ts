@@ -46,6 +46,8 @@ const priorityAgentSchema = {
 const priorityModel = model.bind({
   functions: [priorityAgentSchema],
   function_call: { name: 'determine_ticket_priority' }
+}).withConfig({
+  tags: ["ticket-priority", "priority-agent"]
 })
 
 // Create the priority agent prompt
@@ -369,6 +371,8 @@ const ticketProcessingChain = RunnableSequence.from([
     console.log('Determining priority...')
     const priorityResponse = await priorityPrompt.pipe(priorityModel).invoke({
       inquiry: input.originalInquiry
+    }, {
+      tags: ["priority-determination", "ticket-processing"]
     })
 
     // Parse function call result
