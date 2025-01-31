@@ -546,7 +546,10 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
       <header className={styles.header}>
         <div className={styles.headerContent}>
           <div className={styles.headerDecorative} />
-          <h1>Welcome to {company} Support 🌊</h1>
+          <h1 className={styles.companyTitle}>
+            <span className={styles.companyName}>{company}</span>
+            <span className={styles.supportText}>Support</span>
+          </h1>
           <p className={styles.welcomeText}>How can we help you today?</p>
         </div>
         

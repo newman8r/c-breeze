@@ -666,4 +666,52 @@
 @keyframes bobHead {
   0%, 100% { transform: translateX(-50%) translateY(0); }
   50% { transform: translateX(-50%) translateY(-4px); }
+}
+
+.companyTitle {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  margin: 0;
+  position: relative;
+}
+
+.companyName {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: #2C5282;
+  position: relative;
+}
+
+.companyName::after {
+  content: '';
+  position: absolute;
+  bottom: -4px;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(90deg, #4A90E2, transparent);
+  transform-origin: left;
+  animation: waveFlow 2s ease-in-out infinite;
+}
+
+.supportText {
+  font-size: 2rem;
+  font-weight: 500;
+  color: #4A90E2;
+}
+
+@keyframes waveFlow {
+  0% {
+    transform: scaleX(0.2);
+    opacity: 0;
+  }
+  50% {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+  100% {
+    transform: scaleX(0.2);
+    opacity: 0;
+  }
 } 
