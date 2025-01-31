@@ -14,6 +14,8 @@ import styles from './dashboard.module.css'
 import TicketFeed from '@/components/tickets/TicketFeed'
 import { Ticket, SelectedTicket, CreateTicketForm } from '@/types/ticket'
 import { FullScreenKnowledgeBase } from '@/components/knowledge/FullScreenKnowledgeBase'
+import type { Ticket as DashboardTicket } from '@/types/ticket'
+import type { FullScreenTicketProps } from '@/components/tickets/FullScreenTicket'
 
 // Types for our data
 interface Profile {
@@ -360,6 +362,63 @@ const cardVariants = {
   hidden: { opacity: 0, y: 20 },
   visible: { opacity: 1, y: 0 }
 }
+
+// Define the FullScreenTicket's Ticket interface
+interface Tag {
+  id: string;
+  name: string;
+  description: string;
+  color: string;
+  type: 'system' | 'custom';
+}
+
+interface FullScreenTicket {
+  id: string;
+  title: string;
+  description: string;
+  status: string;
+  priority: string;
+  created_at: string;
+  category?: string;
+  tags: Tag[];
+  satisfaction_rating: number | null;
+  customer?: {
+    name: string;
+    email: string;
+  };
+  assigned_employee?: {
+    id: string;
+    first_name: string;
+    last_name: string;
+  } | null;
+  ai_enabled: boolean;
+}
+
+// Helper function to convert dashboard Ticket to FullScreenTicket format
+const toFullScreenTicket = (ticket: DashboardTicket): FullScreenTicket => {
+  return {
+    id: ticket.id,
+    title: ticket.title,
+    description: ticket.description,
+    status: ticket.status,
+    priority: ticket.priority,
+    created_at: ticket.created_at,
+    satisfaction_rating: ticket.satisfaction_rating,
+    customer: ticket.customer ? {
+      name: ticket.customer.name,
+      email: ticket.customer.email
+    } : undefined,
+    assigned_employee: ticket.assigned_employee,
+    tags: (ticket.ticket_tags || []).map(tt => ({
+      id: tt.tag.id,
+      name: tt.tag.name,
+      color: tt.tag.color,
+      description: '',
+      type: 'custom' as const
+    })),
+    ai_enabled: true
+  };
+};
 
 /**
  * Dashboard Page Component
@@ -1238,7 +1297,7 @@ export default function DashboardPage() {
           const foundTicket = tickets.find(t => t.id === selectedTicket.id);
           return foundTicket ? (
             <FullScreenTicket
-              ticket={foundTicket}
+              ticket={toFullScreenTicket(foundTicket)}
               onClose={() => setSelectedTicket({ id: '', isOpen: false })}
             />
           ) : null;
