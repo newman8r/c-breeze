@@ -71,17 +71,39 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
   const supabase = getSupabaseBrowserClient();
 
   useEffect(() => {
-    // Check URL for pending ticket parameter
+    // Only show pending state if explicitly requested AND no tickets exist yet
     const urlParams = new URLSearchParams(window.location.search);
-    const pendingTicket = urlParams.get('pendingTicket') === 'true';
-    setHasPendingTicket(pendingTicket);
+    const pendingTicket = urlParams.get('pendingTicket');
+    
+    // More strict validation to prevent false positives
+    setHasPendingTicket(
+      pendingTicket === 'true' && 
+      tickets.length === 0 && 
+      !loading
+    );
 
-    // Remove the parameter from URL
+    // Clean up URL parameter
     if (pendingTicket) {
-      urlParams.delete('pendingTicket');
-      window.history.replaceState({}, '', `${window.location.pathname}?${urlParams.toString()}`);
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.delete('pendingTicket');
+      window.history.replaceState({}, '', newUrl.toString());
     }
-  }, []);
+  }, [tickets, loading]); // Add dependencies to ensure proper updates
+
+  // Add a safety cleanup for the pending state
+  useEffect(() => {
+    // If we have tickets, ensure pending state is false
+    if (tickets.length > 0) {
+      setHasPendingTicket(false);
+    }
+
+    // Safety timeout to hide pending state after 30 seconds
+    const timeoutId = setTimeout(() => {
+      setHasPendingTicket(false);
+    }, 30000);
+
+    return () => clearTimeout(timeoutId);
+  }, [tickets]);
 
   useEffect(() => {
     async function fetchTickets() {
@@ -242,6 +264,8 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
       } catch (err) {
         console.error('Error fetching tickets:', err);
         setError(err instanceof Error ? err.message : 'An error occurred');
+        // Ensure pending state is false on error
+        setHasPendingTicket(false);
       } finally {
         setLoading(false);
       }
@@ -570,7 +594,8 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
       </header>
 
       <main className={styles.main}>
-        {hasPendingTicket && (
+        {/* Only show processing card if explicitly pending AND no tickets exist */}
+        {hasPendingTicket && tickets.length === 0 && (
           <div className={styles.ticketCard}>
             <div className={styles.processingCard}>
               <div className={styles.robotAnimation}>
