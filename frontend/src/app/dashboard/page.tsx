@@ -396,35 +396,54 @@ interface FullScreenTicket {
 }
 
 // Helper function to convert dashboard Ticket to FullScreenTicket format
-const toFullScreenTicket = (ticket: DashboardTicket): FullScreenTicket => ({
-  id: ticket.id,
-  title: ticket.title,
-  description: ticket.description,
-  status: ticket.status,
-  priority: ticket.priority,
-  created_at: ticket.created_at,
-  satisfaction_rating: ticket.satisfaction_rating,
-  customer: ticket.customer && {
+const toFullScreenTicket = (ticket: DashboardTicket): FullScreenTicket => {
+  // First ensure customer is properly formatted
+  const customerData = ticket.customer ? {
     name: ticket.customer.name,
     email: ticket.customer.email,
-    // Optional fields
-    company: undefined,
-    phone: undefined
-  },
-  assigned_employee: ticket.assigned_employee ? {
+    company: undefined,  // Optional field
+    phone: undefined    // Optional field
+  } : undefined;
+
+  // Ensure assigned employee is properly formatted
+  const assignedEmployeeData = ticket.assigned_employee ? {
     id: ticket.assigned_employee.id,
     first_name: ticket.assigned_employee.first_name,
     last_name: ticket.assigned_employee.last_name
-  } : null,
-  tags: (ticket.ticket_tags || []).map(tt => ({
+  } : null;
+
+  // Transform ticket tags to match Tag interface
+  const transformedTags = (ticket.ticket_tags || []).map(tt => ({
     id: tt.tag.id,
     name: tt.tag.name,
     description: '',  // Required field, using empty string as default
     color: tt.tag.color,
-    type: 'custom' as const  // Required field, defaulting to 'custom'
-  })),
-  ai_enabled: ticket.ai_enabled
-});
+    type: 'custom' as const,  // Required field, defaulting to 'custom'
+    added_at: undefined,      // Optional field
+    added_by: undefined       // Optional field
+  }));
+
+  // Return the fully transformed ticket
+  return {
+    id: ticket.id,
+    title: ticket.title,
+    description: ticket.description,
+    status: ticket.status,
+    priority: ticket.priority,
+    created_at: ticket.created_at,
+    category: undefined,  // Optional field
+    tags: transformedTags,
+    satisfaction_rating: ticket.satisfaction_rating,
+    customer: customerData,
+    assigned_employee: assignedEmployeeData,
+    team: undefined,     // Optional field
+    due_date: undefined, // Optional field
+    status_changes: [],  // Optional field, providing empty array
+    activities: [],      // Optional field, providing empty array
+    attachments: [],     // Optional field, providing empty array
+    ai_enabled: ticket.ai_enabled
+  };
+};
 
 /**
  * Dashboard Page Component
