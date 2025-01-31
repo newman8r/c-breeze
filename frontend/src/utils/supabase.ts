@@ -99,9 +99,14 @@ export const getRecentOrganizationTickets = async (organizationId: string) => {
     throw error
   }
   
-  // Transform the tickets to include tags array
+  // Transform the tickets to include tags array and fix customer/employee relations
   const transformedTickets = tickets.map(ticket => ({
     ...ticket,
+    // Take first item from customer array since it's a single relation
+    customer: Array.isArray(ticket.customer) && ticket.customer.length > 0 ? ticket.customer[0] : null,
+    // Take first item from assigned_employee array since it's a single relation
+    assigned_employee: Array.isArray(ticket.assigned_employee) && ticket.assigned_employee.length > 0 ? ticket.assigned_employee[0] : null,
+    // Transform tags as before
     tags: (ticket.ticket_tags || []).map((tt: { tag: any }) => ({
       ...tt.tag,
       description: '', // Add required fields from Tag interface
