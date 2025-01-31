@@ -404,11 +404,18 @@ const toFullScreenTicket = (ticket: DashboardTicket): FullScreenTicket => ({
   priority: ticket.priority,
   created_at: ticket.created_at,
   satisfaction_rating: ticket.satisfaction_rating,
-  customer: ticket.customer ? {
+  customer: ticket.customer && {
     name: ticket.customer.name,
-    email: ticket.customer.email
-  } : undefined,
-  assigned_employee: ticket.assigned_employee || null,
+    email: ticket.customer.email,
+    // Optional fields
+    company: undefined,
+    phone: undefined
+  },
+  assigned_employee: ticket.assigned_employee ? {
+    id: ticket.assigned_employee.id,
+    first_name: ticket.assigned_employee.first_name,
+    last_name: ticket.assigned_employee.last_name
+  } : null,
   tags: (ticket.ticket_tags || []).map(tt => ({
     id: tt.tag.id,
     name: tt.tag.name,
