@@ -287,4 +287,111 @@
   .articlesGrid {
     grid-template-columns: 1fr;
   }
+}
+
+.loadingOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, rgba(240, 249, 255, 0.95), rgba(230, 247, 255, 0.95));
+  backdrop-filter: blur(8px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  animation: fadeIn 0.3s ease-out;
+}
+
+.loadingContent {
+  text-align: center;
+  padding: 2rem;
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.7));
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  max-width: 90%;
+  width: 400px;
+}
+
+.loadingContent h2 {
+  color: #1a1a1a;
+  font-size: 1.5rem;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+}
+
+.loadingContent p {
+  color: #4a5568;
+  margin-bottom: 1rem;
+  font-size: 1.1rem;
+}
+
+.estimateTime {
+  color: #6366f1;
+  font-size: 0.95rem;
+  font-weight: 500;
+  padding: 0.5rem 1rem;
+  background: rgba(99, 102, 241, 0.1);
+  border-radius: 20px;
+  display: inline-block;
+  margin-top: 1rem;
+}
+
+.waveAnimation {
+  height: 100px;
+  width: 100px;
+  position: relative;
+  margin: 0 auto 2rem;
+}
+
+.wave {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 50px;
+  height: 50px;
+  background: linear-gradient(135deg, #4A90E2, #6366f1);
+  border-radius: 42% 58% 70% 30% / 45% 45% 55% 55%;
+  animation: morph 3s linear infinite;
+}
+
+.wave:nth-child(2) {
+  width: 65px;
+  height: 65px;
+  animation-delay: -0.5s;
+  opacity: 0.8;
+  background: linear-gradient(135deg, #60A5FA, #818CF8);
+}
+
+.wave:nth-child(3) {
+  width: 80px;
+  height: 80px;
+  animation-delay: -1s;
+  opacity: 0.6;
+  background: linear-gradient(135deg, #93C5FD, #A5B4FC);
+}
+
+@keyframes morph {
+  0% {
+    border-radius: 42% 58% 70% 30% / 45% 45% 55% 55%;
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+  50% {
+    border-radius: 58% 42% 30% 70% / 55% 55% 45% 45%;
+  }
+  100% {
+    border-radius: 42% 58% 70% 30% / 45% 45% 55% 55%;
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 } 
