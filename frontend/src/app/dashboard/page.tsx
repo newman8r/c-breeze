@@ -384,6 +384,8 @@ interface FullScreenTicket {
   customer?: {
     name: string;
     email: string;
+    company?: string;
+    phone?: string;
   };
   assigned_employee?: {
     id: string;
@@ -394,30 +396,28 @@ interface FullScreenTicket {
 }
 
 // Helper function to convert dashboard Ticket to FullScreenTicket format
-const toFullScreenTicket = (ticket: DashboardTicket): FullScreenTicket => {
-  return {
-    id: ticket.id,
-    title: ticket.title,
-    description: ticket.description,
-    status: ticket.status,
-    priority: ticket.priority,
-    created_at: ticket.created_at,
-    satisfaction_rating: ticket.satisfaction_rating,
-    customer: ticket.customer ? {
-      name: ticket.customer.name,
-      email: ticket.customer.email
-    } : undefined,
-    assigned_employee: ticket.assigned_employee,
-    tags: (ticket.ticket_tags || []).map(tt => ({
-      id: tt.tag.id,
-      name: tt.tag.name,
-      color: tt.tag.color,
-      description: '',
-      type: 'custom' as const
-    })),
-    ai_enabled: true
-  };
-};
+const toFullScreenTicket = (ticket: DashboardTicket): FullScreenTicket => ({
+  id: ticket.id,
+  title: ticket.title,
+  description: ticket.description,
+  status: ticket.status,
+  priority: ticket.priority,
+  created_at: ticket.created_at,
+  satisfaction_rating: ticket.satisfaction_rating,
+  customer: ticket.customer ? {
+    name: ticket.customer.name,
+    email: ticket.customer.email
+  } : undefined,
+  assigned_employee: ticket.assigned_employee || null,
+  tags: (ticket.ticket_tags || []).map(tt => ({
+    id: tt.tag.id,
+    name: tt.tag.name,
+    description: '',  // Required field, using empty string as default
+    color: tt.tag.color,
+    type: 'custom' as const  // Required field, defaulting to 'custom'
+  })),
+  ai_enabled: ticket.ai_enabled
+});
 
 /**
  * Dashboard Page Component
@@ -1296,7 +1296,7 @@ export default function DashboardPage() {
           const foundTicket = tickets.find(t => t.id === selectedTicket.id);
           return foundTicket ? (
             <FullScreenTicket
-              ticket={toFullScreenTicket(foundTicket)}
+              ticket={toFullScreenTicket(foundTicket as DashboardTicket)}
               onClose={() => setSelectedTicket({ id: '', isOpen: false })}
             />
           ) : null;

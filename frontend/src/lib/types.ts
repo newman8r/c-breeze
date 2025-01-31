@@ -22,6 +22,7 @@ export interface Database {
           organization_id: string
           customer_id: string
           satisfaction_rating: number | null
+          ai_enabled: boolean
         }
       }
     }
