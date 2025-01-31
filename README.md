@@ -18,6 +18,37 @@
 - Real-time database connection status
 - User dashboard and profile
 - 3 ticketing feed views to give you a birds eye view
+- RAG document storage/retrieval
+- Multi Agent system
+- AI ticket classification
+- AI ticket triage
+- AI ticket resolution
+- AI ticket prioritization
+- AI ticket assignment
+- tracking with custom tags in langsmith
+- toggle AI agents for any ticket
+
+
+## Screenshots
+
+![Breeze.help Homepage](screenshots/homepage.png)
+*Modern, ocean-inspired landing page with seamless authentication*
+
+![Company Dashboard Overview](screenshots/company-dashboard.png)
+*Comprehensive company dashboard with real-time ticket analytics and team management*
+
+![AI-Powered Ticket Feed](screenshots/ticketfeed.png)
+*Smart ticket feed with AI classification, prioritization, and assignment*
+
+![Real-time Statistics](screenshots/statsbar.png)
+*Live metrics dashboard showing ticket resolution rates and team performance*
+
+![Advanced Ticketing Interface](screenshots/ticketing-panel.png)
+*Full-featured ticketing panel with AI assistance and RAG system integration*
+
+![Secure API Management](screenshots/api-keys.png)
+*API key management interface for secure third-party integrations*
+
 
 ## Tech Stack
 
