@@ -211,6 +211,8 @@ const assignmentSchema = {
 const assignmentModel = model.bind({
   functions: [assignmentSchema],
   function_call: { name: 'determine_ticket_assignment' }
+}).withConfig({
+  tags: ["assignment-test", "ticket-processing"]
 })
 
 // Create the assignment prompt

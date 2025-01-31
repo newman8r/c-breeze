@@ -155,6 +155,8 @@ const analysisModel = model.bind({
     }
   }],
   function_call: { name: 'analyze_conversation' }
+}).withConfig({
+  tags: ["ticket-close-test", "conversation-analysis"]
 })
 
 // Create the response generator prompt
@@ -218,6 +220,8 @@ const responseModel = model.bind({
     }
   }],
   function_call: { name: 'generate_response' }
+}).withConfig({
+  tags: ["ticket-response-test", "conversation-analysis"]
 })
 
 // Create the analysis chain
