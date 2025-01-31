@@ -110,10 +110,10 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
         const data = await response.json();
         setTickets(data.tickets);
         
-        // Initially expand all open tickets
+        // Initially expand all tickets
         const initialExpandedState = data.tickets.reduce((acc: Record<string, boolean>, ticket: Ticket) => ({
           ...acc,
-          [ticket.id]: ticket.status === 'open'
+          [ticket.id]: true // Always set to true instead of checking status
         }), {});
         setExpandedTickets(initialExpandedState);
 
@@ -145,11 +145,16 @@ export default function CustomerDashboard({ company }: CustomerDashboardProps) {
                   const refreshData = await refreshResponse.json();
                   setTickets(refreshData.tickets);
                   
-                  // Automatically expand the new ticket
-                  setExpandedTickets(prev => ({
-                    ...prev,
-                    [payload.new.id]: true
-                  }));
+                  // Automatically expand the new ticket and maintain existing expanded states
+                  setExpandedTickets(prev => {
+                    const newState = { ...prev };
+                    refreshData.tickets.forEach((ticket: Ticket) => {
+                      if (!prev.hasOwnProperty(ticket.id)) {
+                        newState[ticket.id] = true;
+                      }
+                    });
+                    return newState;
+                  });
                 }
               }
             }
