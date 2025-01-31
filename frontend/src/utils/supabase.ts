@@ -104,32 +104,55 @@ export const getRecentOrganizationTickets = async (organizationId: string) => {
     // Get the customer object
     const customer = Array.isArray(ticket.customer) && ticket.customer.length > 0 
       ? ticket.customer[0] 
-      : { id: '', name: '', email: '' };  // Provide default values to match interface
+      : { id: '', name: '', email: '' };
 
     // Get the assigned employee object
     const assigned_employee = Array.isArray(ticket.assigned_employee) && ticket.assigned_employee.length > 0 
-      ? ticket.assigned_employee[0] 
+      ? {
+          id: ticket.assigned_employee[0].id,
+          first_name: ticket.assigned_employee[0].first_name,
+          last_name: ticket.assigned_employee[0].last_name
+        }
       : null;
 
+    // Transform ticket_tags to match the expected structure
+    const ticket_tags = (ticket.ticket_tags || []).map(tt => {
+      const tagData = tt.tag[0] || tt.tag; // Handle both array and single object cases
+      return {
+        tag: {
+          id: tagData.id as string,
+          name: tagData.name as string,
+          color: tagData.color as string
+        }
+      };
+    });
+
+    // Create UI tags array
+    const tags = ticket_tags.map(tt => ({
+      ...tt.tag,
+      description: '',
+      type: 'custom' as const
+    }));
+
     return {
-      id: ticket.id,
-      title: ticket.title,
-      description: ticket.description,
-      status: ticket.status,
-      priority: ticket.priority,
-      created_at: ticket.created_at,
-      updated_at: ticket.updated_at,
-      organization_id: ticket.organization_id,
-      customer_id: ticket.customer_id,
-      satisfaction_rating: ticket.satisfaction_rating,
-      customer,
+      id: ticket.id as string,
+      title: ticket.title as string,
+      description: ticket.description as string,
+      status: ticket.status as string,
+      priority: ticket.priority as string,
+      created_at: ticket.created_at as string,
+      updated_at: ticket.updated_at as string,
+      organization_id: ticket.organization_id as string,
+      customer_id: ticket.customer_id as string,
+      satisfaction_rating: ticket.satisfaction_rating as number | null,
+      customer: {
+        id: customer.id as string,
+        name: customer.name as string,
+        email: customer.email as string
+      },
       assigned_employee,
-      ticket_tags: ticket.ticket_tags || [],
-      tags: (ticket.ticket_tags || []).map((tt: { tag: any }) => ({
-        ...tt.tag,
-        description: '', // Add required fields from Tag interface
-        type: 'custom' as const // Add required fields from Tag interface
-      }))
+      ticket_tags,
+      tags
     };
   });
   
