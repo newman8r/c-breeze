@@ -4,7 +4,6 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { Database } from '@/lib/database.types';
 
 // Decorative shape component
 const BauhausDecoration = ({ className = '' }: { className?: string }) => (
@@ -36,7 +35,7 @@ export default function InvitationForm() {
   const router = useRouter();
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const supabase = createClientComponentClient<Database>();
+  const supabase = createClientComponentClient<any>();
   
   const [status, setStatus] = useState<InvitationStatus>('pending');
   const [invitation, setInvitation] = useState<Invitation | null>(null);
@@ -67,7 +66,7 @@ export default function InvitationForm() {
     const fetchInvitation = async () => {
       try {
         // Create a public client without auth
-        const publicClient = createClientComponentClient<Database>({
+        const publicClient = createClientComponentClient<any>({
           options: {
             global: {
               headers: {} // Clear any auth headers

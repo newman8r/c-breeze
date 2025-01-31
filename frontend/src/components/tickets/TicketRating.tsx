@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
-import { Database } from '@/types/database.types'
 import { StarIcon } from '@heroicons/react/24/solid'
 import { StarIcon as StarOutlineIcon } from '@heroicons/react/24/outline'
 
@@ -17,7 +16,7 @@ export default function TicketRating({ ticketId, currentRating, onRatingSubmit }
   const [hoveredRating, setHoveredRating] = useState<number | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const supabase = createClientComponentClient<Database>()
+  const supabase = createClientComponentClient<any>()
 
   const handleRatingSubmit = async (selectedRating: number) => {
     try {

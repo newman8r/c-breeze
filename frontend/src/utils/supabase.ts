@@ -1,12 +1,11 @@
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
-import type { Database } from '../lib/database.types'
 
-let browserClient: ReturnType<typeof createClientComponentClient<Database>> | null = null
+let browserClient: ReturnType<typeof createClientComponentClient<any>> | null = null
 
 export const createClient = () => {
   if (browserClient) return browserClient
   
-  browserClient = createClientComponentClient<Database>()
+  browserClient = createClientComponentClient<any>()
   return browserClient
 }
 
@@ -102,11 +101,16 @@ export const getRecentOrganizationTickets = async (organizationId: string) => {
   // Transform the tickets to include tags array
   const transformedTickets = tickets.map(ticket => ({
     ...ticket,
-    tags: (ticket.ticket_tags || []).map((tt: { tag: any }) => ({
+    customer: ticket.customer?.[0] || { id: '', name: '', email: '' },
+    assigned_employee: ticket.assigned_employee?.[0] || null,
+    tags: (ticket.ticket_tags || []).map(tt => ({
       ...tt.tag,
-      description: '', // Add required fields from Tag interface
-      type: 'custom' as const // Add required fields from Tag interface
-    }))
+      description: '',
+      type: 'custom' as const
+    })),
+    ticket_tags: ticket.ticket_tags?.map(tt => ({
+      tag: tt.tag[0] || { id: '', name: '', color: '' }
+    })) || []
   }))
   
   console.log('Fetched and transformed tickets:', transformedTickets)

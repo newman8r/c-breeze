@@ -627,9 +627,14 @@ export const FullScreenTicket = ({ ticket: initialTicket, onClose }: FullScreenT
         // Transform ticket_tags to match the Ticket interface
         const transformedTicket: Ticket = {
           ...updatedTicket,
-          tags: (updatedTicket.ticket_tags || []).map((tt: { tag: Tag }) => tt.tag),
-          // Ensure ai_enabled is properly typed as boolean
-          ai_enabled: Boolean(updatedTicket.ai_enabled)
+          customer: updatedTicket.customer?.[0] || { name: '', email: '' },
+          assigned_employee: updatedTicket.assigned_employee?.[0] || null,
+          tags: (updatedTicket.ticket_tags || []).map((tt: any) => ({
+            ...tt.tag,
+            description: '',
+            type: 'custom' as const
+          })),
+          ai_enabled: false
         }
         setTicket(transformedTicket)
       }
@@ -687,9 +692,14 @@ export const FullScreenTicket = ({ ticket: initialTicket, onClose }: FullScreenT
           // Transform ticket_tags to match the Ticket interface
           const transformedTicket: Ticket = {
             ...updatedTicket,
-            tags: (updatedTicket.ticket_tags || []).map((tt: { tag: Tag }) => tt.tag),
-            // Ensure ai_enabled is properly typed as boolean
-            ai_enabled: Boolean(updatedTicket.ai_enabled)
+            customer: updatedTicket.customer?.[0] || { name: '', email: '' },
+            assigned_employee: updatedTicket.assigned_employee?.[0] || null,
+            tags: (updatedTicket.ticket_tags || []).map((tt: any) => ({
+              ...tt.tag,
+              description: '',
+              type: 'custom' as const
+            })),
+            ai_enabled: false
           }
           setTicket(transformedTicket)
         }
