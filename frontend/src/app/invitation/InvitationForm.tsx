@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { Database } from '@/lib/database.types';
+import { Database } from '@/lib/types';
 
 // Decorative shape component
 const BauhausDecoration = ({ className = '' }: { className?: string }) => (

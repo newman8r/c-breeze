@@ -1,5 +1,5 @@
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
-import type { Database } from './database.types'
+import type { Database } from './types'
 
 let browserClient: ReturnType<typeof createClientComponentClient<Database>> | null = null
 
