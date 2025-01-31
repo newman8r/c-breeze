@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { createClient } from '@/utils/supabase'
 import { StarIcon } from '@heroicons/react/24/solid'
+import styles from './FullScreenTicket.module.css'
 
 interface Employee {
   id: string
@@ -60,6 +61,7 @@ interface Ticket {
     name: string
     size: string
   }>
+  ai_enabled: boolean
 }
 
 interface TicketMessage {
@@ -131,6 +133,7 @@ async function modifyTicket(updates: {
   status?: string
   priority?: string
   assigned_employee_id?: string | null
+  ai_enabled?: boolean
 }) {
   try {
     console.log('Sending request with updates:', updates)
@@ -166,10 +169,11 @@ async function modifyTicket(updates: {
 }
 
 export const FullScreenTicket = ({ ticket: initialTicket, onClose }: FullScreenTicketProps) => {
-  const [ticket, setTicket] = useState<Ticket>({
+  const [ticket, setTicket] = useState<Ticket>(() => ({
     ...initialTicket,
-    tags: initialTicket.tags || []
-  })
+    tags: initialTicket.tags || [],
+    ai_enabled: Boolean(initialTicket.ai_enabled)
+  }))
   const [activeTab, setActiveTab] = useState('details')
   const [showAssignModal, setShowAssignModal] = useState(false)
   const [showMergeModal, setShowMergeModal] = useState(false)
@@ -193,6 +197,7 @@ export const FullScreenTicket = ({ ticket: initialTicket, onClose }: FullScreenT
   const [tagInput, setTagInput] = useState('')
   const [isAddingTag, setIsAddingTag] = useState(false)
   const [tagError, setTagError] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -435,15 +440,23 @@ export const FullScreenTicket = ({ ticket: initialTicket, onClose }: FullScreenT
           filter: `id=eq.${ticket.id}`,
         },
         (payload) => {
+          console.log('Received ticket update:', payload.new)
           // Update ticket with all fields from the payload while preserving existing fields
           setTicket(currentTicket => ({
             ...currentTicket,
             ...payload.new,
+            // Ensure ai_enabled is properly typed as boolean
+            ai_enabled: Boolean(payload.new.ai_enabled),
             // Ensure these nested objects are preserved
             customer: currentTicket.customer,
             assigned_employee: currentTicket.assigned_employee,
-            ticket_tags: currentTicket.ticket_tags
+            tags: currentTicket.tags
           }))
+          
+          // If AI was disabled, ensure we clear the loading state
+          if (!payload.new.ai_enabled) {
+            setIsSubmitting(false)
+          }
         }
       )
       .subscribe()
@@ -506,6 +519,7 @@ export const FullScreenTicket = ({ ticket: initialTicket, onClose }: FullScreenT
   const handleSendMessage = async () => {
     try {
       setMessageError(null)
+      setIsSubmitting(true)
       const supabase = createClient()
       const { data: { session } } = await supabase.auth.getSession()
 
@@ -550,6 +564,17 @@ export const FullScreenTicket = ({ ticket: initialTicket, onClose }: FullScreenT
     } catch (error: any) {
       console.error('Error sending message:', error)
       setMessageError(error.message || 'Failed to send message')
+    } finally {
+      // Only keep loading state if AI is enabled
+      if (!ticket.ai_enabled) {
+        setIsSubmitting(false)
+      } else {
+        // For AI-enabled tickets, we'll let the message subscription handle the loading state
+        // Add a safety timeout to ensure loading state is cleared even if no response comes
+        setTimeout(() => {
+          setIsSubmitting(false)
+        }, 30000) // 30 second safety timeout
+      }
     }
   }
 
@@ -572,6 +597,7 @@ export const FullScreenTicket = ({ ticket: initialTicket, onClose }: FullScreenT
           organization_id,
           customer_id,
           satisfaction_rating,
+          ai_enabled,
           customer:customers(
             id,
             name,
@@ -601,7 +627,9 @@ export const FullScreenTicket = ({ ticket: initialTicket, onClose }: FullScreenT
         // Transform ticket_tags to match the Ticket interface
         const transformedTicket: Ticket = {
           ...updatedTicket,
-          tags: (updatedTicket.ticket_tags || []).map((tt: { tag: Tag }) => tt.tag)
+          tags: (updatedTicket.ticket_tags || []).map((tt: { tag: Tag }) => tt.tag),
+          // Ensure ai_enabled is properly typed as boolean
+          ai_enabled: Boolean(updatedTicket.ai_enabled)
         }
         setTicket(transformedTicket)
       }
@@ -629,6 +657,7 @@ export const FullScreenTicket = ({ ticket: initialTicket, onClose }: FullScreenT
             organization_id,
             customer_id,
             satisfaction_rating,
+            ai_enabled,
             customer:customers(
               id,
               name,
@@ -658,7 +687,9 @@ export const FullScreenTicket = ({ ticket: initialTicket, onClose }: FullScreenT
           // Transform ticket_tags to match the Ticket interface
           const transformedTicket: Ticket = {
             ...updatedTicket,
-            tags: (updatedTicket.ticket_tags || []).map((tt: { tag: Tag }) => tt.tag)
+            tags: (updatedTicket.ticket_tags || []).map((tt: { tag: Tag }) => tt.tag),
+            // Ensure ai_enabled is properly typed as boolean
+            ai_enabled: Boolean(updatedTicket.ai_enabled)
           }
           setTicket(transformedTicket)
         }
@@ -749,8 +780,64 @@ export const FullScreenTicket = ({ ticket: initialTicket, onClose }: FullScreenT
     }
   }
 
+  // Update the shouldShowLoading function to be more explicit
+  const shouldShowLoading = useCallback((isSubmitting: boolean, ticket: Ticket) => {
+    return isSubmitting && ticket.ai_enabled;
+  }, []);
+
+  // Update the LoadingOverlay component to be more explicit about conditions
+  const LoadingOverlay = () => {
+    const showLoading = shouldShowLoading(isSubmitting, ticket);
+    
+    if (!showLoading) return null;
+
+    return (
+      <div className={styles.loadingOverlay}>
+        <div className={styles.loadingContent}>
+          <div className={styles.waveAnimation}>
+            <div className={styles.wave}></div>
+            <div className={styles.wave}></div>
+            <div className={styles.wave}></div>
+          </div>
+          <h2>Creating Your Support Ticket</h2>
+          <p>Our AI assistant is analyzing your inquiry</p>
+          <div className={styles.estimateTime}>Expected wait time: &lt; 1 minute</div>
+        </div>
+      </div>
+    );
+  };
+
+  const handleAiToggle = async () => {
+    try {
+      const prevEnabled = ticket.ai_enabled;
+      
+      // Don't update the UI state until we get a successful response
+      const result = await modifyTicket({
+        ticket_id: ticket.id,
+        ai_enabled: !prevEnabled
+      });
+
+      if (!result) {
+        throw new Error('Failed to update AI setting');
+      }
+
+      // The real-time subscription will handle updating the UI state
+      // This prevents any race conditions or state mismatches
+
+      // Clear loading state if AI was disabled
+      if (!result.ai_enabled) {
+        setIsSubmitting(false);
+      }
+    } catch (error) {
+      console.error('Failed to update AI setting:', error);
+      // Show error message to user
+      setMessageError('Failed to update AI assistant setting. Please try again.');
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-[100] bg-gradient-to-br from-blue-50/95 to-white/95 backdrop-blur-sm overflow-y-auto">
+      <LoadingOverlay />
       {/* Bauhaus-inspired decorative elements */}
       <div className="absolute top-0 right-0 w-48 h-48 bg-yellow-200/20 rounded-full -translate-y-1/2 translate-x-1/2" />
       <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-200/20 rounded-full translate-y-1/2 -translate-x-1/2" />
@@ -1313,6 +1400,32 @@ export const FullScreenTicket = ({ ticket: initialTicket, onClose }: FullScreenT
                   <span>👤</span>
                   <span>Assign</span>
                 </button>
+              </div>
+
+              {/* AI Toggle */}
+              <div className="mt-4 pt-4 border-t border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-[#2C5282]">AI Assistant</p>
+                    <p className="text-sm text-gray-600">
+                      {ticket.ai_enabled 
+                        ? 'AI responses are enabled for this ticket'
+                        : 'AI responses are disabled for this ticket'}
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleAiToggle}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      ticket.ai_enabled ? 'bg-[#4A90E2]' : 'bg-gray-200'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        ticket.ai_enabled ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
               </div>
             </div>
 

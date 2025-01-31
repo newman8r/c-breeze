@@ -466,4 +466,143 @@
   @apply p-4 rounded-lg text-gray-700 text-sm leading-relaxed;
   background: rgba(255, 255, 255, 0.5);
   border: 1px solid rgba(147, 197, 253, 0.2);
+}
+
+.queryInputWrapper {
+  display: flex;
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+
+.queryInput {
+  flex: 1;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  font-size: 1rem;
+  background: var(--background);
+  color: var(--foreground);
+}
+
+.queryInput:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--primary-alpha);
+}
+
+.queryButton {
+  padding: 0.75rem 1.5rem;
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: 0.5rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.queryButton:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.queryButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.queryResult {
+  margin-top: 1.5rem;
+  padding: 1.5rem;
+  border-radius: 0.5rem;
+  background: var(--muted);
+}
+
+.queryError {
+  color: var(--destructive);
+  font-weight: 500;
+}
+
+.queryAnswer h3 {
+  margin: 0 0 0.75rem 0;
+  font-size: 1.1rem;
+  color: var(--foreground);
+}
+
+.queryAnswer p {
+  margin: 0;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.card {
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.section {
+  margin-top: 2rem;
+}
+
+.section h2 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: var(--foreground);
+}
+
+.description {
+  color: var(--muted-foreground);
+  margin-bottom: 1rem;
+}
+
+.input {
+  @apply w-full p-3 rounded-lg bg-white/50 border border-gray-200 mb-3;
+  transition: all 0.2s ease-in-out;
+}
+
+.input:focus {
+  @apply bg-white/80 outline-none ring-2 ring-blue-300;
+}
+
+.textarea {
+  @apply w-full p-3 rounded-lg bg-white/50 border border-gray-200 mb-3;
+  transition: all 0.2s ease-in-out;
+}
+
+.textarea:focus {
+  @apply bg-white/80 outline-none ring-2 ring-blue-300;
+}
+
+.inputGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.result {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 16px;
+  margin-top: 16px;
+}
+
+.result h4 {
+  margin: 0 0 12px 0;
+  color: var(--text-color);
+}
+
+.pre {
+  background: var(--code-bg);
+  padding: 12px;
+  border-radius: 4px;
+  overflow-x: auto;
+  font-family: monospace;
+  font-size: 13px;
+  margin: 0;
+  color: var(--text-color);
 } 

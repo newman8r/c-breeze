@@ -18,6 +18,22 @@ interface CustomerPortalProps {
   error: string | null;
 }
 
+// Add loading overlay component
+const LoadingOverlay = () => (
+  <div className={styles.loadingOverlay}>
+    <div className={styles.loadingContent}>
+      <div className={styles.waveAnimation}>
+        <div className={styles.wave}></div>
+        <div className={styles.wave}></div>
+        <div className={styles.wave}></div>
+      </div>
+      <h2>Creating Your Support Ticket</h2>
+      <p>Our AI assistant is analyzing your inquiry</p>
+      <div className={styles.estimateTime}>Expected wait time: &lt; 1 minute</div>
+    </div>
+  </div>
+);
+
 export default function CustomerPortal({ 
   company, 
   onSubmit,
@@ -45,6 +61,9 @@ export default function CustomerPortal({
 
   return (
     <div className={styles.container}>
+      {/* Show loading overlay when submitting */}
+      {isSubmitting && <LoadingOverlay />}
+      
       {/* Bauhaus-inspired decorative elements */}
       <div className={styles.decorativeWave} />
       <div className={styles.decorativeCircle} />

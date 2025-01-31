@@ -61,6 +61,17 @@ serve(async (req) => {
 
     if (userError) throw userError
 
+    // Get the user's organization
+    const { data: employeeData, error: employeeError } = await supabaseClient
+      .from('employees')
+      .select('organization_id')
+      .eq('user_id', user.id)
+      .single()
+
+    if (employeeError || !employeeData) {
+      throw new Error('Could not determine organization')
+    }
+
     // Generate a unique path for the file
     const timestamp = new Date().getTime()
     const path = `${user.id}/${timestamp}-${fileName}`
@@ -77,11 +88,20 @@ serve(async (req) => {
         storage_path: path,
         metadata: {},
         user_id: user.id,
+        organization_id: employeeData.organization_id
       })
       .select()
       .single()
 
     if (documentError) throw documentError
+
+    // Update RAG settings status to needs_rebuild
+    const { error: settingsError } = await supabaseClient
+      .from('rag_settings')
+      .update({ status: 'needs_rebuild' })
+      .eq('organization_id', employeeData.organization_id)
+
+    if (settingsError) throw settingsError
 
     return new Response(
       JSON.stringify({ 

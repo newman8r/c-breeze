@@ -197,6 +197,7 @@ export type Database = {
         Row: {
           contact_info: Json | null
           created_at: string
+          created_by_ai: boolean | null
           email: string
           id: string
           last_login_at: string | null
@@ -208,6 +209,7 @@ export type Database = {
         Insert: {
           contact_info?: Json | null
           created_at?: string
+          created_by_ai?: boolean | null
           email: string
           id?: string
           last_login_at?: string | null
@@ -219,6 +221,7 @@ export type Database = {
         Update: {
           contact_info?: Json | null
           created_at?: string
+          created_by_ai?: boolean | null
           email?: string
           id?: string
           last_login_at?: string | null
@@ -281,6 +284,69 @@ export type Database = {
           },
           {
             foreignKeyName: "document_chunks_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      document_processing_queue: {
+        Row: {
+          attempt_count: number | null
+          chunk_size: number
+          chunk_start: number
+          chunks_created: number | null
+          created_at: string | null
+          document_id: string | null
+          error_message: string | null
+          id: string
+          organization_id: string | null
+          processed_at: string | null
+          status: Database["public"]["Enums"]["document_chunk_status"]
+          total_size: number
+          updated_at: string | null
+        }
+        Insert: {
+          attempt_count?: number | null
+          chunk_size: number
+          chunk_start: number
+          chunks_created?: number | null
+          created_at?: string | null
+          document_id?: string | null
+          error_message?: string | null
+          id?: string
+          organization_id?: string | null
+          processed_at?: string | null
+          status?: Database["public"]["Enums"]["document_chunk_status"]
+          total_size: number
+          updated_at?: string | null
+        }
+        Update: {
+          attempt_count?: number | null
+          chunk_size?: number
+          chunk_start?: number
+          chunks_created?: number | null
+          created_at?: string | null
+          document_id?: string | null
+          error_message?: string | null
+          id?: string
+          organization_id?: string | null
+          processed_at?: string | null
+          status?: Database["public"]["Enums"]["document_chunk_status"]
+          total_size?: number
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_processing_queue_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "rag_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_processing_queue_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -574,6 +640,7 @@ export type Database = {
           id: string
           metadata: Json | null
           name: string
+          organization_id: string
           processed_at: string | null
           status: string
           storage_path: string
@@ -590,6 +657,7 @@ export type Database = {
           id?: string
           metadata?: Json | null
           name: string
+          organization_id: string
           processed_at?: string | null
           status?: string
           storage_path: string
@@ -606,13 +674,22 @@ export type Database = {
           id?: string
           metadata?: Json | null
           name?: string
+          organization_id?: string
           processed_at?: string | null
           status?: string
           storage_path?: string
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "rag_documents_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       rag_settings: {
         Row: {
@@ -668,6 +745,7 @@ export type Database = {
           created_by: string | null
           description: string | null
           id: string
+          is_ai_generated: boolean
           name: string
           organization_id: string
           type: Database["public"]["Enums"]["tag_type"]
@@ -679,6 +757,7 @@ export type Database = {
           created_by?: string | null
           description?: string | null
           id?: string
+          is_ai_generated?: boolean
           name: string
           organization_id: string
           type?: Database["public"]["Enums"]["tag_type"]
@@ -690,6 +769,7 @@ export type Database = {
           created_by?: string | null
           description?: string | null
           id?: string
+          is_ai_generated?: boolean
           name?: string
           organization_id?: string
           type?: Database["public"]["Enums"]["tag_type"]
@@ -701,6 +781,60 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ticket_analysis: {
+        Row: {
+          created_at: string | null
+          error_message: string | null
+          id: string
+          organization_id: string
+          processing_results: Json | null
+          response_generation_results: Json | null
+          status: Database["public"]["Enums"]["ticket_analysis_status"]
+          ticket_id: string
+          updated_at: string | null
+          vector_search_results: Json | null
+        }
+        Insert: {
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          organization_id: string
+          processing_results?: Json | null
+          response_generation_results?: Json | null
+          status?: Database["public"]["Enums"]["ticket_analysis_status"]
+          ticket_id: string
+          updated_at?: string | null
+          vector_search_results?: Json | null
+        }
+        Update: {
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          organization_id?: string
+          processing_results?: Json | null
+          response_generation_results?: Json | null
+          status?: Database["public"]["Enums"]["ticket_analysis_status"]
+          ticket_id?: string
+          updated_at?: string | null
+          vector_search_results?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ticket_analysis_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ticket_analysis_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets"
             referencedColumns: ["id"]
           },
         ]
@@ -782,18 +916,21 @@ export type Database = {
         Row: {
           created_at: string
           created_by: string | null
+          is_ai_generated: boolean
           tag_id: string
           ticket_id: string
         }
         Insert: {
           created_at?: string
           created_by?: string | null
+          is_ai_generated?: boolean
           tag_id: string
           ticket_id: string
         }
         Update: {
           created_at?: string
           created_by?: string | null
+          is_ai_generated?: boolean
           tag_id?: string
           ticket_id?: string
         }
@@ -816,9 +953,12 @@ export type Database = {
       }
       tickets: {
         Row: {
+          ai_enabled: boolean
+          ai_metadata: Json | null
           assigned_to: string | null
           category: string | null
           created_at: string
+          created_by_ai: boolean | null
           customer_id: string
           description: string
           due_date: string | null
@@ -834,9 +974,12 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          ai_enabled?: boolean
+          ai_metadata?: Json | null
           assigned_to?: string | null
           category?: string | null
           created_at?: string
+          created_by_ai?: boolean | null
           customer_id: string
           description: string
           due_date?: string | null
@@ -852,9 +995,12 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          ai_enabled?: boolean
+          ai_metadata?: Json | null
           assigned_to?: string | null
           category?: string | null
           created_at?: string
+          created_by_ai?: boolean | null
           customer_id?: string
           description?: string
           due_date?: string | null
@@ -1166,19 +1312,34 @@ export type Database = {
         }
         Returns: string
       }
-      match_chunks: {
-        Args: {
-          query_embedding: string
-          match_threshold?: number
-          match_count?: number
-        }
-        Returns: {
-          id: number
-          document_id: string
-          content: string
-          similarity: number
-        }[]
-      }
+      match_chunks:
+        | {
+            Args: {
+              query_embedding: string
+              match_threshold?: number
+              match_count?: number
+            }
+            Returns: {
+              id: number
+              document_id: string
+              content: string
+              similarity: number
+            }[]
+          }
+        | {
+            Args: {
+              query_embedding: string
+              match_threshold?: number
+              match_count?: number
+              organization_id?: string
+            }
+            Returns: {
+              id: number
+              document_id: string
+              content: string
+              similarity: number
+            }[]
+          }
       match_documents: {
         Args: {
           query_embedding: string
@@ -1279,6 +1440,7 @@ export type Database = {
     Enums: {
       action_type: "create" | "read" | "update" | "delete" | "execute" | "other"
       actor_type: "employee" | "customer" | "ai" | "system"
+      document_chunk_status: "pending" | "processing" | "completed" | "failed"
       document_processing_status:
         | "pending"
         | "processing"
@@ -1309,6 +1471,7 @@ export type Database = {
         | "document"
       severity_level: "info" | "warning" | "error" | "critical"
       tag_type: "system" | "custom"
+      ticket_analysis_status: "pending" | "processing" | "completed" | "error"
       user_role: "customer" | "employee" | "admin"
       vector_store_status:
         | "not_built"

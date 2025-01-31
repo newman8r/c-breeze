@@ -54,6 +54,110 @@ interface SearchResult {
   }
 }
 
+interface RagQueryResponse {
+  answer: string
+  error?: string
+}
+
+const MultiAgentTest = () => {
+  const [inquiry, setInquiry] = useState('')
+  const [customerEmail, setCustomerEmail] = useState('')
+  const [customerName, setCustomerName] = useState('Test Customer') // Default name for testing
+  const [result, setResult] = useState<any>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  
+  const supabase = createClientComponentClient()
+
+  const handleTest = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      
+      // Get the session for authentication
+      const { data: { session } } = await supabase.auth.getSession()
+      
+      // Get the organization ID
+      const { data: employeeData, error: employeeError } = await supabase
+        .from('employees')
+        .select('organization_id')
+        .single()
+
+      if (employeeError || !employeeData?.organization_id) {
+        throw new Error('Could not determine organization')
+      }
+      
+      const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/ticket-analysis`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`
+        },
+        body: JSON.stringify({ 
+          customerInquiry: inquiry,
+          customerEmail,
+          customerName,
+          organizationId: employeeData.organization_id
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to analyze inquiry')
+      }
+
+      const data = await response.json()
+      setResult(data.state)
+    } catch (err) {
+      console.error('Error testing multi-agent system:', err)
+      setError(err instanceof Error ? err.message : 'An error occurred')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className={styles.card}>
+      <h3>Multi-Agent System Test</h3>
+      <div className={styles.inputGroup}>
+        <input
+          type="email"
+          value={customerEmail}
+          onChange={(e) => setCustomerEmail(e.target.value)}
+          placeholder="Customer email address..."
+          className={styles.input}
+        />
+        <textarea
+          value={inquiry}
+          onChange={(e) => setInquiry(e.target.value)}
+          placeholder="Enter customer inquiry to test the multi-agent system..."
+          className={styles.textarea}
+          rows={4}
+        />
+        <button
+          onClick={handleTest}
+          disabled={loading || !inquiry.trim() || !customerEmail.trim()}
+          className={styles.button}
+        >
+          {loading ? 'Processing...' : 'Test Multi-Agent System'}
+        </button>
+      </div>
+      {error && (
+        <div className={styles.error}>
+          {error}
+        </div>
+      )}
+      {result && (
+        <div className={styles.result}>
+          <h4>Analysis Result:</h4>
+          <pre className={styles.pre}>
+            {JSON.stringify(result, null, 2)}
+          </pre>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function RagPanel() {
   const [searchQuery, setSearchQuery] = useState('');
   const [chunkSize, setChunkSize] = useState(500);
@@ -70,6 +174,9 @@ export default function RagPanel() {
   const [isSearching, setIsSearching] = useState(false)
   const [searchError, setSearchError] = useState<string | null>(null)
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
+  const [queryInput, setQueryInput] = useState('')
+  const [queryResult, setQueryResult] = useState<RagQueryResponse | null>(null)
+  const [isQuerying, setIsQuerying] = useState(false)
 
   const supabase = createClientComponentClient();
 
@@ -215,8 +322,22 @@ export default function RagPanel() {
     setSearchResults([])
 
     try {
+      // Get organization ID first
+      const { data: employeeData } = await supabase
+        .from('employees')
+        .select('organization_id')
+        .single()
+
+      if (!employeeData?.organization_id) {
+        throw new Error('Could not determine organization')
+      }
+
       const { data, error } = await supabase.functions.invoke('search-rag-documents', {
-        body: { query: testQuery, limit: 5 }
+        body: { 
+          query: testQuery, 
+          limit: 5,
+          organization_id: employeeData.organization_id
+        }
       })
 
       if (error) throw error
@@ -311,6 +432,40 @@ export default function RagPanel() {
       'text/plain': ['.txt']
     },
   });
+
+  const handleQuery = async () => {
+    if (!queryInput.trim()) return
+    
+    setIsQuerying(true)
+    setQueryResult(null)
+    
+    try {
+      // Get organization ID first
+      const { data: employeeData } = await supabase
+        .from('employees')
+        .select('organization_id')
+        .single()
+
+      if (!employeeData?.organization_id) {
+        throw new Error('Could not determine organization')
+      }
+
+      const { data, error } = await supabase.functions.invoke<RagQueryResponse>('rag-query', {
+        body: { 
+          query: queryInput,
+          organization_id: employeeData.organization_id 
+        }
+      })
+      
+      if (error) throw error
+      setQueryResult(data)
+    } catch (error) {
+      console.error('Query error:', error)
+      setQueryResult({ answer: '', error: error instanceof Error ? error.message : 'Failed to query' })
+    } finally {
+      setIsQuerying(false)
+    }
+  }
 
   return (
     <div className={styles.ragPanel}>
@@ -617,6 +772,48 @@ export default function RagPanel() {
           </div>
         )}
       </div>
+
+      <div className={`${styles.section} ${styles.card}`}>
+        <h2>Test RAG Query</h2>
+        <p className={styles.description}>
+          Test the RAG system by asking questions about your uploaded documents.
+        </p>
+        
+        <div className={styles.queryInputWrapper}>
+          <input
+            type="text"
+            value={queryInput}
+            onChange={(e) => setQueryInput(e.target.value)}
+            placeholder="Ask a question about your documents..."
+            className={styles.queryInput}
+            onKeyDown={(e) => e.key === 'Enter' && handleQuery()}
+          />
+          <button
+            onClick={handleQuery}
+            disabled={isQuerying || !queryInput.trim()}
+            className={styles.queryButton}
+          >
+            {isQuerying ? 'Querying...' : 'Ask'}
+          </button>
+        </div>
+
+        {queryResult && (
+          <div className={styles.queryResult}>
+            {queryResult.error ? (
+              <div className={styles.queryError}>
+                Error: {queryResult.error}
+              </div>
+            ) : (
+              <div className={styles.queryAnswer}>
+                <h3>Answer:</h3>
+                <p>{queryResult.answer}</p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      <MultiAgentTest />
     </div>
   );
 } 
