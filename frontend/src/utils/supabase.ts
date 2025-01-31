@@ -72,6 +72,7 @@ export const getRecentOrganizationTickets = async (organizationId: string) => {
       organization_id,
       customer_id,
       satisfaction_rating,
+      ai_enabled,
       customer:customers(
         id,
         name,
@@ -145,6 +146,7 @@ export const getRecentOrganizationTickets = async (organizationId: string) => {
       organization_id: ticket.organization_id as string,
       customer_id: ticket.customer_id as string,
       satisfaction_rating: ticket.satisfaction_rating as number | null,
+      ai_enabled: ticket.ai_enabled ?? true,
       customer: {
         id: customer.id as string,
         name: customer.name as string,
@@ -152,7 +154,7 @@ export const getRecentOrganizationTickets = async (organizationId: string) => {
       },
       assigned_employee,
       ticket_tags,
-      tags
+      tags,
     };
   });
   
